@@ -1606,8 +1606,8 @@
     // 2. 3D Tilt Effect on Cards (Pillars & Hybrid locations)
     const tiltElements = document.querySelectorAll('.group, .bg-dark.border.border-dark-border');
     tiltElements.forEach(el => {
-      // Avoid tilting very large layouts or non-card containers
-      if (el.classList.contains('max-w-7xl') || el.classList.contains('space-y-24') || el.classList.contains('max-w-5xl')) return;
+      // Avoid tilting very large layouts, modals, lightboxes or non-card containers
+      if (el.classList.contains('max-w-7xl') || el.classList.contains('space-y-24') || el.classList.contains('max-w-5xl') || el.closest('#bookingModal') || el.closest('#imageLightbox')) return;
       
       el.addEventListener('mousemove', (e) => {
         const rect = el.getBoundingClientRect();
