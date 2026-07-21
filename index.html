@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NextLevel Goalkeeping Academy | Torwarttraining auf NLZ-Niveau</title>
+  <meta name="description" content="Werde zur unüberwindbaren Mauer. Profi-Torwarttraining direkt aus dem NLZ. Kognition, Athletik und Antizipation für ambitionierte Keeper.">
+  
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Custom Tailwind Configuration -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              DEFAULT: '#0A0D14',
+              light: '#131824',
+              lighter: '#1C2336',
+              border: '#2A344A'
+            },
+            neonGreen: {
+              DEFAULT: '#39FF14',
+              hover: '#29e00c',
+              glow: 'rgba(57, 255, 20, 0.4)',
+              dim: 'rgba(57, 255, 20, 0.1)'
+            },
+            accentCyan: {
+              DEFAULT: '#06B6D4',
+              hover: '#0891B2',
+              glow: 'rgba(6, 182, 212, 0.4)',
+              dim: 'rgba(6, 182, 212, 0.1)'
+            }
+          },
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+          },
+          animation: {
+            'pulse-glow': 'pulseGlow 2s infinite',
+            'float': 'floatDevice 6s ease-in-out infinite',
+            'blob': 'blobAnimation 10s infinite',
+            'float-ball-1': 'floatBall1 20s infinite ease-in-out',
+            'float-ball-2': 'floatBall2 25s infinite ease-in-out',
+          },
+          keyframes: {
+            pulseGlow: {
+              '0%, 100%': { boxShadow: '0 0 15px rgba(57,255,20,0.4)' },
+              '50%': { boxShadow: '0 0 25px rgba(57,255,20,0.8)' },
+            },
+            floatDevice: {
+              '0%, 100%': { transform: 'translateY(0px) rotate(0.5deg)' },
+              '50%': { transform: 'translateY(-10px) rotate(-0.5deg)' },
+            },
+            blobAnimation: {
+              '0%, 100%': { transform: 'translate(0px, 0px) scale(1)' },
+              '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+              '66%': { transform: 'translate(-20px, 20px) scale(0.95)' },
+            },
+            floatBall1: {
+              '0%, 100%': { transform: 'translate(0px, 0px) rotate(0deg) scale(0.7)' },
+              '50%': { transform: 'translate(120px, -180px) rotate(180deg) scale(0.9)' },
+            },
+            floatBall2: {
+              '0%, 100%': { transform: 'translate(0px, 0px) rotate(360deg) scale(0.8)' },
+              '50%': { transform: 'translate(-140px, 140px) rotate(180deg) scale(0.6)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: #0A0D14;
+    }
+    /* Smooth Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0A0D14;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1C2336;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #39FF14;
+    }
+    @keyframes keeperFloat {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-12px) rotate(1deg); }
+    }
+    .animate-keeper-float {
+      animation: keeperFloat 6s ease-in-out infinite;
+    }
+    @keyframes calendarSway {
+      0%, 100% { transform: rotate(6deg) translateY(0px) scale(1); }
+      50% { transform: rotate(9deg) translateY(-10px) scale(1.05); }
+    }
+    .animate-calendar-sway {
+      animation: calendarSway 6s ease-in-out infinite;
+    }
+    #calendar-front-page {
+      transform-origin: top;
+      transform-style: preserve-3d;
+      backface-visibility: hidden;
+      transition: transform 0.8s cubic-bezier(0.45, 0, 0.55, 1), opacity 0.8s ease-in;
+    }
+    .calendar-flip-active {
+      transform: rotateX(-120deg);
+      opacity: 0;
+    }
+    .perspective-1000 {
+      perspective: 1000px;
+    }
+  </style>
+</head>
+<body class="text-slate-100 overflow-x-hidden antialiased">
+
+  <!-- Background Decorative Glowing Orbs -->
+  <div class="absolute top-[10%] left-[-10%] w-[500px] h-[500px] bg-neonGreen/10 rounded-full mix-blend-screen filter blur-[120px] pointer-events-none animate-blob"></div>
+  <div class="absolute top-[30%] right-[-10%] w-[600px] h-[600px] bg-accentCyan/15 rounded-full mix-blend-screen filter blur-[150px] pointer-events-none animate-blob" style="animation-delay: 2s;"></div>
+  <div class="absolute bottom-[20%] left-[20%] w-[500px] h-[500px] bg-neonGreen/5 rounded-full mix-blend-screen filter blur-[120px] pointer-events-none animate-blob" style="animation-delay: 4s;"></div>
+
+  <!-- Animated Flying Soccer Balls in Background -->
+  <div class="absolute top-[15%] left-[5%] opacity-20 pointer-events-none animate-float-ball-1 z-0">
+    <svg class="w-16 h-16 sm:w-24 sm:h-24 text-neonGreen/20" viewBox="0 0 512 512" fill="currentColor">
+      <path d="M256 0C114.6 0 0 114.6 0 256s114.6 256 256 256s256-114.6 256-256S397.4 0 256 0zm0 464c-114.7 0-208-93.3-208-208S141.3 48 256 48s208 93.3 208 208s-93.3 208-208 208zm114-162.7l-45.7-14.8c-1.8-.6-3.8-.6-5.6 0l-45.7 14.8c-3.1 1-5.1 3.9-5.1 7.1v48.1c0 3.2 2 6.1 5.1 7.1l45.7 14.8c.9.3 1.9.4 2.8.4s1.9-.1 2.8-.4l45.7-14.8c3.1-1 5.1-3.9 5.1-7.1v-48.1c0-3.2-2-6.1-5.1-7.1zm-178.6 30.6l-30.8 38.3c-2.1 2.6-2 6.3.2 8.7l34.8 38.3c2.3 2.5 5.9 3.1 8.8 1.4l41.5-24.8c2.9-1.7 4.3-5.1 3.4-8.4l-14-48.1c-1-3.3-4-5.6-7.5-5.6h-28.9c-2.7 0-5.3 1.1-6.9 3.2v.4zm202.9-166.7l-41.5-24.8c-2.9-1.7-6.5-1.1-8.8 1.4l-34.8 38.3c-2.2 2.4-2.3 6.1-.2 8.7l30.8 38.3c1.6 2.1 4.2 3.2 6.9 3.2h28.9c3.5 0 6.5-2.3 7.5-5.6l14-48.1c.9-3.3-.5-6.7-3.4-8.4l.6.1zm-215 30.4c-.9-3.3-3.9-5.6-7.4-5.6H142c-2.7 0-5.3 1.1-6.9 3.2l-30.8 38.3c-2.1 2.6-2 6.3.2 8.7l34.8 38.3c2.3 2.5 5.9 3.1 8.8 1.4l41.5-24.8c2.9-1.7 4.3-5.1 3.4-8.4l-14-48.1zm150.7-93l-45.7 14.8c-3.1 1-5.1 3.9-5.1 7.1v48.1c0 3.2 2 6.1 5.1 7.1l45.7 14.8c.9.3 1.9.4 2.8.4s1.9-.1 2.8-.4l45.7-14.8c3.1-1 5.1-3.9 5.1-7.1V99.8c0-3.2-2-6.1-5.1-7.1l-45.7-14.8z"/>
+    </svg>
+  </div>
+  <div class="absolute top-[60%] right-[10%] opacity-15 pointer-events-none animate-float-ball-2 z-0">
+    <svg class="w-20 h-20 sm:w-28 sm:h-28 text-accentCyan/20" viewBox="0 0 512 512" fill="currentColor">
+      <path d="M256 0C114.6 0 0 114.6 0 256s114.6 256 256 256s256-114.6 256-256S397.4 0 256 0zm0 464c-114.7 0-208-93.3-208-208S141.3 48 256 48s208 93.3 208 208s-93.3 208-208 208zm114-162.7l-45.7-14.8c-1.8-.6-3.8-.6-5.6 0l-45.7 14.8c-3.1 1-5.1 3.9-5.1 7.1v48.1c0 3.2 2 6.1 5.1 7.1l45.7 14.8c.9.3 1.9.4 2.8.4s1.9-.1 2.8-.4l45.7-14.8c3.1-1 5.1-3.9 5.1-7.1v-48.1c0-3.2-2-6.1-5.1-7.1zm-178.6 30.6l-30.8 38.3c-2.1 2.6-2 6.3.2 8.7l34.8 38.3c2.3 2.5 5.9 3.1 8.8 1.4l41.5-24.8c2.9-1.7 4.3-5.1 3.4-8.4l-14-48.1c-1-3.3-4-5.6-7.5-5.6h-28.9c-2.7 0-5.3 1.1-6.9 3.2v.4zm202.9-166.7l-41.5-24.8c-2.9-1.7-6.5-1.1-8.8 1.4l-34.8 38.3c-2.2 2.4-2.3 6.1-.2 8.7l30.8 38.3c1.6 2.1 4.2 3.2 6.9 3.2h28.9c3.5 0 6.5-2.3 7.5-5.6l14-48.1c.9-3.3-.5-6.7-3.4-8.4l.6.1zm-215 30.4c-.9-3.3-3.9-5.6-7.4-5.6H142c-2.7 0-5.3 1.1-6.9 3.2l-30.8 38.3c-2.1 2.6-2 6.3.2 8.7l34.8 38.3c2.3 2.5 5.9 3.1 8.8 1.4l41.5-24.8c2.9-1.7 4.3-5.1 3.4-8.4l-14-48.1zm150.7-93l-45.7 14.8c-3.1 1-5.1 3.9-5.1 7.1v48.1c0 3.2 2 6.1 5.1 7.1l45.7 14.8c.9.3 1.9.4 2.8.4s1.9-.1 2.8-.4l45.7-14.8c3.1-1 5.1-3.9 5.1-7.1V99.8c0-3.2-2-6.1-5.1-7.1l-45.7-14.8z"/>
+    </svg>
+  </div>
+
+  <!-- Header & Navigation -->
+  <header class="sticky top-0 z-50 backdrop-blur-lg bg-dark/80 border-b border-white/5 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-44 sm:h-52 flex items-center justify-between">
+      <!-- Logo & Name -->
+      <a href="#" class="flex items-center gap-4 group">
+        <img src="Assets/logo_small.png" alt="NextLevel Goalkeeping Academy Logo" class="h-40 w-40 sm:h-48 sm:w-48 object-contain transition-transform duration-300 group-hover:scale-105" fetchpriority="high">
+        <div class="flex flex-col w-[160px] sm:w-[195px]">
+          <div class="flex justify-between text-white font-black text-[23px] sm:text-[30px] leading-none group-hover:text-neonGreen transition-colors uppercase w-full">
+            <span>N</span><span>E</span><span>X</span><span>T</span><span>L</span><span>E</span><span>V</span><span>E</span><span>L</span>
+          </div>
+          <div class="flex justify-between text-[11px] sm:text-[14px] font-bold text-accentCyan uppercase leading-none mt-1 w-full">
+            <span>G</span><span>O</span><span>A</span><span>L</span><span>K</span><span>E</span><span>E</span><span>P</span><span>I</span><span>N</span><span>G</span><span>&nbsp;</span><span>A</span><span>C</span><span>A</span><span>D</span><span>E</span><span>M</span><span>Y</span>
+          </div>
+        </div>
+      </a>      <!-- Desktop Navigation -->
+      <nav class="hidden lg:flex items-center gap-6 xl:gap-8 text-sm font-semibold tracking-wide ml-auto pl-12">
+        <a href="#saeulen" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">DIE 4 SÄULEN</a>
+        <a href="#altersklassen" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">ALTERSKLASSEN</a>
+        <a href="#eltern" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">ELTERN-INFOS</a>
+        <a href="#hybrid" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">HYBRID-TRAINING</a>
+        <a href="#preise" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">PREISE & PAKETE</a>
+        <a href="javascript:void(0)" onclick="openModal('bookingModal')" class="border border-neonGreen/30 hover:border-neonGreen px-4 py-2 rounded-full text-xs font-bold text-neonGreen hover:bg-neonGreen/10 transition-all tracking-wider">JETZT ANFRAGEN</a>
+      </nav>
+
+      <!-- Mobile Menu Button -->
+      <button id="mobileMenuBtn" class="lg:hidden p-2 text-slate-400 hover:text-neonGreen transition-colors" aria-label="Menü öffnen" onclick="toggleMobileMenu()">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path id="menuIcon" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile Navigation Drawer -->
+    <div id="mobileMenu" class="hidden lg:hidden absolute top-44 sm:top-52 left-0 w-full bg-dark/95 border-b border-dark-border py-6 px-6 flex flex-col gap-5 shadow-2xl transition-all duration-300">
+      <a href="#saeulen" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">DIE 4 SÄULEN</a>
+      <a href="#altersklassen" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">ALTERSKLASSEN</a>
+      <a href="#eltern" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">ELTERN-INFOS</a>
+      <a href="#hybrid" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">HYBRID-TRAINING</a>
+      <a href="#preise" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">PREISE & PAKETE</a>
+      <a href="javascript:void(0)" onclick="toggleMobileMenu(); openModal('bookingModal');" class="bg-neonGreen text-dark font-black text-center py-3 rounded-xl tracking-wider hover:bg-neonGreen-hover transition-colors shadow-lg shadow-neonGreen/20">JETZT ANFRAGEN</a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="relative pt-8 pb-16 md:py-24 lg:py-32 overflow-hidden">
+    <!-- Video Background with Dark Overlay -->
+    <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+      <video autoplay muted loop playsinline class="w-full h-full object-cover">
+        <source src="Assets/Fußballstadion.mp4" type="video/mp4">
+      </video>
+      <div class="absolute inset-0 bg-gradient-to-t from-dark via-dark/75 to-dark/40"></div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+        <!-- Text Content Left -->
+        <div class="lg:col-span-6 flex flex-col justify-center text-center lg:text-left">
+          <!-- Trust Badge / Profil (visuell prominent) -->
+          <div class="inline-flex items-center justify-center lg:justify-start gap-2 bg-dark-light/90 border border-dark-border px-4 py-2 rounded-full mb-6 w-fit mx-auto lg:mx-0 shadow-lg shadow-black/50">
+            <span class="flex h-2 w-2 relative">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-neonGreen opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-neonGreen"></span>
+            </span>
+            <p class="text-xs sm:text-sm font-semibold tracking-wide text-slate-300">
+              UEFA- & DFB-lizensiertes Torwarttraining mit fundierter NLZ-Erfahrung
+            </p>
+          </div>
+
+          <!-- Headline H1 -->
+          <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight uppercase">
+            Werde zur <span class="text-transparent bg-clip-text bg-gradient-to-r from-neonGreen to-cyan-400 drop-shadow-[0_2px_15px_rgba(57,255,20,0.2)]">unüberwindbaren Mauer</span>
+            <span class="block text-2xl sm:text-3xl lg:text-4xl mt-3 font-semibold tracking-normal normal-case text-slate-200">
+              Modernes Torwartspiel auf NLZ-Niveau
+            </span>
+          </h1>
+
+          <!-- Subheadline -->
+          <p class="mt-6 text-base sm:text-lg lg:text-xl text-slate-400 font-light leading-relaxed max-w-2xl mx-auto lg:mx-0">
+            Entwickle deine kognitiven Fähigkeiten, Athletik und Antizipation mit modernem Training. Profitiere von DFB- und UEFA-Lizenzen sowie langjähriger NLZ-Expertise – digital in der App und auf dem Platz.
+          </p>
+
+          <!-- Trust Sub-badge -->
+          <p class="mt-4 text-xs sm:text-sm font-semibold text-accentCyan flex items-center justify-center lg:justify-start gap-2">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            Deine Ausbildung – digital in der App und direkt auf dem Platz.
+          </p>
+
+          <!-- Email signup form (Brevo Custom Native) -->
+          <div class="mt-8 max-w-md mx-auto lg:mx-0 w-full">
+            <form action="https://e0a919ac.sibforms.com/v2/serve/MUIFAAi1QbHL3BV9qgeDOuy01rxYZqadC1x4jUR_dhlWkIuyECfsIFbAxWJcVNNfs4A7XIy-AsDIIDZ6RgwRYxjpKpLaO19R4cUabHyz06ssQ2FBFCmsjPp91U5ZpYpyrsa51NiIPYioMvT11gmpAuJ74cf6QeUmqQEt45scy4EmfB6ix1dCbAjc8tmAHdKBPU4p9-LcA9QE3ZmebA==" method="POST" target="_blank" class="flex flex-col gap-4 w-full bg-dark-light/80 p-6 rounded-3xl border border-dark-border backdrop-blur-md shadow-2xl">
+              <!-- Name field -->
+              <div class="flex flex-col gap-1.5 text-left">
+                <label for="VORNAME_hero" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Vorname</label>
+                <input type="text" id="VORNAME_hero" name="VORNAME" required placeholder="Dein Vorname" class="bg-dark border border-dark-border focus:border-neonGreen focus:outline-none px-4 py-3 rounded-xl text-sm text-white focus:ring-0">
+              </div>
+              <!-- Email field -->
+              <div class="flex flex-col gap-1.5 text-left">
+                <label for="EMAIL_hero" class="text-xs font-bold text-slate-400 uppercase tracking-wider">E-Mail-Adresse</label>
+                <input type="email" id="EMAIL_hero" name="EMAIL" required placeholder="deine@email.de" class="bg-dark border border-dark-border focus:border-neonGreen focus:outline-none px-4 py-3 rounded-xl text-sm text-white focus:ring-0">
+              </div>
+              <!-- Honeypot & Locale -->
+              <input type="text" name="email_address_check" value="" class="hidden" style="display:none !important">
+              <input type="hidden" name="locale" value="de">
+              
+              <!-- Submit button -->
+              <button type="submit" class="bg-neonGreen text-dark font-black tracking-wide text-sm py-4 px-6 rounded-xl hover:bg-neonGreen-hover active:scale-[0.98] transition-all shadow-lg shadow-neonGreen/30 animate-pulse-glow flex items-center justify-center gap-2 uppercase mt-2">
+                <span>Mehr Infos anfordern</span>
+                <svg class="h-4 w-4 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </button>
+            </form>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-3 text-center lg:text-left">
+            * Melde dich für unseren Torwart-Newsletter an (10 E-Mails alle zwei Tage). Abmeldung jederzeit möglich.
+          </p>
+        </div>
+
+        <!-- Phone Mockup Right -->
+        <div class="lg:col-span-6 flex flex-col items-center justify-center relative w-full">
+          <!-- Decorative Glow Grid behind the phone -->
+          <div class="absolute -inset-4 bg-gradient-to-r from-neonGreen to-accentCyan rounded-full filter blur-[80px] opacity-25 mix-blend-screen animate-pulse pointer-events-none"></div>
+          
+          <!-- Tablet / Phone Mockup (Landscape) -->
+          <div class="relative w-full aspect-[4/3] bg-dark rounded-[1.8rem] p-3 shadow-2xl border-[6px] border-slate-800/90 shadow-neonGreen/10 animate-float">
+            <!-- Sleek Notch / Bezel elements -->
+            <div class="absolute top-1/2 left-0.5 transform -translate-y-1/2 w-1 h-8 bg-slate-700 rounded-r"></div>
+            <div class="absolute top-1/2 right-0.5 transform -translate-y-1/2 w-1.5 h-12 bg-slate-900 rounded-l flex items-center justify-center">
+              <div class="h-1 w-1 bg-black rounded-full"></div>
+            </div>
+            
+            <!-- Screen Content -->
+            <div class="w-full h-full rounded-[1.2rem] overflow-hidden bg-dark-light border border-slate-800 relative group">
+              <img src="Assets/dashboard.png" alt="NextLevel App Bestenliste" class="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105" onclick="openLightbox(this.src, this.alt)" fetchpriority="high">
+              <!-- Overlay reflection -->
+              <div class="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/10 pointer-events-none"></div>
+              <!-- App badge overlay -->
+              <div class="absolute bottom-3 left-3 bg-dark/95 border border-dark-border px-3 py-1 rounded-full text-[10px] font-semibold text-neonGreen tracking-wider backdrop-blur">
+                APP DASHBOARD PREVIEW
+              </div>
+            </div>
+          </div>
+
+          <!-- Weltmeister Leveling Callout Banner -->
+          <div class="mt-6 w-full bg-gradient-to-r from-neonGreen/10 to-accentCyan/10 border border-dark-border rounded-2xl p-4 text-left shadow-lg backdrop-blur">
+            <h4 class="text-sm font-black text-white uppercase flex items-center gap-2">
+              <span class="text-neonGreen">🏆</span> Willst auch du in der App zum Weltmeister aufsteigen?
+            </h4>
+            <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
+              Sammle Punkte durch dein Training, steige Stufen auf vom Hobbykicker zum Weltmeister und sichere dir deinen Platz an der Spitze der Bestenliste!
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section Divider with Angle -->
+  <div class="relative h-12 w-full bg-dark z-10 select-none pointer-events-none">
+    <div class="absolute inset-0 bg-dark-light transform skew-y-1 origin-bottom-right"></div>
+  </div>
+
+  <!-- Interactive Element: Der Antizipationscheck -->
+  <section id="antizipation" class="bg-dark-light py-20 relative z-20 overflow-hidden">
+    <!-- Video Background with Dark Overlay -->
+    <div class="absolute inset-0 z-0 opacity-45 pointer-events-none overflow-hidden">
+      <video autoplay muted loop playsinline class="w-full h-full object-cover">
+        <source src="Assets/Training.mp4" type="video/mp4">
+      </video>
+      <div class="absolute inset-0 bg-gradient-to-b from-dark-light via-dark-light/75 to-dark-light"></div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <!-- Section Title -->
+      <div class="text-center max-w-3xl mx-auto mb-12">
+        <span class="text-xs font-bold tracking-[0.25em] text-neonGreen uppercase bg-neonGreen/10 px-3 py-1 rounded-full border border-neonGreen/20">INTERAKTIVER TEST</span>
+        <h2 class="text-3xl sm:text-4xl font-black text-white mt-4 uppercase">Glaubst du, du kannst den Elfer antizipieren?</h2>
+        <p class="text-slate-400 mt-2 text-sm sm:text-base">Der Stürmer läuft an. Du stehst auf der Linie. Wie reagierst du? Teste jetzt dein Gespür.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-dark/50 p-6 sm:p-8 rounded-3xl border border-dark-border backdrop-blur shadow-2xl">
+        <!-- Interactive Game Arena Left -->
+        <div class="lg:col-span-7 relative group">
+          <!-- Graphic Container -->
+          <div class="relative w-full aspect-[16/9] rounded-2xl overflow-hidden border-2 border-dark-border group-hover:border-neonGreen/40 transition-colors shadow-inner">
+            <img src="Assets/penalty_kick.png" alt="Elfmetersituation" class="w-full h-full object-cover">
+            
+            <!-- Black Vignette Overlay -->
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none"></div>
+
+            <!-- Target Ring Overlays (Hidden initially, shown on click) -->
+            <div id="target-left" class="hidden absolute left-[22%] top-[58%] -translate-x-1/2 -translate-y-1/2 w-16 h-16 sm:w-24 sm:h-24 rounded-full border-4 border-dashed border-neonGreen/80 animate-spin bg-neonGreen/10 items-center justify-center transition-all">
+              <span class="w-3 h-3 bg-neonGreen rounded-full animate-ping"></span>
+            </div>
+            <div id="target-middle" class="hidden absolute left-[50%] top-[58%] -translate-x-1/2 -translate-y-1/2 w-16 h-16 sm:w-24 sm:h-24 rounded-full border-4 border-dashed border-accentCyan/80 animate-spin bg-accentCyan/10 items-center justify-center transition-all">
+              <span class="w-3 h-3 bg-accentCyan rounded-full animate-ping"></span>
+            </div>
+            <div id="target-right" class="hidden absolute left-[78%] top-[58%] -translate-x-1/2 -translate-y-1/2 w-16 h-16 sm:w-24 sm:h-24 rounded-full border-4 border-dashed border-red-500/80 animate-spin bg-red-500/10 items-center justify-center transition-all">
+              <span class="w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
+            </div>
+
+            <!-- Goal Hotspots (Invisible, for clicking directly on image) -->
+            <div class="absolute inset-0 flex">
+              <div onclick="checkPenalty('left')" class="w-1/3 h-full cursor-pointer hover:bg-red-500/5 transition-colors" title="Links antizipieren"></div>
+              <div onclick="checkPenalty('middle')" class="w-1/3 h-full cursor-pointer hover:bg-cyan-500/5 transition-colors" title="Mitte antizipieren"></div>
+              <div onclick="checkPenalty('right')" class="w-1/3 h-full cursor-pointer hover:bg-neonGreen/5 transition-colors" title="Rechts antizipieren"></div>
+            </div>
+          </div>
+          
+          <p class="text-[11px] text-slate-500 mt-2 text-center italic">
+            * Klicke direkt im Bild auf ein Drittel oder nutze die Buttons rechts.
+          </p>
+        </div>
+
+        <!-- Interface Right -->
+        <div class="lg:col-span-5 flex flex-col justify-center">
+          <h3 class="text-xl font-bold text-white mb-4">Wähle deine Ecke:</h3>
+          
+          <!-- Buttons -->
+          <div class="grid grid-cols-3 gap-3 mb-6">
+            <button onclick="checkPenalty('left')" id="btn-left" class="bg-dark hover:bg-cyan-950/30 text-slate-300 hover:text-white border border-dark-border hover:border-cyan-500/50 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all uppercase">
+              Links
+            </button>
+            <button onclick="checkPenalty('middle')" id="btn-middle" class="bg-dark hover:bg-cyan-950/30 text-slate-300 hover:text-white border border-dark-border hover:border-cyan-500/50 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all uppercase">
+              Mitte
+            </button>
+            <button onclick="checkPenalty('right')" id="btn-right" class="bg-dark hover:bg-cyan-950/30 text-slate-300 hover:text-white border border-dark-border hover:border-cyan-500/50 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all uppercase">
+              Rechts
+            </button>
+          </div>
+
+          <!-- Interactive Feedback Box -->
+          <div id="penaltyFeedback" class="max-h-0 opacity-0 overflow-hidden transition-all duration-700 ease-in-out bg-dark/80 rounded-2xl border border-dark-border">
+            <div class="p-6">
+              <!-- Result Headline -->
+              <h4 id="feedbackHeadline" class="text-base font-bold text-neonGreen mb-2 flex items-center gap-2">
+                <!-- Icon will be inserted dynamically -->
+              </h4>
+              <!-- Result Text -->
+              <p id="feedbackText" class="text-sm text-slate-300 leading-relaxed">
+                Treffer oder nicht – oft entscheidet ein Sekundenbruchteil. In der NextLevel App lernst du, die Körperhaltung des Schützen blitzschnell zu antizipieren und den entscheidenden Schritt früher in der Ecke zu sein.
+              </p>
+              
+              <!-- Mini Action CTA -->
+              <a href="#saeulen" class="mt-4 inline-flex items-center gap-1 text-xs font-bold text-accentCyan hover:text-white hover:underline transition-colors uppercase tracking-wider">
+                <span>So lernst du es</span>
+                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 13l-7 7-7-7m14-6l-7 7-7-7" />
+                </svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Die 4 Core-Säulen der App -->
+  <section id="saeulen" class="bg-dark py-20 relative z-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <!-- Section Title -->
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <span class="text-xs font-bold tracking-[0.25em] text-accentCyan uppercase bg-accentCyan/10 px-3 py-1 rounded-full border border-accentCyan/20">DAS REZEPT</span>
+        <h2 class="text-3xl sm:text-4xl font-black text-white mt-4 uppercase">Die Säulen deiner Ausbildung</h2>
+        <p class="text-slate-400 mt-2 text-sm sm:text-base">Mit dieser systematischen Struktur katapultieren wir dich auf dein NextLevel.</p>
+      </div>
+
+      <!-- Stacked 4 Pillars (Alternating Layout for Large, Readable Screenshots) -->
+      <div cl        <!-- Säule 1: Performance-Athletik -->
+        <div class="relative py-12 px-6 sm:px-12 rounded-3xl overflow-hidden border border-dark-border/40 bg-dark-light/20 shadow-2xl">
+          <!-- Video Background with Dark Overlay -->
+          <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+            <video autoplay muted loop playsinline class="w-full h-full object-cover">
+              <source src="Assets/Dips.mp4" type="video/mp4">
+            </video>
+            <div class="absolute inset-0 bg-gradient-to-b from-dark/85 via-dark/70 to-dark/85"></div>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+            <!-- Text Left -->
+            <div class="lg:col-span-5 flex flex-col justify-center">
+              <span class="text-xs font-bold text-neonGreen tracking-widest uppercase mb-2 block">SÄULE 01</span>
+              <h3 class="text-3xl font-black text-white uppercase mb-4">Performance-Athletik</h3>
+              <p class="text-slate-300 leading-relaxed mb-6">
+                So kommst du körperlich auf das NextLevel – zu Hause, auf dem Platz oder im Gym. Profitiere von Torwart-spezifischen Trainingsplänen und wertvollem Ernährungs-Input zur selbstständigen Planung für eine ganzheitliche körperliche Entwicklung hin zu einem athletischen Torwart.
+              </p>
+              <ul class="space-y-3 text-sm text-slate-400">
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Spezifische Workouts für Torhüter
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Ernährungs-Input zur optimalen Regeneration
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Trainingsvideos für eine optimale Technik
+                </li>
+              </ul>
+            </div>
+            <!-- Image Right (Groß & gut lesbar) -->
+            <div class="lg:col-span-7">
+              <div class="relative w-full aspect-[16/10] bg-dark rounded-2xl p-2 border-[6px] border-slate-800 shadow-2xl overflow-hidden group">
+                <img src="Assets/kraftsport.png" alt="Säule 1: Athletik- und Ernährungsplanung" class="w-full h-full object-cover rounded-xl transition-transform duration-500 group-hover:scale-102">
+                <div class="absolute bottom-4 left-4 bg-dark/95 border border-dark-border px-3 py-1 rounded-full text-xs font-bold text-neonGreen tracking-wider uppercase">
+                  Athletik & Krafttraining Übersicht
+                </div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Säule 2: Neuro- & Kognition -->
+        <div class="relative py-12 px-6 sm:px-12 rounded-3xl overflow-hidden border border-dark-border/40 bg-dark-light/20 shadow-2xl">
+          <!-- Video Background with Dark Overlay -->
+          <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+            <video autoplay muted loop playsinline class="w-full h-full object-cover">
+              <source src="Assets/Neuro.mp4" type="video/mp4">
+            </video>
+            <div class="absolute inset-0 bg-gradient-to-b from-dark/85 via-dark/70 to-dark/85"></div>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+            <!-- Image Left (Groß & gut lesbar, mit Umschalter) -->
+            <div class="lg:col-span-7 order-last lg:order-first">
+              <div class="relative w-full aspect-[16/10] bg-dark rounded-2xl p-2 border-[6px] border-slate-800 shadow-2xl overflow-hidden group">
+                <img id="pillar2-img-neuro" src="Assets/neuro_training.png" alt="Säule 2: Neuroathletik-Training (Augenkoordination)" class="w-full h-full object-cover rounded-xl transition-transform duration-500 group-hover:scale-102">
+                <img id="pillar2-img-games" src="Assets/cognition_games.png" alt="Säule 2: Kognitionstraining (Gehirnspiele)" class="hidden w-full h-full object-cover rounded-xl transition-transform duration-500 group-hover:scale-102">
+                <div class="absolute bottom-4 left-4 bg-dark/95 border border-dark-border px-3 py-1 rounded-full text-xs font-bold text-neonGreen tracking-wider uppercase">
+                  Gehirntraining & Augen-Fokus
+                </div>
+              </div>
+            </div>
+            <!-- Text Right -->
+            <div class="lg:col-span-5 flex flex-col justify-center">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-neonGreen tracking-widest uppercase block">SÄULE 02</span>
+                <!-- Toggle Tab Header for Interactive Asset Switch -->
+                <div class="flex items-center gap-1 bg-dark px-2 py-1 rounded-xl border border-dark-border">
+                  <button onclick="switchPillarTab('pillar2-neuro', 'pillar2-games', 'pillar2-img-neuro', 'pillar2-img-games', this)" class="text-[10px] font-bold px-2 py-1 rounded-md text-neonGreen bg-neonGreen/10 transition-all">NEURO</button>
+                  <button onclick="switchPillarTab('pillar2-games', 'pillar2-neuro', 'pillar2-img-games', 'pillar2-img-neuro', this)" class="text-[10px] font-bold px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 transition-all">GAMES</button>
+                </div>
+              </div>
+              <h3 class="text-3xl font-black text-white uppercase mb-4">Neuroathletik und Kognition</h3>
+              <p class="text-slate-300 leading-relaxed mb-6">
+                So hebst du deinen Kopf auf das NextLevel – zu Hause, auf dem Platz oder in der App. Trainiere deine visuelle Auffassungsgabe, periphere Sicht und dein Gleichgewicht für extreme Reaktionsschnelligkeit unter Zeitdruck.
+              </p>
+              <ul class="space-y-3 text-sm text-slate-400">
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Kognitionsspiele und Neuroathletiktraining in der App
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Kognitionstraining auf dem Platz (oder im eigenen Zimmer/Garten)
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Schulischer Mehrwert durch gesteigerte Konzentrationsfähigkeit
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Säule 3: Wissen & Theorie -->
+        <div class="relative py-12 px-6 sm:px-12 rounded-3xl overflow-hidden border border-dark-border/40 bg-dark-light/20 shadow-2xl">
+          <!-- Video Background with Dark Overlay -->
+          <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+            <video autoplay muted loop playsinline class="w-full h-full object-cover">
+              <source src="Assets/Wissen.mp4" type="video/mp4">
+            </video>
+            <div class="absolute inset-0 bg-gradient-to-b from-dark/85 via-dark/70 to-dark/85"></div>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+            <!-- Text Left -->
+            <div class="lg:col-span-5 flex flex-col justify-center">
+              <span class="text-xs font-bold text-neonGreen tracking-widest uppercase mb-2 block">SÄULE 03</span>
+              <h3 class="text-3xl font-black text-white uppercase mb-4">Wissen & Theorie</h3>
+              <p class="text-slate-300 leading-relaxed mb-6">
+                Torwartspiel ist Kopfsache. In der App findest du professionell aufbereiteten, strukturierten Input zu allen Themen, die für dich als Keeper wichtig sind. Lerne theoretische Grundlagen und wende sie selbstständig im Training an.
+              </p>
+              <ul class="space-y-3 text-sm text-slate-400">
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Strukturierte Theorie zu Stellungsspiel, Taktik und Verhalten im Raum
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Kompakte Inputs zu sportlicher Ernährung und mentaler Stärke
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Tipps für zielgerichtetes Coaching und Verhalten bei Standards etc.
+                </li>
+              </ul>
+            </div>
+            <!-- Image Right (Groß & gut lesbar) -->
+            <div class="lg:col-span-7">
+              <div class="relative w-full aspect-[16/10] bg-dark rounded-2xl p-2 border-[6px] border-slate-800 shadow-2xl overflow-hidden group">
+                <img src="Assets/contents.png" alt="Säule 3: App-Inhalt & Theorie" class="w-full h-full object-cover rounded-xl transition-transform duration-500 group-hover:scale-102">
+                <div class="absolute bottom-4 left-4 bg-dark/95 border border-dark-border px-3 py-1 rounded-full text-xs font-bold text-neonGreen tracking-wider uppercase">
+                  App-Wissensdatenbank & Theorie-Inputs
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Säule 4: Wettkampf & Challenges -->
+        <div class="relative py-12 px-6 sm:px-12 rounded-3xl overflow-hidden border border-dark-border/40 bg-dark-light/20 shadow-2xl">
+          <!-- Video Background with Dark Overlay -->
+          <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+            <video autoplay muted loop playsinline class="w-full h-full object-cover">
+              <source src="Assets/Seilspringen.mp4" type="video/mp4">
+            </video>
+            <div class="absolute inset-0 bg-gradient-to-b from-dark/85 via-dark/70 to-dark/85"></div>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+            <!-- Image Left (Groß & gut lesbar) -->
+            <div class="lg:col-span-7 order-last lg:order-first">
+              <div class="relative w-full aspect-[16/10] bg-dark rounded-2xl p-2 border-[6px] border-slate-800 shadow-2xl overflow-hidden group">
+                <img src="Assets/challenges.png" alt="Säule 4: Wettkämpfe & Bestenlisten" class="w-full h-full object-cover rounded-xl transition-transform duration-500 group-hover:scale-102">
+                <div class="absolute bottom-4 left-4 bg-dark/95 border border-dark-border px-3 py-1 rounded-full text-xs font-bold text-neonGreen tracking-wider uppercase">
+                  Bestenlisten & Active Challenges
+                </div>
+              </div>
+            </div>
+            <!-- Text Right -->
+            <div class="lg:col-span-5 flex flex-col justify-center">
+              <span class="text-xs font-bold text-neonGreen tracking-widest uppercase mb-2 block">SÄULE 04</span>
+              <h3 class="text-3xl font-black text-white uppercase mb-4">Wettkampf & Challenges</h3>
+              <p class="text-slate-300 leading-relaxed mb-6">
+                Miss dich direkt mit anderen Keepern der Academy! Hole Punkte in Koordinationsleiter- und Seilspringen-Challenges! Fordere die Community zu Kognitionsspielen heraus und sammle Punkte in direkten Duellen! Arbeite dich vom Hobbykicker zum Weltmeister hoch, während du dein NextLevel erreichst! Und erreiche durch Fleiß den Status Keeper des Monats! Die Bestenliste zeigt dir genau, wer aktuell die Nummer 1 ist.
+              </p>
+              <ul class="space-y-3 text-sm text-slate-400">
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Spannende Challenges in Reaktion, Kraft und Athletik
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Live-Bestenlisten zur maximalen Motivation im Training
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-neonGreen">✓</span> Gesunder, sportlicher Wettkampf direkt untereinander in der App
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Der NextLevel-Pfeil (Großer horizontaler Pfeil mit voll integriertem Ziele-Mockup) -->
+      <div class="mt-24 relative w-full overflow-hidden bg-gradient-to-r from-neonGreen/10 to-accentCyan/15 border border-dark-border rounded-2xl p-8 sm:p-12 shadow-2xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
+           style="clip-path: polygon(0% 0%, calc(100% - 40px) 0%, 100% 50%, calc(100% - 40px) 100%, 0% 100%);">
+        <!-- Subtle Glow Overlay -->
+        <div class="absolute inset-0 bg-gradient-to-r from-neonGreen/5 via-accentCyan/5 to-transparent pointer-events-none"></div>
+        
+        <!-- Text Left -->
+        <div class="lg:col-span-5 relative z-10">
+          
+          <!-- Animated Moving/Flipping Calendar Background (HTML/CSS) -->
+          <div class="absolute -bottom-16 right-4 lg:right-[-20px] z-0 opacity-25 pointer-events-none select-none perspective-1000">
+            <div id="calendar-card" class="relative w-32 h-40 transform rotate-6 animate-calendar-sway">
+              <!-- Back page (always next month) -->
+              <div class="absolute inset-0 bg-dark border-2 border-dark-border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                <div class="h-8 bg-gradient-to-r from-neonGreen/20 to-accentCyan/20 border-b border-dark-border flex items-center justify-between px-3">
+                  <div class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
+                  <div class="w-8 h-1.5 rounded-full bg-slate-700/50"></div>
+                  <div class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
+                </div>
+                <div class="flex-grow p-3 flex flex-col justify-center items-center">
+                  <div id="calendar-next-val" class="text-neonGreen text-4xl font-black leading-none tracking-tighter">02</div>
+                  <div class="text-white text-[8px] font-bold uppercase tracking-widest mt-1">MONAT</div>
+                </div>
+              </div>
+              <!-- Front page (flipping) -->
+              <div id="calendar-front-page" class="absolute inset-0 bg-dark border-2 border-dark-border rounded-2xl shadow-2xl flex flex-col overflow-hidden origin-top">
+                <div class="h-8 bg-gradient-to-r from-neonGreen/20 to-accentCyan/20 border-b border-dark-border flex items-center justify-between px-3">
+                  <div class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
+                  <div class="w-8 h-1.5 rounded-full bg-slate-700/50"></div>
+                  <div class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
+                </div>
+                <div class="flex-grow p-3 flex flex-col justify-center items-center">
+                  <div id="calendar-front-val" class="text-accentCyan text-4xl font-black leading-none tracking-tighter">01</div>
+                  <div class="text-white text-[8px] font-bold uppercase tracking-widest mt-1">MONAT</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-neonGreen text-3xl font-black animate-pulse">➔</span>
+            <span class="text-xs font-bold tracking-[0.2em] text-neonGreen uppercase bg-neonGreen/15 px-3 py-1 rounded-full border border-neonGreen/20">Dein 6-Monats-Fahrplan</span>
+          </div>
+          <p class="text-xl sm:text-2xl font-black text-white uppercase leading-snug">
+            Strukturierte Unterstützung durch ToDos, klare Ziele und die Analyse von <span class="text-neonGreen underline decoration-dashed decoration-2">DEINEN</span> Spielszenen.
+          </p>
+          <p class="text-sm text-slate-400 mt-4 leading-relaxed relative z-10">
+            In der App hast du deinen Fortschritt über 6 Monate hinweg fest im Blick. Deine To-Dos und Meilensteine helfen dir, fokussiert zu bleiben und gesund dein NextLevel zu erreichen.
+          </p>
+        </div>
+        
+        <!-- Image Right (Groß integriert) -->
+        <div class="lg:col-span-7 relative w-full aspect-[16/10] bg-dark rounded-xl p-2 border-[6px] border-slate-800 shadow-2xl overflow-hidden shrink-0">
+          <img src="Assets/goals.png" alt="Dein persönlicher Fahrplan: ToDos & Meilensteine" class="w-full h-full object-cover rounded-lg">
+          <div class="absolute bottom-3 left-3 bg-dark/95 border border-dark-border px-3 py-1 rounded-full text-[10px] font-bold text-neonGreen tracking-wider uppercase">
+            To-Dos & Ziele in der App
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Age-Filter Section (Zielgruppen-Segmentierung) -->
+  <section id="altersklassen" class="bg-dark-light py-20 relative z-20 overflow-hidden">
+    <!-- Video Background with Dark Overlay -->
+    <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+      <video autoplay muted loop playsinline class="w-full h-full object-cover">
+        <source src="Assets/Dips.mp4" type="video/mp4">
+      </video>
+      <div class="absolute inset-0 bg-gradient-to-b from-dark-light via-dark-light/75 to-dark-light"></div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      
+      <!-- Section Header -->
+      <div class="text-center max-w-3xl mx-auto mb-12">
+        <span class="text-xs font-bold tracking-[0.25em] text-neonGreen uppercase bg-neonGreen/10 px-3 py-1 rounded-full border border-neonGreen/20">FÜR JEDES ALTER</span>
+        <h2 class="text-3xl sm:text-4xl font-black text-white mt-4 uppercase">Passendes Training für jedes Alter</h2>
+        <p class="text-slate-400 mt-2 text-sm sm:text-base">Egal ob Grundlagenaufbau für Kids oder knallhartes Leistungstraining für Fortgeschrittene.</p>
+      </div>
+
+      <!-- Tab System Wrapper -->
+      <div class="max-w-5xl mx-auto bg-dark p-6 sm:p-8 rounded-3xl border border-dark-border shadow-2xl">
+        
+        <!-- Tab Control Buttons -->
+        <div class="flex flex-col sm:flex-row gap-3 justify-center mb-10 bg-dark-light p-2 rounded-2xl border border-dark-border w-fit mx-auto">
+          <button id="tab-btn-u14" onclick="showAgeTab('u14')" class="px-6 py-3 rounded-xl text-sm font-bold tracking-wider transition-all uppercase whitespace-nowrap bg-neonGreen text-dark shadow-lg shadow-neonGreen/20">
+            U11 bis U14 – Die Basis
+          </button>
+          <button id="tab-btn-o14" onclick="showAgeTab('o14')" class="px-6 py-3 rounded-xl text-sm font-bold tracking-wider transition-all uppercase whitespace-nowrap text-slate-400 hover:text-white">
+            Ab U14 – Der Weg zum Profi
+          </button>
+        </div>
+
+        <!-- Tab Content Areas -->
+        <!-- Content 1: U11-U14 (Fokus Fundament) -->
+        <div id="tab-content-u14" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center transition-all duration-300">
+          <div class="lg:col-span-4">
+            <h3 class="text-2xl font-black text-white uppercase mb-4 flex items-center gap-2">
+              <span class="text-neonGreen">U11–U14:</span> Perfektion des Fundaments
+            </h3>
+            <p class="text-slate-300 leading-relaxed mb-6">
+              In diesem Entwicklungsstadium legen wir den entscheidenden Grundstein. Ohne schweren Druck, sondern mit hohem spielerischem Mehrwert.
+            </p>
+            <ul class="space-y-4">
+              <li class="flex items-start gap-3">
+                <span class="p-1 bg-neonGreen/20 border border-neonGreen/30 text-neonGreen rounded-lg mt-0.5">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </span>
+                <div>
+                  <h4 class="font-bold text-white text-sm">Spielerische Koordination</h4>
+                  <p class="text-xs text-slate-400">Verbesserung der motorischen Vielfalt durch vielseitige Bewegungsformen.</p>
+                </div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="p-1 bg-neonGreen/20 border border-neonGreen/30 text-neonGreen rounded-lg mt-0.5">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </span>
+                <div>
+                  <h4 class="font-bold text-white text-sm">Wahrnehmung und Kognition</h4>
+                  <p class="text-xs text-slate-400">Frühzeitiges Augentraining und Kognitionstraining für eine höhere Handlungsschnelligkeit.</p>
+                </div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="p-1 bg-neonGreen/20 border border-neonGreen/30 text-neonGreen rounded-lg mt-0.5">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </span>
+                <div>
+                  <h4 class="font-bold text-white text-sm">Motorisches Basistraining</h4>
+                  <p class="text-xs text-slate-400">Verletzungsvorsorge und gesunde Stärkung des Körpers mit Eigengewicht.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <!-- Mockup with cognition_games.png -->
+          <div class="lg:col-span-8">
+            <div class="relative w-full aspect-[16/10] bg-dark-light rounded-2xl p-2 border-4 border-slate-800 shadow-2xl overflow-hidden">
+              <img src="Assets/cognition_games.png" alt="Kognitionsspiele U11-U14" class="w-full h-full object-cover rounded-xl cursor-zoom-in hover:opacity-90 transition-opacity" onclick="openLightbox(this.src, this.alt)" loading="lazy">
+              <div class="absolute bottom-4 right-4 bg-neonGreen text-dark font-black text-xs px-3 py-1 rounded-full uppercase tracking-wider">
+                Spielerisch Lernen
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Content 2: U14+ (Fokus Leistung) -->
+        <div id="tab-content-o14" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center transition-all duration-300">
+          <div class="lg:col-span-4">
+            <h3 class="text-2xl font-black text-white uppercase mb-4 flex items-center gap-2">
+              <span class="text-neonGreen">Ab U14:</span> Ganzheitliche Athletik
+            </h3>
+            <p class="text-slate-300 leading-relaxed mb-6">
+              Jetzt geht es um eine ganzheitliche, leistungsorientierte Physis – sowohl im Kraftraum als auch torwartspezifisch auf dem Rasen.
+            </p>
+            <ul class="space-y-4">
+              <li class="flex items-start gap-3">
+                <span class="p-1 bg-neonGreen/20 border border-neonGreen/30 text-neonGreen rounded-lg mt-0.5">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </span>
+                <div>
+                  <h4 class="font-bold text-white text-sm">Gym: Kraft- & Muskelaufbau</h4>
+                  <p class="text-xs text-slate-400">Gesunder, altersgerechter Muskelaufbau an Geräten und freien Gewichten für die nötige Stabilität im Tor.</p>
+                </div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="p-1 bg-neonGreen/20 border border-neonGreen/30 text-neonGreen rounded-lg mt-0.5">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </span>
+                <div>
+                  <h4 class="font-bold text-white text-sm">Tipps zur Belastungssteuerung</h4>
+                  <p class="text-xs text-slate-400">Wertvolle Ratschläge und Strategien zur optimalen Balance zwischen Be- und Entlastung zur Verletzungsprävention.</p>
+                </div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="p-1 bg-neonGreen/20 border border-neonGreen/30 text-neonGreen rounded-lg mt-0.5">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </span>
+                <div>
+                  <h4 class="font-bold text-white text-sm">Torwartspezifische Athletik</h4>
+                  <p class="text-xs text-slate-400">Explosivitätstraining auf und neben dem Platz für die entscheidenden Millisekunden im Sprungverhalten.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <!-- Mockup with workouts.png -->
+          <div class="lg:col-span-8">
+            <div class="relative w-full aspect-[16/10] bg-dark-light rounded-2xl p-2 border-4 border-slate-800 shadow-2xl overflow-hidden">
+              <img src="Assets/kraftsport.png" alt="Athletiktraining U14+" class="w-full h-full object-cover rounded-xl cursor-zoom-in hover:opacity-90 transition-opacity" onclick="openLightbox(this.src, this.alt)" loading="lazy">
+              <div class="absolute bottom-4 right-4 bg-neonGreen text-dark font-black text-xs px-3 py-1 rounded-full uppercase tracking-wider">
+                Ganzheitliche Athletik
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Eltern-Sicherheitsbox (Die "Eltern-Zone") -->
+  <section id="eltern" class="bg-dark py-20 relative z-20 overflow-hidden">
+    <!-- Video Background with Dark Overlay -->
+    <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+      <video autoplay muted loop playsinline class="w-full h-full object-cover">
+        <source src="Assets/Fußballstadion.mp4" type="video/mp4">
+      </video>
+      <div class="absolute inset-0 bg-gradient-to-b from-dark via-dark/75 to-dark"></div>
+    </div>
+    
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      
+      <!-- Box Container -->
+      <div class="relative bg-dark-light/75 border-2 border-accentCyan/30 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-md">
+        <!-- Corner Glow Accent -->
+        <div class="absolute -right-32 -bottom-32 w-64 h-64 bg-accentCyan/10 rounded-full filter blur-2xl"></div>
+        <div class="absolute -left-32 -top-32 w-64 h-64 bg-neonGreen/5 rounded-full filter blur-2xl"></div>
+
+        <div class="p-8 sm:p-12 relative z-10">
+          <!-- Shield icon with neon glow -->
+          <div class="flex items-center gap-4 mb-8">
+            <div class="p-3 bg-accentCyan/15 border border-accentCyan/30 text-accentCyan rounded-2xl shadow-lg shadow-accentCyan/10">
+              <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <div>
+              <span class="text-[10px] tracking-[0.2em] font-bold text-accentCyan uppercase leading-none block">SICHERHEIT & GESUNDHEIT</span>
+              <h3 class="text-2xl sm:text-3xl font-black text-white uppercase leading-none mt-1.5">FÜR ELTERN: ENTWICKLUNG IM FOKUS</h3>
+            </div>
+          </div>
+
+          <p class="text-slate-300 text-sm sm:text-base leading-relaxed mb-8">
+            Sehr geehrte Mamas, sehr geehrte Papas,<br>
+            die körperliche und geistige Unversehrtheit Ihres Kindes steht bei uns an oberster Stelle. Als Inhaber offizieller UEFA- und DFB-Torwarttrainer-Lizenzen und mit fundierter NLZ-Erfahrung garantiere ich eine hochprofessionelle Ausbildung, die darauf ausgelegt ist, junge Keeper langfristig, gesund und verletzungsfrei zu entwickeln.
+          </p>
+
+          <!-- Core Parent Points Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <!-- Point 1 -->
+            <div class="bg-dark/40 border border-dark-border p-5 rounded-2xl hover:border-accentCyan/30 transition-all">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="p-2 bg-neonGreen/10 text-neonGreen rounded-lg">
+                  <!-- Running shoe or runner icon -->
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </span>
+                <h4 class="font-bold text-white text-sm uppercase">Bewegung statt Screen</h4>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Unsere App ist kein reines Digitalprodukt. Sie ist der Impulsgeber, der Ihr Kind für das Training mit dem Ball an die Wand oder auf den Fußballplatz bringt.
+              </p>
+            </div>
+
+            <!-- Point 2 -->
+            <div class="bg-dark/40 border border-dark-border p-5 rounded-2xl hover:border-accentCyan/30 transition-all">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="p-2 bg-neonGreen/10 text-neonGreen rounded-lg">
+                  <!-- Brain / school icon -->
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </span>
+                <h4 class="font-bold text-white text-sm uppercase">Schulischer Mehrwert</h4>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Wir fördern die Konzentration durch bewährte Dual-Task-Übungen. Diese Steigerung der kognitiven Leistungsfähigkeit hilft nachweislich auf dem Platz und im Klassenzimmer.
+              </p>
+            </div>
+
+            <!-- Point 3 -->
+            <div class="bg-dark/40 border border-dark-border p-5 rounded-2xl hover:border-accentCyan/30 transition-all">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="p-2 bg-neonGreen/10 text-neonGreen rounded-lg">
+                  <!-- Dumbbell / shield -->
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </span>
+                <h4 class="font-bold text-white text-sm uppercase">Körperschutz-Fokus</h4>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Gewichte kommen erst mit zunehmendem Alter und körperlicher Reife ins Spiel – vorher steht das gesunde Training mit dem eigenen Körpergewicht im Vordergrund.
+              </p>
+            </div>
+
+          </div>
+
+          <!-- Bottom Note -->
+          <div class="mt-8 text-center bg-dark/40 py-3 rounded-xl border border-dark-border">
+            <span class="text-xs text-slate-400">Haben Sie Fragen zur Trainingsmethodik? Schreiben Sie uns über das Kontaktformular.</span>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Hybrid-Training (On-Pitch) -->
+  <section id="hybrid" class="bg-dark-light py-20 relative z-20 overflow-hidden">
+    <!-- Video Background with Dark Overlay -->
+    <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+      <video autoplay muted loop playsinline class="w-full h-full object-cover">
+        <source src="Assets/Training.mp4" type="video/mp4">
+      </video>
+      <div class="absolute inset-0 bg-gradient-to-b from-dark-light via-dark-light/75 to-dark-light"></div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <!-- Text Left -->
+        <div class="lg:col-span-6">
+          <span class="text-xs font-bold tracking-[0.25em] text-neonGreen uppercase bg-neonGreen/10 px-3 py-1 rounded-full border border-neonGreen/20">HYBRID MODEL</span>
+          <h2 class="text-3xl sm:text-4xl font-black text-white mt-4 uppercase">Du willst das NLZ-Niveau 1-zu-1 auf dem Platz erleben?</h2>
+          <p class="text-slate-400 mt-4 text-sm sm:text-base leading-relaxed">
+            Erlebe professionelles Live-Training unter Anleitung eines UEFA- & DFB-lizensierten Torwarttrainers. Neben der digitalen Begleitung in der App bieten wir exklusives, hochintensives Einzel- und Gruppentraining direkt vor Ort an. Wir bringen Profi-Trainingsbedingungen direkt zu dir auf den Platz.
+          </p>
+          <p class="text-slate-400 mt-2 text-sm sm:text-base leading-relaxed">
+            Lass uns gemeinsam an deinen technischen Fertigkeiten und deinen taktischen Fähigkeiten auf dem Platz feilen!
+          </p>
+          
+          <!-- CTA Trigger Button -->
+          <div class="mt-8">
+            <button onclick="openModal('bookingModal')" class="bg-neonGreen text-dark font-black tracking-wide text-sm py-4 px-8 rounded-xl hover:bg-neonGreen-hover active:scale-[0.98] transition-all shadow-lg shadow-neonGreen/30 animate-pulse-glow">
+              SICHERE DIR DEINEN HYBRID-PLATZ
+            </button>
+          </div>
+        </div>
+
+        <!-- Location Cards Right -->
+        <div class="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <!-- Card 1: Siegen -->
+          <div class="bg-dark border border-dark-border p-6 rounded-3xl relative overflow-hidden group shadow-xl">
+            <!-- Scarcity Badge -->
+            <div class="bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-black tracking-wider uppercase px-3 py-1.5 rounded-full w-fit mb-4 animate-pulse flex items-center gap-1.5">
+              <span class="h-1.5 w-1.5 bg-red-500 rounded-full"></span>
+              Achtung: Nur noch 2 Slots frei!
+            </div>
+            
+            <h3 class="text-xl font-bold text-white mb-2 uppercase">Siegen</h3>
+            <p class="text-xs text-slate-400 leading-relaxed mb-6">
+              Exklusives Einzel- und Gruppentraining an unserem Standort in Siegen. Maximaler Lernerfolg mit professioneller Betreuung.
+            </p>
+            <div class="flex items-center gap-2 text-neonGreen font-semibold text-xs tracking-wider uppercase">
+              <span>Standort für Live Training Siegen</span>
+              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </div>
+          </div>
+
+          <!-- Card 2: Königheim -->
+          <div class="bg-dark border border-dark-border p-6 rounded-3xl relative overflow-hidden group shadow-xl">
+            <!-- Scarcity Badge -->
+            <div class="bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-black tracking-wider uppercase px-3 py-1.5 rounded-full w-fit mb-4 flex items-center gap-1.5">
+              <span class="h-1.5 w-1.5 bg-yellow-500 rounded-full"></span>
+              Achtung: Nur noch 4 Slots frei!
+            </div>
+            
+            <h3 class="text-xl font-bold text-white mb-2 uppercase">Königheim</h3>
+            <p class="text-xs text-slate-400 leading-relaxed mb-6">
+              Technik- und Taktiktraining am Standort Königheim. Optimiere deine Grundlagen und lerne in kleinen, motivierten Gruppen.
+            </p>
+            <div class="flex items-center gap-2 text-neonGreen font-semibold text-xs tracking-wider uppercase">
+              <span>Standort für Live Training Königheim</span>
+              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ==================== PREISE & PAKETE ==================== -->
+  <section id="preise" class="bg-dark py-20 relative z-20 overflow-hidden border-t border-dark-border">
+    <!-- Video Background with Dark Overlay -->
+    <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+      <video autoplay muted loop playsinline class="w-full h-full object-cover">
+        <source src="Assets/Fußballstadion.mp4" type="video/mp4">
+      </video>
+      <div class="absolute inset-0 bg-gradient-to-b from-dark via-dark/75 to-dark"></div>
+    </div>
+
+    <!-- Subtle Background Glows -->
+    <div class="absolute top-[20%] left-[-10%] w-[400px] h-[400px] bg-accentCyan/5 rounded-full filter blur-[100px] pointer-events-none"></div>
+    <div class="absolute bottom-[20%] right-[-10%] w-[400px] h-[400px] bg-neonGreen/5 rounded-full filter blur-[100px] pointer-events-none"></div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      
+      <!-- Section Header -->
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <span class="text-xs font-bold tracking-[0.25em] text-neonGreen uppercase bg-neonGreen/10 px-3 py-1 rounded-full border border-neonGreen/20">PREISE & PAKETE</span>
+        <h2 class="text-3xl sm:text-4xl font-black text-white mt-4 uppercase">Deine Investition in den Erfolg</h2>
+        <p class="text-slate-400 mt-2 text-sm sm:text-base">Wähle das Paket, das zu deiner aktuellen Entwicklungsstufe passt. Jederzeit erweiterbar.</p>
+      </div>
+
+      <!-- Pricing Grid for the 2 Main Packages -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 max-w-5xl mx-auto mb-16">
+        
+        <!-- Paket 1: Digital-Athlet -->
+        <div class="bg-dark-light/50 border border-dark-border rounded-3xl p-8 lg:p-10 relative flex flex-col justify-between shadow-2xl backdrop-blur transition-all duration-300 hover:border-accentCyan/40 hover:-translate-y-1">
+          <div>
+            <span class="text-[10px] tracking-[0.2em] font-bold text-accentCyan uppercase bg-accentCyan/10 px-3 py-1.5 rounded-full border border-accentCyan/20 w-fit block mb-6">DAS DIGITALE FUNDAMENT</span>
+            <h3 class="text-2xl font-black text-white uppercase mb-2">NextLevel „Digital-Athlet“</h3>
+            <p class="text-xs text-slate-400 leading-relaxed mb-8">
+              Das komplette digitale Fundament für deine zielgerichtete Entwicklung im Torwartspiel.
+            </p>
+            
+            <!-- Features List -->
+            <ul class="space-y-4 mb-10 text-sm text-slate-300">
+              <li class="flex items-start gap-3">
+                <span class="text-accentCyan font-bold text-base mt-0.5">✓</span>
+                <div>
+                  <strong class="text-white block">Voller App-Zugriff</strong>
+                  <span class="text-xs text-slate-400">Altersgerechte Athletik-, Kraft- und Koordinationspläne (U11-U14 Bodyweight / U15+ Gym) sowie Offensivtechniken und -taktiken und vieles mehr.</span>
+                </div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="text-accentCyan font-bold text-base mt-0.5">✓</span>
+                <div>
+                  <strong class="text-white block">Voller Content-Zugriff</strong>
+                  <span class="text-xs text-slate-400">Neuroathletik, Kognitionstraining (digital in der App oder draußen), Mentaltraining, Ernährung, Unterstützung beim Coaching, Strategien bei Standards und vieles mehr.</span>
+                </div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="text-accentCyan font-bold text-base mt-0.5">✓</span>
+                <div>
+                  <strong class="text-white block">Persönlicher Chat-Support</strong>
+                  <span class="text-xs text-slate-400">Direkter Draht zu mir über die App bei Fragen zu Übungen, Plänen oder deiner Ausführung.</span>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Price & CTA -->
+          <div class="border-t border-dark-border/60 pt-6 mt-auto">
+            <div class="flex items-baseline gap-2 mb-6">
+              <span class="text-4xl lg:text-5xl font-black text-white">300,- €</span>
+              <span class="text-xs text-slate-500 uppercase tracking-wider font-semibold">/ 6 Monate Coaching (Einmalzahlung)</span>
+            </div>
+            <button onclick="openModal('bookingModal', 'app')" class="w-full border border-accentCyan/30 hover:border-accentCyan text-accentCyan font-bold tracking-wider text-xs py-4 rounded-xl hover:bg-accentCyan/10 transition-all uppercase active:scale-[0.98]">
+              Digital-Athlet anfragen
+            </button>
+          </div>
+        </div>
+
+        <!-- Paket 2: Elite-Coaching (Highlighted Card) -->
+        <div class="bg-dark-light/80 border-2 border-neonGreen/30 rounded-3xl p-8 lg:p-10 relative flex flex-col justify-between shadow-[0_15px_40px_rgba(57,255,20,0.06)] backdrop-blur transition-all duration-300 hover:border-neonGreen/60 hover:-translate-y-1">
+          <!-- Popular / Recommendation Badge -->
+          <div class="absolute -top-3.5 right-6 bg-neonGreen text-dark text-[9px] font-black tracking-widest uppercase py-1.5 px-3 rounded-full shadow-lg shadow-neonGreen/20">
+            ★ MEISTGEBUCHT
+          </div>
+
+          <div>
+            <span class="text-[10px] tracking-[0.2em] font-bold text-neonGreen uppercase bg-neonGreen/10 px-3 py-1.5 rounded-full border border-neonGreen/20 w-fit block mb-6">MAXIMALE BETREUUNG</span>
+            <h3 class="text-2xl font-black text-white uppercase mb-2">NextLevel „Elite-Coaching“</h3>
+            <p class="text-xs text-slate-400 leading-relaxed mb-8">
+              Die maximale digitale Betreuung inklusive wöchentlichem Experten-Feedback und Videoanalysen.
+            </p>
+            
+            <!-- Features List -->
+            <ul class="space-y-4 mb-10 text-sm text-slate-300">
+              <li class="flex items-start gap-3">
+                <span class="text-neonGreen font-bold text-base mt-0.5">✓</span>
+                <div>
+                  <strong class="text-white flex items-center gap-1.5">Alles aus Digital-Athlet <span class="text-[10px] font-bold text-neonGreen bg-neonGreen/10 px-2 py-0.5 rounded-full border border-neonGreen/10 uppercase">Inklusive</span></strong>
+                  <span class="text-xs text-slate-400">Voller App-Zugriff, Support, Taktiken, Standards, Coaching-Unterstützung und vieles mehr.</span>
+                </div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="text-neonGreen font-bold text-base mt-0.5">✓</span>
+                <div>
+                  <strong class="text-white block">Wöchentliches Spieltags-Feedback (8 Szenen/Monat)</strong>
+                  <span class="text-xs text-slate-400">Lade Trainings- oder Spielszenen hoch und erhalte von mir strukturierte Videoanalysen nach meinem Fortschritts-System.</span>
+                </div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="text-neonGreen font-bold text-base mt-0.5">✓</span>
+                <div>
+                  <strong class="text-white block">1 × Live Q&A pro Monat</strong>
+                  <span class="text-xs text-slate-400">Exklusiver Gruppen-Call für alle Teilnehmer zur Klärung von Detailfragen und tieferem Ausbildungs-Wissen.</span>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Price & CTA -->
+          <div class="border-t border-dark-border/60 pt-6 mt-auto">
+            <div class="flex items-baseline gap-2 mb-6">
+              <span class="text-4xl lg:text-5xl font-black text-neonGreen drop-shadow-[0_2px_10px_rgba(57,255,20,0.15)]">480,- €</span>
+              <span class="text-xs text-slate-500 uppercase tracking-wider font-semibold">/ 6 Monate Coaching (Einmalzahlung)</span>
+            </div>
+            <button onclick="openModal('bookingModal', 'hybrid')" class="w-full bg-neonGreen text-dark font-black tracking-wide text-xs py-4 rounded-xl hover:bg-neonGreen-hover active:scale-[0.98] transition-all shadow-lg shadow-neonGreen/20 uppercase">
+              Elite-Coaching anfragen
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Upgrade Banner: On the Pitch -->
+      <div class="max-w-5xl mx-auto bg-gradient-to-r from-neonGreen/10 to-accentCyan/15 border border-dark-border rounded-3xl p-8 sm:p-10 shadow-2xl relative overflow-hidden group">
+        <!-- Blueprint style grids in background -->
+        <div class="absolute inset-0 bg-[radial-gradient(circle,rgba(57,255,20,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
+        <div class="absolute -right-16 -top-16 w-32 h-32 bg-neonGreen/10 rounded-full filter blur-xl group-hover:scale-110 transition-transform"></div>
+
+        <div class="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8">
+          <div class="max-w-2xl">
+            <span class="text-[9px] tracking-[0.2em] font-bold text-neonGreen uppercase bg-neonGreen/15 px-3 py-1 rounded-full border border-neonGreen/20 w-fit block mb-4">REGIONALE ERWEITERUNG</span>
+            <h3 class="text-2xl sm:text-3xl font-black text-white uppercase mb-3">Das optionale Hybrid-Upgrade: „On the Pitch“</h3>
+            <p class="text-sm text-slate-300 leading-relaxed mb-4">
+              Du möchtest die digitale Steuerung mit Training auf dem Rasen kombinieren? Jedes der beiden digitalen Pakete kann von Keepern aus der Region flexibel um das Vor-Ort-Training erweitert werden.
+            </p>
+            <ul class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-400">
+              <li class="flex items-center gap-2">
+                <span class="text-neonGreen">✓</span> <strong class="text-slate-300">Monatlich anpassbar:</strong> Du entscheidest monatlich neu.
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-neonGreen">✓</span> <strong class="text-slate-300">Intensität wählbar:</strong> 4 bis 8 Live-Einheiten pro Monat.
+              </li>
+            </ul>
+          </div>
+
+          <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end gap-6 shrink-0 w-full lg:w-auto">
+            <div class="text-left lg:text-right">
+              <span class="text-xs text-slate-500 uppercase tracking-widest block font-bold leading-none mb-1.5">ABRECHNUNG PRO EINHEIT</span>
+              <div class="flex items-baseline gap-2">
+                <span class="text-3xl sm:text-4xl font-black text-white">50,- €</span>
+                <span class="text-xs text-slate-400 uppercase font-semibold">/ Einheit (monatlich im Voraus)</span>
+              </div>
+            </div>
+            <button onclick="openModal('bookingModal', 'hybrid')" class="bg-dark/90 border border-dark-border hover:border-neonGreen hover:text-neonGreen text-white font-black tracking-wide text-xs py-4 px-8 rounded-xl active:scale-[0.98] transition-all shadow-xl uppercase w-full sm:w-auto">
+              Mit Vor-Ort-Training anfragen
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Final Lead Capture Banner before Footer -->
+  <section class="bg-dark py-16 border-t border-dark-border relative z-20 overflow-hidden">
+    <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
+      <h2 class="text-3xl font-black text-white uppercase tracking-tight">Immer einen Schritt schneller als der Stürmer</h2>
+      <p class="text-slate-400 mt-2 text-sm sm:text-base max-w-xl mx-auto">
+        Melde dich für unseren Torwart-Newsletter an (10 E-Mails alle zwei Tage)! Erhalte wertvolle Informationen zum modernen Torwartspiel und erfahre, wie dir die App direkt dabei helfen kann, deine Leistungen im Kasten zu verbessern.
+      </p>
+      
+      <div class="mt-8 max-w-md mx-auto">
+        <form action="https://e0a919ac.sibforms.com/v2/serve/MUIFAAi1QbHL3BV9qgeDOuy01rxYZqadC1x4jUR_dhlWkIuyECfsIFbAxWJcVNNfs4A7XIy-AsDIIDZ6RgwRYxjpKpLaO19R4cUabHyz06ssQ2FBFCmsjPp91U5ZpYpyrsa51NiIPYioMvT11gmpAuJ74cf6QeUmqQEt45scy4EmfB6ix1dCbAjc8tmAHdKBPU4p9-LcA9QE3ZmebA==" method="POST" target="_blank" class="flex flex-col gap-4 w-full bg-dark-light/80 p-6 rounded-3xl border border-dark-border backdrop-blur-md shadow-2xl">
+          <!-- Name field -->
+          <div class="flex flex-col gap-1.5 text-left">
+            <label for="VORNAME_footer" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Vorname</label>
+            <input type="text" id="VORNAME_footer" name="VORNAME" required placeholder="Dein Vorname" class="bg-dark border border-dark-border focus:border-neonGreen focus:outline-none px-4 py-3 rounded-xl text-sm text-white focus:ring-0">
+          </div>
+          <!-- Email field -->
+          <div class="flex flex-col gap-1.5 text-left">
+            <label for="EMAIL_footer" class="text-xs font-bold text-slate-400 uppercase tracking-wider">E-Mail-Adresse</label>
+            <input type="email" id="EMAIL_footer" name="EMAIL" required placeholder="deine@email.de" class="bg-dark border border-dark-border focus:border-neonGreen focus:outline-none px-4 py-3 rounded-xl text-sm text-white focus:ring-0">
+          </div>
+          <!-- Honeypot & Locale -->
+          <input type="text" name="email_address_check" value="" class="hidden" style="display:none !important">
+          <input type="hidden" name="locale" value="de">
+          
+          <!-- Submit button -->
+          <button type="submit" class="bg-neonGreen text-dark font-black tracking-wide text-sm py-4 px-6 rounded-xl hover:bg-neonGreen-hover active:scale-[0.98] transition-all shadow-lg shadow-neonGreen/30 animate-pulse-glow flex items-center justify-center gap-2 uppercase mt-2">
+            <span>Newsletter abonnieren</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-dark-light border-t border-white/5 py-12 relative z-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-8">
+        
+        <!-- Brand Info -->
+        <div class="flex items-center gap-4">
+          <img src="Assets/logo_small.png" alt="NextLevel Logo" class="h-40 w-40 object-contain" loading="lazy">
+          <div class="flex flex-col w-[160px] sm:w-[195px]">
+            <div class="flex justify-between text-white font-black text-[23px] sm:text-[30px] leading-none uppercase w-full">
+              <span>N</span><span>E</span><span>X</span><span>T</span><span>L</span><span>E</span><span>V</span><span>E</span><span>L</span>
+            </div>
+            <div class="flex justify-between text-[11px] sm:text-[14px] font-bold text-slate-500 uppercase leading-none mt-1 w-full">
+              <span>G</span><span>O</span><span>A</span><span>L</span><span>K</span><span>E</span><span>E</span><span>P</span><span>I</span><span>N</span><span>G</span><span>&nbsp;</span><span>A</span><span>C</span><span>A</span><span>D</span><span>E</span><span>M</span><span>Y</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Links -->
+        <div class="flex flex-wrap justify-center gap-8 text-xs font-semibold text-slate-500">
+          <a href="#" class="hover:text-neonGreen transition-colors">STARTSEITE</a>
+          <a href="#saeulen" class="hover:text-neonGreen transition-colors">DIE 4 SÄULEN</a>
+          <a href="#altersklassen" class="hover:text-neonGreen transition-colors">ALTERSKLASSEN</a>
+          <a href="#hybrid" class="hover:text-neonGreen transition-colors">HYBRID-TRAINING</a>
+          <a href="#preise" class="hover:text-neonGreen transition-colors">PREISE & PAKETE</a>
+          <a href="javascript:void(0)" onclick="alert('Impressum coming soon.')" class="hover:text-neonGreen transition-colors">IMPRESSUM</a>
+          <a href="javascript:void(0)" onclick="alert('Datenschutz coming soon.')" class="hover:text-neonGreen transition-colors">DATENSCHUTZ</a>
+        </div>
+
+      </div>
+
+      <div class="mt-8 border-t border-dark-border pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p class="text-xs text-slate-600">&copy; 2026 NextLevel Goalkeeping Academy. Alle Rechte vorbehalten.</p>
+        <p class="text-[10px] text-slate-700">Entwickelt für den Erfolg im Kasten. NLZ-Torwarttraining.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==================== BOOKING MODAL ==================== -->
+  <div id="bookingModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden transition-opacity duration-300">
+    <div class="bg-dark border border-dark-border w-full max-w-lg rounded-3xl shadow-2xl relative overflow-hidden transition-transform duration-300 transform scale-95" onclick="event.stopPropagation()">
+      
+      <!-- Close Button -->
+      <button onclick="closeModal('bookingModal')" class="absolute top-4 right-4 p-2 text-slate-400 hover:text-white transition-colors" aria-label="Schließen">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      <div class="p-8">
+        <span class="text-xs font-bold tracking-[0.2em] text-accentCyan uppercase">ACADEMY-ANFRAGE</span>
+        <h3 class="text-2xl font-black text-white uppercase mt-1 mb-4">Wähle dein Trainingsformat</h3>
+        <p class="text-xs text-slate-400 leading-relaxed mb-6">
+          Trage deine Daten ein und wähle aus, für welches Format du dich interessierst. Wir melden uns umgehend bei dir und deinen Eltern.
+        </p>
+
+        <form id="bookingForm" onsubmit="handleBooking(event)">
+          <div class="space-y-4">
+            <!-- Format Choice -->
+            <div>
+              <label for="booking-type" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Gewünschtes Format</label>
+              <select id="booking-type" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white">
+                <option value="app">Nur App-Nutzung (Digitales Torwarttraining)</option>
+                <option value="hybrid" selected>Hybrid-Training (App-Nutzung + Live-Training vor Ort)</option>
+                <option value="field">Reines Torwarttraining (Nur vor Ort auf dem Platz)</option>
+              </select>
+            </div>
+
+            <!-- Name -->
+            <div>
+              <label for="booking-name" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Name des Torwarts</label>
+              <input type="text" id="booking-name" required placeholder="Vor- und Nachname" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+            </div>
+
+            <!-- Email -->
+            <div>
+              <label for="booking-email" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">E-Mail oder Handynummer</label>
+              <input type="text" id="booking-email" required placeholder="z. B. name@domain.de oder 0170/1234567" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+            </div>
+
+            <!-- Age & Standort Grid -->
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label for="booking-age" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Alter</label>
+                <input type="number" id="booking-age" required min="8" max="25" placeholder="z. B. 13" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+              </div>
+              <div>
+                <label for="booking-location" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Standort (bei Training vor Ort)</label>
+                <select id="booking-location" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white">
+                  <option value="siegen">Siegen (2 frei)</option>
+                  <option value="koenigheim">Königheim (4 frei)</option>
+                  <option value="none">Keine Live Betreuung</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Goals -->
+            <div>
+              <label for="booking-goals" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Meine Ziele als Torwart</label>
+              <input type="text" id="booking-goals" placeholder="z. B. Stammplatz sichern, Aufstieg, NLZ-Wechsel..." class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+            </div>
+
+            <!-- Message -->
+            <div>
+              <label for="booking-message" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Nachricht (Optional)</label>
+              <textarea id="booking-message" rows="3" placeholder="z. B. Mein aktueller Verein, Spielklasse..." class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white"></textarea>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="w-full bg-neonGreen text-dark font-black tracking-wide text-sm py-4 rounded-xl hover:bg-neonGreen-hover active:scale-[0.98] transition-all shadow-lg shadow-neonGreen/30 mt-6 uppercase">
+            Unverbindliche Anfrage senden
+          </button>
+        </form>
+
+        <!-- Success Area -->
+        <div id="bookingSuccess" class="hidden text-center py-6">
+          <div class="w-16 h-16 bg-neonGreen/10 border border-neonGreen/30 text-neonGreen rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h4 class="text-xl font-bold text-white uppercase mb-2">Anfrage empfangen!</h4>
+          <p class="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
+            Wir haben deine Daten erhalten und setzen uns schnellstmöglich mit dir bzw. deinen Eltern in Verbindung.
+          </p>
+          <button onclick="closeModal('bookingModal')" class="mt-6 border border-dark-border hover:border-slate-500 px-6 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all uppercase">
+            Schließen
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== LIGHTBOX MODAL ==================== -->
+  <div id="imageLightbox" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-md hidden transition-opacity duration-300" onclick="closeLightbox()">
+    <!-- Close Button -->
+    <button onclick="closeLightbox()" class="absolute top-4 right-4 p-2 text-slate-400 hover:text-white transition-colors" aria-label="Schließen">
+      <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+    <div class="relative max-w-5xl max-h-[85vh] w-full flex flex-col items-center" onclick="event.stopPropagation()">
+      <img id="lightboxImg" src="" alt="App-Screenshot" class="max-w-full max-h-[80vh] object-contain rounded-2xl border-2 border-neonGreen/30 shadow-2xl">
+      <p id="lightboxCaption" class="text-neonGreen text-xs sm:text-sm mt-4 font-semibold tracking-wider uppercase bg-neonGreen/10 px-4 py-1.5 rounded-full border border-neonGreen/20"></p>
+    </div>
+  </div>
+
+  <!-- Javascript Logic -->
+  <script>
+    // Toggle Mobile Navigation Drawer
+    function toggleMobileMenu() {
+      const mobileMenu = document.getElementById('mobileMenu');
+      const menuIcon = document.getElementById('menuIcon');
+      
+      if (mobileMenu.classList.contains('hidden')) {
+        mobileMenu.classList.remove('hidden');
+        // Change to close icon
+        menuIcon.setAttribute('d', 'M6 18L18 6M6 6l12 12');
+      } else {
+        mobileMenu.classList.add('hidden');
+        // Change back to burger icon
+        menuIcon.setAttribute('d', 'M4 6h16M4 12h16M4 18h16');
+      }
+    }
+
+    // Modal Control
+    function openModal(modalId, packageType) {
+      const modal = document.getElementById(modalId);
+      modal.classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+      
+      // Select appropriate package in inquiry form if provided
+      if (packageType) {
+        const bookingTypeSelect = document.getElementById('booking-type');
+        const bookingLocationSelect = document.getElementById('booking-location');
+        if (bookingTypeSelect) {
+          bookingTypeSelect.value = packageType;
+          // Apply associated dependency updates
+          if (packageType === 'app' && bookingLocationSelect) {
+            bookingLocationSelect.value = 'none';
+          } else if (bookingLocationSelect && bookingLocationSelect.value === 'none') {
+            bookingLocationSelect.value = 'siegen';
+          }
+        }
+      }
+      
+      setTimeout(() => {
+        modal.querySelector('.transform').classList.remove('scale-95');
+        modal.querySelector('.transform').classList.add('scale-100');
+      }, 50);
+    }
+
+    function closeModal(modalId) {
+      const modal = document.getElementById(modalId);
+      modal.querySelector('.transform').classList.remove('scale-100');
+      modal.querySelector('.transform').classList.add('scale-95');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+      }, 150);
+    }
+
+    // Close Modal on clicking background
+    window.onclick = function(event) {
+      const bookingModal = document.getElementById('bookingModal');
+      const imageLightbox = document.getElementById('imageLightbox');
+      if (event.target === bookingModal) {
+        closeModal('bookingModal');
+      }
+      if (event.target === imageLightbox) {
+        closeLightbox();
+      }
+    }
+
+    // Interactive Penalty Check Logic
+    function checkPenalty(position) {
+      // Elements
+      const feedbackBox = document.getElementById('penaltyFeedback');
+      const feedbackHeadline = document.getElementById('feedbackHeadline');
+      const feedbackText = document.getElementById('feedbackText');
+      
+      // Target overlays
+      const tLeft = document.getElementById('target-left');
+      const tMiddle = document.getElementById('target-middle');
+      const tRight = document.getElementById('target-right');
+      
+      // Reset targets
+      tLeft.classList.add('hidden');
+      tMiddle.classList.add('hidden');
+      tRight.classList.add('hidden');
+
+      // Buttons
+      const btnLeft = document.getElementById('btn-left');
+      const btnMiddle = document.getElementById('btn-middle');
+      const btnRight = document.getElementById('btn-right');
+      
+      // Reset buttons
+      btnLeft.className = "bg-dark hover:bg-cyan-950/30 text-slate-300 hover:text-white border border-dark-border hover:border-cyan-500/50 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all uppercase";
+      btnMiddle.className = "bg-dark hover:bg-cyan-950/30 text-slate-300 hover:text-white border border-dark-border hover:border-cyan-500/50 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all uppercase";
+      btnRight.className = "bg-dark hover:bg-cyan-950/30 text-slate-300 hover:text-white border border-dark-border hover:border-cyan-500/50 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all uppercase";
+
+      // Show selected target & highlight button
+      if (position === 'left') {
+        tLeft.classList.remove('hidden');
+        btnLeft.className = "bg-neonGreen/20 text-neonGreen border border-neonGreen py-3 rounded-xl font-bold text-sm tracking-wide transition-all uppercase shadow-lg shadow-neonGreen/10";
+        feedbackHeadline.innerHTML = `
+          <svg class="h-5 w-5 text-neonGreen" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          GLANZPARADE! GEHALTEN!
+        `;
+        feedbackHeadline.className = "text-base font-bold text-neonGreen mb-2 flex items-center gap-2";
+        feedbackText.textContent = "Gehalten! Du machst den entscheidenden Schritt nach links. Aber warum war das die richtige Ecke? Genau das lassen wir hier offen. Die Arbeit mit der NextLevel App hilft dir, die feinen optischen Signale des Schützen blitzschnell zu erkennen, richtig zu entscheiden und im Spiel zu parieren.";
+      } else if (position === 'middle') {
+        tMiddle.classList.remove('hidden');
+        btnMiddle.className = "bg-red-500/20 text-red-400 border border-red-500 py-3 rounded-xl font-bold text-sm tracking-wide transition-all uppercase shadow-lg shadow-red-500/10";
+        feedbackHeadline.innerHTML = `
+          <svg class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          STÜRMER TRIFFT!
+        `;
+        feedbackHeadline.className = "text-base font-bold text-red-500 mb-2 flex items-center gap-2";
+        feedbackText.textContent = "Treffer! Du bleibst in der Mitte stehen. Aber warum zieht der Schütze den Ball flach ins Eck ab? Die genaue Auflösung bleibt offen. Die Arbeit mit der NextLevel App schult deine Wahrnehmung, um solche Signale sofort zu erkennen, richtig zu entscheiden und im Spiel zu parieren.";
+      } else if (position === 'right') {
+        tRight.classList.remove('hidden');
+        btnRight.className = "bg-red-500/20 text-red-400 border border-red-500 py-3 rounded-xl font-bold text-sm tracking-wide transition-all uppercase shadow-lg shadow-red-500/10";
+        feedbackHeadline.innerHTML = `
+          <svg class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          STÜRMER TRIFFT!
+        `;
+        feedbackHeadline.className = "text-base font-bold text-red-500 mb-2 flex items-center gap-2";
+        feedbackText.textContent = "Treffer! Du springst nach rechts. Aber warum war das die falsche Ecke? Die genaue Antwort bleibt offen. Die Arbeit mit der NextLevel App hilft dir, die optischen Signale des Schützen im Bruchteil einer Sekunde zu erkennen, richtig zu entscheiden und zu parieren.";
+      }
+
+      // Show Feedback Box smoothly
+      feedbackBox.classList.remove('max-h-0', 'opacity-0');
+      feedbackBox.classList.add('max-h-96', 'opacity-100', 'border-neonGreen/30', 'mt-4');
+    }
+
+    // Toggle Pillar Tabs
+    function switchPillarTab(activeTabId, inactiveTabId, activeImgId, inactiveImgId, button) {
+      // Toggle Image Display
+      document.getElementById(activeImgId).classList.remove('hidden');
+      document.getElementById(inactiveImgId).classList.add('hidden');
+
+      // Update button styling
+      const buttons = button.parentNode.querySelectorAll('button');
+      buttons.forEach(btn => {
+        if (btn === button) {
+          btn.className = "text-[10px] font-bold px-2 py-1 rounded-md text-neonGreen bg-neonGreen/10 transition-all";
+        } else {
+          btn.className = "text-[10px] font-bold px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 transition-all";
+        }
+      });
+    }
+
+    // Age Tab Switcher
+    function showAgeTab(ageGroup) {
+      const u14Content = document.getElementById('tab-content-u14');
+      const o14Content = document.getElementById('tab-content-o14');
+      const u14Btn = document.getElementById('tab-btn-u14');
+      const o14Btn = document.getElementById('tab-btn-o14');
+
+      if (ageGroup === 'u14') {
+        // Show U14 Content
+        u14Content.classList.remove('hidden');
+        o14Content.classList.add('hidden');
+        // Button Styles
+        u14Btn.className = "px-6 py-3 rounded-xl text-sm font-bold tracking-wider transition-all uppercase whitespace-nowrap bg-neonGreen text-dark shadow-lg shadow-neonGreen/20";
+        o14Btn.className = "px-6 py-3 rounded-xl text-sm font-bold tracking-wider transition-all uppercase whitespace-nowrap text-slate-400 hover:text-white";
+      } else {
+        // Show O14 Content
+        u14Content.classList.add('hidden');
+        o14Content.classList.remove('hidden');
+        // Button Styles
+        u14Btn.className = "px-6 py-3 rounded-xl text-sm font-bold tracking-wider transition-all uppercase whitespace-nowrap text-slate-400 hover:text-white";
+        o14Btn.className = "px-6 py-3 rounded-xl text-sm font-bold tracking-wider transition-all uppercase whitespace-nowrap bg-neonGreen text-dark shadow-lg shadow-neonGreen/20";
+      }
+    }
+
+
+
+    // Handle Hybrid Booking Submission
+    function handleBooking(event) {
+      event.preventDefault();
+      const form = document.getElementById('bookingForm');
+      const success = document.getElementById('bookingSuccess');
+
+      // Hide form fields
+      form.classList.add('hidden');
+      success.classList.remove('hidden');
+    }
+
+    // Dynamic Inquiry Form Interactions & Calendar Animation Flipper
+    document.addEventListener('DOMContentLoaded', () => {
+      const bookingType = document.getElementById('booking-type');
+      const bookingLocation = document.getElementById('booking-location');
+      
+      if (bookingType && bookingLocation) {
+        bookingType.addEventListener('change', function() {
+          if (this.value === 'app') {
+            bookingLocation.value = 'none';
+          } else if (bookingLocation.value === 'none') {
+            bookingLocation.value = 'siegen';
+          }
+        });
+      }
+
+      // Calendar Flipper cycle through 6 months
+      const frontPage = document.getElementById('calendar-front-page');
+      const frontVal = document.getElementById('calendar-front-val');
+      const nextVal = document.getElementById('calendar-next-val');
+      
+      if (frontPage && frontVal && nextVal) {
+        let currentMonth = 1;
+        setInterval(() => {
+          const nextMonth = (currentMonth % 6) + 1;
+          nextVal.textContent = String(nextMonth).padStart(2, '0');
+          
+          // Apply flip active class
+          frontPage.classList.add('calendar-flip-active');
+          
+          setTimeout(() => {
+            currentMonth = nextMonth;
+            frontVal.textContent = String(currentMonth).padStart(2, '0');
+            // Instantly remove transition class to snap page back up
+            frontPage.style.transition = 'none';
+            frontPage.classList.remove('calendar-flip-active');
+            
+            // Force reflow
+            frontPage.offsetHeight;
+            
+            // Restore transition property
+            frontPage.style.transition = '';
+          }, 800); // matches the 0.8s CSS transition time
+        }, 3000); // flip page every 3 seconds
+      }
+    });
+
+    // Lightbox Control
+    function openLightbox(src, alt) {
+      const lightbox = document.getElementById('imageLightbox');
+      const img = document.getElementById('lightboxImg');
+      const caption = document.getElementById('lightboxCaption');
+      
+      img.src = src;
+      caption.textContent = alt || "App-Screenshot";
+      
+      lightbox.classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+    }
+
+    function closeLightbox() {
+      const lightbox = document.getElementById('imageLightbox');
+      lightbox.classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
+    }
+
+    // ==================== NEW INTERACTIVE EFFECTS ====================
+    
+    // 1. Mouse Spotlight Tracker Glow (Radial spotlight background)
+    const spotlight = document.createElement('div');
+    spotlight.className = "fixed pointer-events-none w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,rgba(57,255,20,0.07)_0%,rgba(6,182,212,0.02)_40%,transparent_70%)] -translate-x-1/2 -translate-y-1/2 z-0 hidden lg:block";
+    spotlight.style.mixBlendMode = "screen";
+    spotlight.style.transition = "transform 0.15s ease-out, opacity 0.3s ease-in-out";
+    document.body.appendChild(spotlight);
+
+    document.addEventListener('mousemove', (e) => {
+      spotlight.style.left = e.clientX + 'px';
+      spotlight.style.top = e.clientY + 'px';
+    });
+
+    // 2. 3D Tilt Effect on Cards (Pillars & Hybrid locations)
+    const tiltElements = document.querySelectorAll('.group, .bg-dark.border.border-dark-border');
+    tiltElements.forEach(el => {
+      // Avoid tilting very large layouts or non-card containers
+      if (el.classList.contains('max-w-7xl') || el.classList.contains('space-y-24') || el.classList.contains('max-w-5xl')) return;
+      
+      el.addEventListener('mousemove', (e) => {
+        const rect = el.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const xc = rect.width / 2;
+        const yc = rect.height / 2;
+        
+        const angleX = (yc - y) / 20;
+        const angleY = (x - xc) / 20;
+        
+        el.style.transform = `perspective(1000px) rotateX(${angleX}deg) rotateY(${angleY}deg) scale3d(1.015, 1.015, 1.015)`;
+        el.style.transition = 'none';
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        el.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+        el.style.transition = 'transform 0.5s ease';
+      });
+    });
+
+    // 3. Magnetic Hover Effect on CTA Buttons
+    const magnetButtons = document.querySelectorAll('button');
+    magnetButtons.forEach(btn => {
+      if (!btn.classList.contains('bg-neonGreen')) return; // Target only primary CTAs
+      
+      btn.addEventListener('mousemove', (e) => {
+        const rect = btn.getBoundingClientRect();
+        const x = e.clientX - rect.left - (rect.width / 2);
+        const y = e.clientY - rect.top - (rect.height / 2);
+        
+        // pull the button toward cursor by 25% of distance
+        btn.style.transform = `translate(${x * 0.25}px, ${y * 0.25}px)`;
+        btn.style.transition = 'none';
+      });
+      
+      btn.addEventListener('mouseleave', () => {
+        btn.style.transform = `translate(0px, 0px)`;
+        btn.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
+      });
+    });
+  </script>
+</body>
+</html>
