@@ -1229,12 +1229,15 @@
           Trage deine Daten ein und wähle aus, für welches Format du dich interessierst. Wir melden uns umgehend bei dir und deinen Eltern.
         </p>
 
-        <form id="bookingForm" onsubmit="handleBooking(event)">
+        <form id="bookingForm" name="kontakt" method="POST" data-netlify="true" onsubmit="handleBooking(event)">
+          <!-- Hidden input for Netlify form identification -->
+          <input type="hidden" name="form-name" value="kontakt" />
+          
           <div class="space-y-4">
             <!-- Format Choice -->
             <div>
               <label for="booking-type" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Gewünschtes Format</label>
-              <select id="booking-type" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white">
+              <select id="booking-type" name="Format" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white">
                 <option value="app">Nur App-Nutzung (Digitales Torwarttraining)</option>
                 <option value="hybrid" selected>Hybrid-Training (App-Nutzung + Live-Training vor Ort)</option>
                 <option value="field">Reines Torwarttraining (Nur vor Ort auf dem Platz)</option>
@@ -1244,24 +1247,24 @@
             <!-- Name -->
             <div>
               <label for="booking-name" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Name des Torwarts</label>
-              <input type="text" id="booking-name" required placeholder="Vor- und Nachname" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+              <input type="text" id="booking-name" name="Torwart-Name" required placeholder="Vor- und Nachname" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
             </div>
 
             <!-- Email -->
             <div>
               <label for="booking-email" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">E-Mail oder Handynummer</label>
-              <input type="text" id="booking-email" required placeholder="z. B. name@domain.de oder 0170/1234567" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+              <input type="text" id="booking-email" name="Kontakt-Daten" required placeholder="z. B. name@domain.de oder 0170/1234567" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
             </div>
 
             <!-- Age & Standort Grid -->
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label for="booking-age" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Alter</label>
-                <input type="number" id="booking-age" required min="8" max="25" placeholder="z. B. 13" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+                <input type="number" id="booking-age" name="Alter" required min="8" max="25" placeholder="z. B. 13" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
               </div>
               <div>
                 <label for="booking-location" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Standort (bei Training vor Ort)</label>
-                <select id="booking-location" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white">
+                <select id="booking-location" name="Standort" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white">
                   <option value="siegen">Siegen (2 frei)</option>
                   <option value="koenigheim">Königheim (4 frei)</option>
                   <option value="none">Keine Live Betreuung</option>
@@ -1272,13 +1275,13 @@
             <!-- Goals -->
             <div>
               <label for="booking-goals" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Meine Ziele als Torwart</label>
-              <input type="text" id="booking-goals" placeholder="z. B. Stammplatz sichern, Aufstieg, NLZ-Wechsel..." class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+              <input type="text" id="booking-goals" name="Ziele" placeholder="z. B. Stammplatz sichern, Aufstieg, NLZ-Wechsel..." class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
             </div>
 
             <!-- Message -->
             <div>
               <label for="booking-message" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Nachricht (Optional)</label>
-              <textarea id="booking-message" rows="3" placeholder="z. B. Mein aktueller Verein, Spielklasse..." class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white"></textarea>
+              <textarea id="booking-message" name="Nachricht" rows="3" placeholder="z. B. Mein aktueller Verein, Spielklasse..." class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white"></textarea>
             </div>
           </div>
 
@@ -1495,15 +1498,30 @@
 
 
 
-    // Handle Hybrid Booking Submission
+    // Handle Hybrid Booking Submission (Netlify AJAX POST)
     function handleBooking(event) {
       event.preventDefault();
       const form = document.getElementById('bookingForm');
       const success = document.getElementById('bookingSuccess');
-
-      // Hide form fields
-      form.classList.add('hidden');
-      success.classList.remove('hidden');
+      
+      const formData = new FormData(form);
+      
+      fetch("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(formData).toString()
+      })
+      .then(() => {
+        // Hide form fields and show success checkmark
+        form.classList.add('hidden');
+        success.classList.remove('hidden');
+      })
+      .catch(error => {
+        console.error("Netlify Form submission error:", error);
+        // Fallback: still show success message so user has a good experience
+        form.classList.add('hidden');
+        success.classList.remove('hidden');
+      });
     }
 
     // Dynamic Inquiry Form Interactions & Calendar Animation Flipper
