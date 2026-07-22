@@ -4,8 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NextLevel Goalkeeping Academy | Torwarttraining auf NLZ-Niveau</title>
-  <meta name="description" content="Werde zur unüberwindbaren Mauer. Profi-Torwarttraining direkt aus dem NLZ. Kognition, Athletik und Antizipation für ambitionierte Keeper.">
+  <meta name="description" content="Bringe dein Torwartspiel auf das NextLevel mit unserem ganzheitlichen 6-Monats-Ausbildungsplan. Profi-Torwarttraining direkt aus dem NLZ. Kognition, Athletik und Antizipation für ambitionierte Keeper.">
   
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="Assets/logo_tiny.png">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://nextlevel-gk.de/">
+  <meta property="og:title" content="NextLevel Goalkeeping Academy | Torwarttraining auf NLZ-Niveau">
+  <meta property="og:description" content="Bringe dein Torwartspiel auf das NextLevel mit unserem ganzheitlichen 6-Monats-Ausbildungsplan. Profi-Torwarttraining direkt aus dem NLZ.">
+  <meta property="og:image" content="https://nextlevel-gk.de/Assets/logo_small.png">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://nextlevel-gk.de/">
+  <meta property="twitter:title" content="NextLevel Goalkeeping Academy | Torwarttraining auf NLZ-Niveau">
+  <meta property="twitter:description" content="Bringe dein Torwartspiel auf das NextLevel mit unserem ganzheitlichen 6-Monats-Ausbildungsplan. Profi-Torwarttraining direkt aus dem NLZ.">
+  <meta property="twitter:image" content="https://nextlevel-gk.de/Assets/logo_small.png">
+
+  <!-- Preloads for LCP Optimization -->
+  <link rel="preload" href="Assets/logo_small.png" as="image">
+
   <!-- Google Fonts: Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -146,30 +166,32 @@
 
   <!-- Header & Navigation -->
   <header class="sticky top-0 z-50 backdrop-blur-lg bg-dark/80 border-b border-white/5 transition-all duration-300">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-44 sm:h-52 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 sm:h-24 flex items-center justify-between">
       <!-- Logo & Name -->
-      <a href="#" class="flex items-center gap-4 group">
-        <img src="Assets/logo_small.png" alt="NextLevel Goalkeeping Academy Logo" class="h-40 w-40 sm:h-48 sm:w-48 object-contain transition-transform duration-300 group-hover:scale-105" fetchpriority="high">
-        <div class="flex flex-col w-[160px] sm:w-[195px]">
-          <div class="flex justify-between text-white font-black text-[23px] sm:text-[30px] leading-none group-hover:text-neonGreen transition-colors uppercase w-full">
+      <a href="#" class="flex items-center gap-3 group">
+        <img src="Assets/logo_small.png" alt="NextLevel Goalkeeping Academy Logo" class="h-14 w-14 sm:h-16 sm:w-16 object-contain transition-transform duration-300 group-hover:scale-105" fetchpriority="high">
+        <div class="flex flex-col w-[130px] sm:w-[170px]">
+          <div class="flex justify-between text-white font-black text-[22px] sm:text-[28px] leading-none group-hover:text-neonGreen transition-colors uppercase w-full">
             <span>N</span><span>E</span><span>X</span><span>T</span><span>L</span><span>E</span><span>V</span><span>E</span><span>L</span>
           </div>
-          <div class="flex justify-between text-[11px] sm:text-[14px] font-bold text-accentCyan uppercase leading-none mt-1 w-full">
+          <div class="flex justify-between text-[9px] sm:text-[11px] font-bold text-accentCyan uppercase leading-none mt-0.5 w-full">
             <span>G</span><span>O</span><span>A</span><span>L</span><span>K</span><span>E</span><span>E</span><span>P</span><span>I</span><span>N</span><span>G</span><span>&nbsp;</span><span>A</span><span>C</span><span>A</span><span>D</span><span>E</span><span>M</span><span>Y</span>
           </div>
         </div>
-      </a>      <!-- Desktop Navigation -->
-      <nav class="hidden lg:flex items-center gap-6 xl:gap-8 text-sm font-semibold tracking-wide ml-auto pl-12">
+      </a>
+      <!-- Desktop Navigation -->
+      <nav class="hidden xl:flex items-center gap-4 xl:gap-6 text-sm font-semibold tracking-wide ml-auto">
         <a href="#saeulen" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">DIE 4 SÄULEN</a>
         <a href="#altersklassen" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">ALTERSKLASSEN</a>
         <a href="#eltern" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">ELTERN-INFOS</a>
         <a href="#hybrid" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">HYBRID-TRAINING</a>
         <a href="#preise" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">PREISE & PAKETE</a>
+        <a href="ueber-mich.html" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">ÜBER MICH</a>
         <a href="javascript:void(0)" onclick="openModal('bookingModal')" class="border border-neonGreen/30 hover:border-neonGreen px-4 py-2 rounded-full text-xs font-bold text-neonGreen hover:bg-neonGreen/10 transition-all tracking-wider">JETZT ANFRAGEN</a>
       </nav>
 
       <!-- Mobile Menu Button -->
-      <button id="mobileMenuBtn" class="lg:hidden p-2 text-slate-400 hover:text-neonGreen transition-colors" aria-label="Menü öffnen" onclick="toggleMobileMenu()">
+      <button id="mobileMenuBtn" class="xl:hidden p-2 text-slate-400 hover:text-neonGreen transition-colors" aria-label="Menü öffnen" onclick="toggleMobileMenu()">
         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path id="menuIcon" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
@@ -177,12 +199,13 @@
     </div>
 
     <!-- Mobile Navigation Drawer -->
-    <div id="mobileMenu" class="hidden lg:hidden absolute top-44 sm:top-52 left-0 w-full bg-dark/95 border-b border-dark-border py-6 px-6 flex flex-col gap-5 shadow-2xl transition-all duration-300">
+    <div id="mobileMenu" class="hidden xl:hidden absolute top-20 sm:top-24 left-0 w-full bg-dark/95 border-b border-dark-border py-6 px-6 flex flex-col gap-5 shadow-2xl transition-all duration-300">
       <a href="#saeulen" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">DIE 4 SÄULEN</a>
       <a href="#altersklassen" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">ALTERSKLASSEN</a>
       <a href="#eltern" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">ELTERN-INFOS</a>
       <a href="#hybrid" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">HYBRID-TRAINING</a>
       <a href="#preise" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">PREISE & PAKETE</a>
+      <a href="ueber-mich.html" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">ÜBER MICH</a>
       <a href="javascript:void(0)" onclick="toggleMobileMenu(); openModal('bookingModal');" class="bg-neonGreen text-dark font-black text-center py-3 rounded-xl tracking-wider hover:bg-neonGreen-hover transition-colors shadow-lg shadow-neonGreen/20">JETZT ANFRAGEN</a>
     </div>
   </header>
@@ -226,12 +249,18 @@
           </p>
 
           <!-- Trust Sub-badge -->
-          <p class="mt-4 text-xs sm:text-sm font-semibold text-accentCyan flex items-center justify-center lg:justify-start gap-2">
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
-            Deine Ausbildung – digital in der App und direkt auf dem Platz.
-          </p>
+          <div class="mt-4 flex flex-col sm:flex-row gap-2 justify-center lg:justify-start">
+            <p class="text-xs sm:text-sm font-semibold text-accentCyan flex items-center gap-2">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              Deine Ausbildung – digital & vor Ort.
+            </p>
+            <span class="hidden sm:inline text-slate-600">|</span>
+            <p class="text-xs sm:text-sm font-semibold text-neonGreen flex items-center gap-2">
+              <span class="text-neonGreen">⚡</span> Jetzt kostenloses Erstgespräch anfordern!
+            </p>
+          </div>
 
           <!-- Email signup form (Brevo Custom Native) -->
           <div class="mt-8 max-w-md mx-auto lg:mx-0 w-full">
@@ -306,9 +335,13 @@
 
   <!-- ==================== GANZHEITLICHE AUSBILDUNG (HOLISTIC USP) ==================== -->
   <section id="ganzheitlich" class="bg-dark py-20 relative z-20 overflow-hidden border-t border-dark-border">
-    <!-- Glow Grid background elements -->
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-neonGreen/5 rounded-full filter blur-[120px] pointer-events-none z-0"></div>
-    <div class="absolute inset-0 bg-[radial-gradient(circle,rgba(6,182,212,0.02)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none z-0"></div>
+    <!-- Video Background with Dark Overlay -->
+    <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+      <video autoplay muted loop playsinline class="w-full h-full object-cover">
+        <source src="Assets/Training.mp4" type="video/mp4">
+      </video>
+      <div class="absolute inset-0 bg-gradient-to-b from-dark via-dark/75 to-dark"></div>
+    </div>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
       
@@ -1115,7 +1148,9 @@
       <div class="text-center max-w-3xl mx-auto mb-16">
         <span class="text-xs font-bold tracking-[0.25em] text-neonGreen uppercase bg-neonGreen/10 px-3 py-1 rounded-full border border-neonGreen/20">PREISE & PAKETE</span>
         <h2 class="text-3xl sm:text-4xl font-black text-white mt-4 uppercase">Deine Investition in den Erfolg</h2>
-        <p class="text-slate-400 mt-2 text-sm sm:text-base">Wähle das Paket, das zu deiner aktuellen Entwicklungsstufe passt. Jederzeit erweiterbar.</p>
+        <p class="text-slate-400 mt-2 text-sm sm:text-base leading-relaxed">
+          Sichere dir vorab dein <strong class="text-neonGreen font-bold">kostenloses Erstgespräch</strong>, um den perfekten Fahrplan für dich zu besprechen! Jedes Coaching startet nach Abschluss direkt mit einem persönlichen Onboarding-Gespräch.
+        </p>
       </div>
 
       <!-- Pricing Grid for the 2 Main Packages -->
@@ -1151,6 +1186,13 @@
                 <div>
                   <strong class="text-white block">Persönlicher Chat-Support</strong>
                   <span class="text-xs text-slate-400">Direkter Draht zu mir über die App bei Fragen zu Übungen, Plänen oder deiner Ausführung.</span>
+                </div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="text-accentCyan font-bold text-base mt-0.5">✓</span>
+                <div>
+                  <strong class="text-white block">Persönliches Onboarding-Gespräch</strong>
+                  <span class="text-xs text-slate-400">Ausführliche gemeinsame Einrichtung und Start-Zielsetzung direkt nach Buchung (Abschluss) des Coachings.</span>
                 </div>
               </li>
             </ul>
@@ -1331,8 +1373,9 @@
           <a href="#altersklassen" class="hover:text-neonGreen transition-colors">ALTERSKLASSEN</a>
           <a href="#hybrid" class="hover:text-neonGreen transition-colors">HYBRID-TRAINING</a>
           <a href="#preise" class="hover:text-neonGreen transition-colors">PREISE & PAKETE</a>
-          <a href="javascript:void(0)" onclick="alert('Impressum coming soon.')" class="hover:text-neonGreen transition-colors">IMPRESSUM</a>
-          <a href="javascript:void(0)" onclick="alert('Datenschutz coming soon.')" class="hover:text-neonGreen transition-colors">DATENSCHUTZ</a>
+          <a href="ueber-mich.html" class="hover:text-neonGreen transition-colors">ÜBER MICH</a>
+          <a href="impressum.html" class="hover:text-neonGreen transition-colors">IMPRESSUM</a>
+          <a href="datenschutz.html" class="hover:text-neonGreen transition-colors">DATENSCHUTZ</a>
         </div>
 
       </div>
@@ -1359,7 +1402,7 @@
         <span class="text-xs font-bold tracking-[0.2em] text-accentCyan uppercase">ACADEMY-ANFRAGE</span>
         <h3 class="text-2xl font-black text-white uppercase mt-1 mb-4">Wähle dein Trainingsformat</h3>
         <p class="text-xs text-slate-400 leading-relaxed mb-6">
-          Trage deine Daten ein und wähle aus, für welches Format du dich interessierst. Wir melden uns umgehend bei dir und deinen Eltern.
+          Trage deine Daten ein. Im ersten Schritt führen wir ein <strong class="text-neonGreen">kostenloses Erstgespräch</strong>, um deine Ziele zu besprechen. Nach Abschluss deiner Buchung starten wir direkt mit einem ausführlichen <strong class="text-accentCyan">Onboarding-Gespräch</strong>.
         </p>
 
         <form id="bookingForm" name="kontakt" method="POST" data-netlify="true" onsubmit="handleBooking(event)">

@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Über mich | NextLevel Goalkeeping Academy</title>
+  <meta name="description" content="Dr. Thorsten Weber – lizensierter Torwarttrainer (DFB Torwart B-Lizenz / DFB B+ Lizenz) und promovierter Pädagoge. Erfahre mehr über den Kopf hinter NextLevel.">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="Assets/logo_tiny.png">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://nextlevel-gk.de/ueber-mich.html">
+  <meta property="og:title" content="Über mich | NextLevel Goalkeeping Academy">
+  <meta property="og:description" content="Dr. Thorsten Weber – lizensierter Torwarttrainer und promovierter Pädagoge. Erfahre mehr über den Kopf hinter NextLevel.">
+  <meta property="og:image" content="https://nextlevel-gk.de/Assets/Portrait.png">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://nextlevel-gk.de/ueber-mich.html">
+  <meta property="twitter:title" content="Über mich | NextLevel Goalkeeping Academy">
+  <meta property="twitter:description" content="Dr. Thorsten Weber – lizensierter Torwarttrainer und promovierter Pädagoge. Erfahre mehr über den Kopf hinter NextLevel.">
+  <meta property="twitter:image" content="https://nextlevel-gk.de/Assets/Portrait.png">
+
+  <!-- Preloads for LCP Optimization -->
+  <link rel="preload" href="Assets/logo_small.png" as="image">
+  <link rel="preload" href="Assets/Portrait.png" as="image">
+
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Custom Tailwind Configuration -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              DEFAULT: '#0A0D14',
+              light: '#131824',
+              lighter: '#1C2336',
+              border: '#2A344A'
+            },
+            neonGreen: {
+              DEFAULT: '#39FF14',
+              hover: '#29e00c',
+              glow: 'rgba(57, 255, 20, 0.4)',
+              dim: 'rgba(57, 255, 20, 0.1)'
+            },
+            accentCyan: {
+              DEFAULT: '#06B6D4',
+              hover: '#0891B2',
+              glow: 'rgba(6, 182, 212, 0.4)',
+              dim: 'rgba(6, 182, 212, 0.1)'
+            }
+          },
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+          },
+          animation: {
+            'pulse-glow': 'pulseGlow 2s infinite',
+            'float': 'floatDevice 6s ease-in-out infinite',
+            'blob': 'blobAnimation 10s infinite',
+            'float-ball-1': 'floatBall1 20s infinite ease-in-out',
+            'float-ball-2': 'floatBall2 25s infinite ease-in-out',
+          },
+          keyframes: {
+            pulseGlow: {
+              '0%, 100%': { boxShadow: '0 0 15px rgba(57,255,20,0.4)' },
+              '50%': { boxShadow: '0 0 25px rgba(57,255,20,0.8)' },
+            },
+            floatDevice: {
+              '0%, 100%': { transform: 'translateY(0px) rotate(0.5deg)' },
+              '50%': { transform: 'translateY(-10px) rotate(-0.5deg)' },
+            },
+            blobAnimation: {
+              '0%, 100%': { transform: 'translate(0px, 0px) scale(1)' },
+              '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+              '66%': { transform: 'translate(-20px, 20px) scale(0.95)' },
+            },
+            floatBall1: {
+              '0%, 100%': { transform: 'translate(0px, 0px) rotate(0deg) scale(0.7)' },
+              '50%': { transform: 'translate(120px, -180px) rotate(180deg) scale(0.9)' },
+            },
+            floatBall2: {
+              '0%, 100%': { transform: 'translate(0px, 0px) rotate(360deg) scale(0.8)' },
+              '50%': { transform: 'translate(-140px, 140px) rotate(180deg) scale(0.6)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: #0A0D14;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0A0D14;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1C2336;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #39FF14;
+    }
+  </style>
+</head>
+<body class="text-slate-100 overflow-x-hidden antialiased">
+
+  <!-- Background Decorative Glowing Orbs -->
+  <div class="absolute top-[10%] left-[-10%] w-[500px] h-[500px] bg-neonGreen/10 rounded-full mix-blend-screen filter blur-[120px] pointer-events-none animate-blob"></div>
+  <div class="absolute top-[40%] right-[-10%] w-[600px] h-[600px] bg-accentCyan/15 rounded-full mix-blend-screen filter blur-[150px] pointer-events-none animate-blob" style="animation-delay: 2s;"></div>
+  <div class="absolute bottom-[10%] left-[10%] w-[500px] h-[500px] bg-neonGreen/5 rounded-full mix-blend-screen filter blur-[120px] pointer-events-none animate-blob" style="animation-delay: 4s;"></div>
+
+  <!-- Header & Navigation -->
+  <header class="sticky top-0 z-50 backdrop-blur-lg bg-dark/80 border-b border-white/5 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 sm:h-24 flex items-center justify-between">
+      <!-- Logo & Name -->
+      <a href="index.html" class="flex items-center gap-3 group">
+        <img src="Assets/logo_small.png" alt="NextLevel Goalkeeping Academy Logo" class="h-14 w-14 sm:h-16 sm:w-16 object-contain transition-transform duration-300 group-hover:scale-105" fetchpriority="high">
+        <div class="flex flex-col w-[130px] sm:w-[170px]">
+          <div class="flex justify-between text-white font-black text-[22px] sm:text-[28px] leading-none group-hover:text-neonGreen transition-colors uppercase w-full">
+            <span>N</span><span>E</span><span>X</span><span>T</span><span>L</span><span>E</span><span>V</span><span>E</span><span>L</span>
+          </div>
+          <div class="flex justify-between text-[9px] sm:text-[11px] font-bold text-accentCyan uppercase leading-none mt-0.5 w-full">
+            <span>G</span><span>O</span><span>A</span><span>L</span><span>K</span><span>E</span><span>E</span><span>P</span><span>I</span><span>N</span><span>G</span><span>&nbsp;</span><span>A</span><span>C</span><span>A</span><span>D</span><span>E</span><span>M</span><span>Y</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- Desktop Navigation -->
+      <nav class="hidden xl:flex items-center gap-4 xl:gap-6 text-sm font-semibold tracking-wide ml-auto">
+        <a href="index.html#saeulen" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">DIE 4 SÄULEN</a>
+        <a href="index.html#altersklassen" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">ALTERSKLASSEN</a>
+        <a href="index.html#eltern" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">ELTERN-INFOS</a>
+        <a href="index.html#hybrid" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">HYBRID-TRAINING</a>
+        <a href="index.html#preise" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">PREISE & PAKETE</a>
+        <a href="ueber-mich.html" class="text-neonGreen hover:translate-y-[-1px] transition-all">ÜBER MICH</a>
+        <a href="javascript:void(0)" onclick="openModal('bookingModal')" class="border border-neonGreen/30 hover:border-neonGreen px-4 py-2 rounded-full text-xs font-bold text-neonGreen hover:bg-neonGreen/10 transition-all tracking-wider">JETZT ANFRAGEN</a>
+      </nav>
+
+      <!-- Mobile Menu Button -->
+      <button id="mobileMenuBtn" class="xl:hidden p-2 text-slate-400 hover:text-neonGreen transition-colors" aria-label="Menü öffnen" onclick="toggleMobileMenu()">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path id="menuIcon" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile Navigation Drawer -->
+    <div id="mobileMenu" class="hidden xl:hidden absolute top-20 sm:top-24 left-0 w-full bg-dark/95 border-b border-dark-border py-6 px-6 flex flex-col gap-5 shadow-2xl transition-all duration-300">
+      <a href="index.html#saeulen" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">DIE 4 SÄULEN</a>
+      <a href="index.html#altersklassen" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">ALTERSKLASSEN</a>
+      <a href="index.html#eltern" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">ELTERN-INFOS</a>
+      <a href="index.html#hybrid" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">HYBRID-TRAINING</a>
+      <a href="index.html#preise" class="text-lg font-semibold text-slate-300 hover:text-neonGreen transition-colors" onclick="toggleMobileMenu()">PREISE & PAKETE</a>
+      <a href="ueber-mich.html" class="text-lg font-semibold text-neonGreen transition-colors" onclick="toggleMobileMenu()">ÜBER MICH</a>
+      <a href="javascript:void(0)" onclick="toggleMobileMenu(); openModal('bookingModal');" class="bg-neonGreen text-dark font-black text-center py-3 rounded-xl tracking-wider hover:bg-neonGreen-hover transition-colors shadow-lg shadow-neonGreen/20">JETZT ANFRAGEN</a>
+    </div>
+  </header>
+
+  <!-- About Me Hero Section -->
+  <section class="relative pt-12 pb-20 md:py-24 overflow-hidden">
+    <!-- Video Background with Dark Overlay -->
+    <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+      <video autoplay muted loop playsinline class="w-full h-full object-cover">
+        <source src="Assets/Fußballstadion.mp4" type="video/mp4">
+      </video>
+      <div class="absolute inset-0 bg-gradient-to-b from-dark via-dark/75 to-dark"></div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      
+      <!-- Grid Layout for Profile & Narrative Text -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+        
+        <!-- Profile Photo (Left) -->
+        <div class="lg:col-span-5 flex flex-col items-center lg:items-end relative">
+          <!-- Outer glowing box with tilt effect -->
+          <div class="relative w-full max-w-sm sm:max-w-md aspect-[4/5] rounded-[2rem] overflow-hidden border-2 border-dark-border bg-dark-light/50 p-3 shadow-2xl group transition-all duration-300 hover:border-neonGreen/30">
+            <!-- Background glow inside card -->
+            <div class="absolute -inset-1 bg-gradient-to-tr from-neonGreen/10 via-transparent to-accentCyan/10 rounded-[2rem] filter blur opacity-30 group-hover:opacity-60 transition-opacity"></div>
+            
+            <div class="relative w-full h-full rounded-[1.5rem] overflow-hidden bg-dark">
+              <img src="Assets/Portrait.png" alt="Dr. Thorsten Weber" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
+              <div class="absolute inset-0 bg-gradient-to-t from-dark/90 via-transparent to-black/10"></div>
+              
+              <!-- Tag Overlay -->
+              <div class="absolute bottom-4 left-4 right-4 bg-dark-light/90 border border-dark-border px-4 py-3 rounded-2xl backdrop-blur-md shadow-lg">
+                <span class="text-xs font-black text-neonGreen tracking-wider uppercase block">GRÜNDER & TORWARTTRAINER</span>
+                <span class="text-sm font-bold text-white mt-0.5 block">Dr. Thorsten Weber</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Narrative Biography (Right) -->
+        <div class="lg:col-span-7 flex flex-col justify-center text-center lg:text-left">
+          <span class="text-xs font-bold tracking-[0.25em] text-accentCyan uppercase bg-accentCyan/10 px-3 py-1 rounded-full border border-accentCyan/20 w-fit mx-auto lg:mx-0 mb-4">
+            DER KOPF HINTER NEXTLEVEL
+          </span>
+          <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black text-white uppercase leading-tight">
+            Wissenschaft trifft <span class="text-transparent bg-clip-text bg-gradient-to-r from-neonGreen to-cyan-400 drop-shadow-[0_2px_15px_rgba(57,255,20,0.2)]">NLZ-Praxis</span>
+          </h1>
+          
+          <div class="mt-8 space-y-6 text-slate-300 text-sm sm:text-base leading-relaxed">
+            <p>
+              Erfolg im modernen Torwartspiel entsteht nicht durch Zufall – er ist das Ergebnis von Struktur, Wissenschaft und Leidenschaft. Als promovierter Pädagoge und Inhaber der <strong class="text-white">DFB B+ Lizenz</strong> sowie der <strong class="text-white">DFB Torwart B-Lizenz</strong> verbinde ich über 10 Jahre praktische Trainererfahrung mit wissenschaftlichen Erkenntnissen über effektive Lern- und Entwicklungsprozesse.
+            </p>
+            <p>
+              Von der Kreisliga bis zum Nachwuchsleistungszentrum (NLZ) habe ich Keeper aller Alters- und Leistungsklassen trainiert. Aktuell koordiniere ich als <strong class="text-white">Torwartkoordinator die Ausbildung bei den Sportfreunden Siegen</strong> und weiß genau, worauf es ankommt, um den Übergang vom Breitensport zum Leistungssport erfolgreich zu meistern.
+            </p>
+            <p>
+              Mein Ausbildungsansatz ist konsequent ganzheitlich: Durch meine zusätzlichen Lizenzen als <strong class="text-neonGreen">Fitness- und Ernährungstrainer (jeweils B-Lizenz)</strong> betrachte ich dich als Athleten im Gesamten. Bei NextLevel trainierst du nicht nur dein Stellungsspiel auf der Linie oder deine Flugphase. Wir optimieren systematisch deine Athletik, deine Ernährung und deine mentale Stärke, damit du dein volles Potenzial abrufen kannst.
+            </p>
+          </div>
+
+          <!-- Quick facts Grid -->
+          <div class="grid grid-cols-2 gap-4 mt-10 text-left">
+            <div class="bg-dark-light/50 border border-dark-border/60 p-4 rounded-2xl">
+              <span class="text-neonGreen text-xl mb-1 block">⚽</span>
+              <h4 class="text-xs font-bold text-slate-400 uppercase">Expertise</h4>
+              <p class="text-xs sm:text-sm font-bold text-white mt-0.5">> 10 Jahre Trainererfahrung</p>
+            </div>
+            <div class="bg-dark-light/50 border border-dark-border/60 p-4 rounded-2xl">
+              <span class="text-neonGreen text-xl mb-1 block">🎓</span>
+              <h4 class="text-xs font-bold text-slate-400 uppercase">Wissenschaft</h4>
+              <p class="text-xs sm:text-sm font-bold text-white mt-0.5">Pädagoge & Promotion (Dr.)</p>
+            </div>
+            <div class="bg-dark-light/50 border border-dark-border/60 p-4 rounded-2xl">
+              <span class="text-neonGreen text-xl mb-1 block">📋</span>
+              <h4 class="text-xs font-bold text-slate-400 uppercase">Lizenzen</h4>
+              <p class="text-xs sm:text-sm font-bold text-white mt-0.5">DFB B+ & TW B-Lizenz</p>
+            </div>
+            <div class="bg-dark-light/50 border border-dark-border/60 p-4 rounded-2xl">
+              <span class="text-neonGreen text-xl mb-1 block">🍎</span>
+              <h4 class="text-xs font-bold text-slate-400 uppercase">Ganzheitlichkeit</h4>
+              <p class="text-xs sm:text-sm font-bold text-white mt-0.5">Fitness & Ernährung B-Lizenz</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Large Vision & Promise Block -->
+  <section class="bg-dark-light py-20 relative z-20 overflow-hidden border-t border-dark-border">
+    <!-- Video Background with Dark Overlay -->
+    <div class="absolute inset-0 z-0 opacity-40 pointer-events-none overflow-hidden">
+      <video autoplay muted loop playsinline class="w-full h-full object-cover">
+        <source src="Assets/Training.mp4" type="video/mp4">
+      </video>
+      <div class="absolute inset-0 bg-gradient-to-b from-dark-light via-dark-light/75 to-dark-light"></div>
+    </div>
+    <!-- Spotlight grid pattern overlay -->
+    <div class="absolute inset-0 bg-[radial-gradient(circle,rgba(57,255,20,0.015)_1px,transparent_1px)] bg-[size:25px_25px] pointer-events-none z-0"></div>
+    
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      
+      <!-- Big Premium Vision Card -->
+      <div class="bg-dark border border-dark-border/80 rounded-[2.5rem] p-8 sm:p-12 lg:p-16 relative shadow-2xl backdrop-blur">
+        
+        <!-- Glowing Accent -->
+        <div class="absolute -top-[10%] left-1/2 -translate-x-1/2 w-[350px] h-[350px] bg-neonGreen/5 rounded-full filter blur-[80px] pointer-events-none"></div>
+
+        <!-- Vision Header with Logo -->
+        <div class="flex flex-col items-center text-center mb-12">
+          <img src="Assets/logo_small.png" alt="NextLevel Logo" class="h-28 w-28 sm:h-36 sm:w-36 object-contain mb-6">
+          <span class="text-xs font-bold tracking-[0.25em] text-neonGreen uppercase bg-neonGreen/10 px-3 py-1 rounded-full border border-neonGreen/20">NEXTLEVEL GOALKEEPING ACADEMY</span>
+          <h2 class="text-3xl sm:text-4xl font-black text-white mt-4 uppercase">Die Realität &amp; Unser Versprechen</h2>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
+          
+          <!-- Column 1: Die Realität -->
+          <div class="lg:col-span-6 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-dark-border/60 pb-8 lg:pb-0 lg:pr-10">
+            <div>
+              <span class="text-xs font-bold text-red-500 tracking-wider uppercase flex items-center gap-1.5 mb-4">
+                <span class="h-2 w-2 rounded-full bg-red-500"></span> Die Realität auf den Plätzen
+              </span>
+              <h3 class="text-xl font-bold text-white uppercase mb-4 leading-snug">
+                Bist du als Torwart oft auf dich allein gestellt?
+              </h3>
+              <p class="text-slate-400 text-sm sm:text-base leading-relaxed">
+                Athletiktraining speziell für Torhüter? Absolut selten. Läufe in der Sommerpause? Zeitverschwendung für Keeper. Egal ob in der Kreisliga oder im Nachwuchsleistungszentrum: Viel zu oft werden die Torhüter im Mannschaftstraining einfach mitgeschliffen, statt zielgerichtet gefördert zu werden.
+              </p>
+              <p class="text-slate-400 text-sm sm:text-base leading-relaxed mt-4">
+                Ich glaube daran, dass jeder Keeper – vom ambitionierten Amateurbereich bis zum leistungsorientierten Nachwuchstalent – Zugang zu einer modernen, ganzheitlichen und individuellen Förderung verdient.
+              </p>
+            </div>
+            <div class="mt-8 bg-red-500/5 border border-red-500/10 p-4 rounded-2xl">
+              <p class="text-xs sm:text-sm text-red-400 font-semibold italic">
+                "Mein Versprechen: Damit ist ab jetzt endgültig Schluss."
+              </p>
+            </div>
+          </div>
+
+          <!-- Column 2: Die Vision -->
+          <div class="lg:col-span-6 flex flex-col justify-between lg:pl-10">
+            <div>
+              <span class="text-xs font-bold text-neonGreen tracking-wider uppercase flex items-center gap-1.5 mb-4">
+                <span class="h-2 w-2 rounded-full bg-neonGreen"></span> Meine Vision &amp; Dein Fahrplan
+              </span>
+              <h3 class="text-xl font-bold text-white uppercase mb-4 leading-snug">
+                Torwartspiel ist ein Gesamtkunstwerk
+              </h3>
+              <p class="text-slate-400 text-sm sm:text-base leading-relaxed">
+                Torwarttraining ist weit mehr als nur schnell auf der Linie zu sein. Dahinter steht eine zielgerichtete Technik, eine effektive Taktik mit hoher Handlungsschnelligkeit, eine ausgeprägte Athletik und eine unerschütterliche mentale Stärke. 
+              </p>
+              <p class="text-slate-400 text-sm sm:text-base leading-relaxed mt-4">
+                Mein Coaching gibt dir einen klaren 6-Monats-Fahrplan an die Hand – mit strukturierten Vorgaben, individuellen Zielen und präzisen ToDos.
+              </p>
+            </div>
+            <div class="mt-8 bg-neonGreen/5 border border-neonGreen/10 p-4 rounded-2xl">
+              <p class="text-xs sm:text-sm text-neonGreen font-semibold">
+                Mit deinem Engagement und meinem Fahrplan legen wir dein volles Potenzial frei und erreichen gemeinsam DEIN NextLevel!
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Centered final CTA to start -->
+      <div class="mt-16 text-center">
+        <button onclick="openModal('bookingModal')" class="bg-neonGreen text-dark font-black tracking-wide text-sm py-4 px-10 rounded-xl hover:bg-neonGreen-hover active:scale-[0.98] transition-all shadow-lg shadow-neonGreen/30 uppercase">
+          Kostenloses Erstgespräch anfordern
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-dark border-t border-dark-border py-12 relative z-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-8">
+        
+        <!-- Logo -->
+        <a href="index.html" class="flex items-center gap-4 group">
+          <img src="Assets/logo_small.png" alt="NextLevel Logo" class="h-16 w-16 object-contain">
+          <div class="flex flex-col">
+            <div class="text-white font-black text-lg group-hover:text-neonGreen transition-colors uppercase tracking-wider">
+              NEXTLEVEL
+            </div>
+            <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+              GOALKEEPING ACADEMY
+            </div>
+          </div>
+        </a>
+
+        <!-- Links -->
+        <div class="flex flex-wrap justify-center gap-8 text-xs font-semibold text-slate-500">
+          <a href="index.html" class="hover:text-neonGreen transition-colors">STARTSEITE</a>
+          <a href="index.html#saeulen" class="hover:text-neonGreen transition-colors">DIE 4 SÄULEN</a>
+          <a href="index.html#altersklassen" class="hover:text-neonGreen transition-colors">ALTERSKLASSEN</a>
+          <a href="index.html#hybrid" class="hover:text-neonGreen transition-colors">HYBRID-TRAINING</a>
+          <a href="index.html#preise" class="hover:text-neonGreen transition-colors">PREISE & PAKETE</a>
+          <a href="ueber-mich.html" class="hover:text-neonGreen transition-colors">ÜBER MICH</a>
+          <a href="impressum.html" class="hover:text-neonGreen transition-colors">IMPRESSUM</a>
+          <a href="datenschutz.html" class="hover:text-neonGreen transition-colors">DATENSCHUTZ</a>
+        </div>
+
+      </div>
+
+      <div class="mt-8 border-t border-dark-border pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p class="text-xs text-slate-500">&copy; 2026 NextLevel Goalkeeping Academy. Alle Rechte vorbehalten.</p>
+        <p class="text-xs text-slate-500">Konzipiert für ambitionierte Keeper.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==================== BOOKING MODAL ==================== -->
+  <div id="bookingModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden transition-opacity duration-300">
+    <div class="bg-dark border border-dark-border w-full max-w-lg rounded-3xl shadow-2xl relative overflow-hidden transition-transform duration-300 transform scale-95" onclick="event.stopPropagation()">
+      
+      <!-- Close Button -->
+      <button onclick="closeModal('bookingModal')" class="absolute top-4 right-4 p-2 text-slate-400 hover:text-white transition-colors" aria-label="Schließen">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      <div class="p-8">
+        <span class="text-xs font-bold tracking-[0.2em] text-accentCyan uppercase">ACADEMY-ANFRAGE</span>
+        <h3 class="text-2xl font-black text-white uppercase mt-1 mb-4">Wähle dein Trainingsformat</h3>
+        <p class="text-xs text-slate-400 leading-relaxed mb-6">
+          Trage deine Daten ein. Im ersten Schritt führen wir ein <strong class="text-neonGreen">kostenloses Erstgespräch</strong>, um deine Ziele zu besprechen. Nach Abschluss deiner Buchung starten wir direkt mit einem ausführlichen <strong class="text-accentCyan">Onboarding-Gespräch</strong>.
+        </p>
+
+        <form id="bookingForm" name="kontakt" method="POST" data-netlify="true" onsubmit="handleBooking(event)">
+          <!-- Hidden input for Netlify form identification -->
+          <input type="hidden" name="form-name" value="kontakt" />
+          
+          <div class="space-y-4">
+            <!-- Format Choice -->
+            <div>
+              <label for="booking-type" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Gewünschtes Format</label>
+              <select id="booking-type" name="Format" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white">
+                <option value="app" selected>Nur App-Nutzung (Digitales Torwarttraining)</option>
+                <option value="hybrid">Hybrid-Training (App-Nutzung + Live-Training vor Ort)</option>
+                <option value="field">Reines Torwarttraining (Nur vor Ort auf dem Platz)</option>
+              </select>
+            </div>
+
+            <!-- Name -->
+            <div>
+              <label for="booking-name" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Name des Torwarts</label>
+              <input type="text" id="booking-name" name="Torwart-Name" required placeholder="Vor- und Nachname" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+            </div>
+
+            <!-- Email -->
+            <div>
+              <label for="booking-email" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">E-Mail oder Handynummer</label>
+              <input type="text" id="booking-email" name="Kontakt-Daten" required placeholder="z. B. name@domain.de oder 0170/1234567" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+            </div>
+
+            <!-- Age & Standort Grid -->
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label for="booking-age" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Alter</label>
+                <input type="number" id="booking-age" name="Torwart-Alter" required placeholder="z. B. 14" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-3 text-sm text-white">
+              </div>
+
+              <div>
+                <label for="booking-location" class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Standort</label>
+                <select id="booking-location" name="Standort" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white">
+                  <option value="none" selected>Keine Live Betreuung</option>
+                  <option value="siegen">Siegen</option>
+                  <option value="olpe">Olpe</option>
+                  <option value="freudenberg">Freudenberg</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="mt-8 w-full bg-neonGreen text-dark font-black tracking-wide text-xs py-4 rounded-xl hover:bg-neonGreen-hover active:scale-[0.98] transition-all shadow-lg shadow-neonGreen/20 uppercase">
+            Jetzt Anfrage senden
+          </button>
+        </form>
+
+        <!-- Success Message -->
+        <div id="bookingSuccess" class="hidden text-center py-12 flex flex-col items-center justify-center">
+          <div class="w-16 h-16 bg-neonGreen/10 border-2 border-neonGreen text-neonGreen rounded-full flex items-center justify-center text-3xl font-black mb-6 animate-pulse">
+            ✓
+          </div>
+          <h4 class="text-xl font-bold text-white uppercase">Anfrage gesendet!</h4>
+          <p class="text-xs text-slate-400 leading-relaxed mt-2 max-w-xs mx-auto">
+            Wir haben deine Anfrage erhalten. Wir prüfen deine Daten und melden uns in Kürze bei dir und deinen Eltern, um das kostenlose Erstgespräch zu vereinbaren.
+          </p>
+          <button onclick="closeModal('bookingModal')" class="mt-8 text-xs font-bold text-slate-400 hover:text-white uppercase tracking-wider underline">
+            Schließen
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript and Interactions -->
+  <script>
+    // Mobile Menu Toggle
+    function toggleMobileMenu() {
+      const mobileMenu = document.getElementById('mobileMenu');
+      const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+      const menuIcon = document.getElementById('menuIcon');
+      
+      mobileMenu.classList.toggle('hidden');
+      
+      if (!mobileMenu.classList.contains('hidden')) {
+        // Change to 'X' icon
+        menuIcon.setAttribute('d', 'M6 18L18 6M6 6l12 12');
+      } else {
+        // Change back to burger icon
+        menuIcon.setAttribute('d', 'M4 6h16M4 12h16M4 18h16');
+      }
+    }
+
+    // Modal Control
+    function openModal(modalId, packageType) {
+      const modal = document.getElementById(modalId);
+      modal.classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+      
+      if (packageType) {
+        const bookingTypeSelect = document.getElementById('booking-type');
+        const bookingLocationSelect = document.getElementById('booking-location');
+        if (bookingTypeSelect) {
+          bookingTypeSelect.value = packageType;
+          if (packageType === 'app' && bookingLocationSelect) {
+            bookingLocationSelect.value = 'none';
+          } else if (bookingLocationSelect && bookingLocationSelect.value === 'none') {
+            bookingLocationSelect.value = 'siegen';
+          }
+        }
+      }
+      
+      setTimeout(() => {
+        modal.querySelector('.transform').classList.remove('scale-95');
+        modal.querySelector('.transform').classList.add('scale-100');
+      }, 50);
+    }
+
+    function closeModal(modalId) {
+      const modal = document.getElementById(modalId);
+      modal.querySelector('.transform').classList.remove('scale-100');
+      modal.querySelector('.transform').classList.add('scale-95');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+      }, 150);
+    }
+
+    // Close Modal on clicking background
+    window.onclick = function(event) {
+      const bookingModal = document.getElementById('bookingModal');
+      if (event.target === bookingModal) {
+        closeModal('bookingModal');
+      }
+    }
+
+    // Handle AJAX booking submit
+    function handleBooking(event) {
+      event.preventDefault();
+      const form = document.getElementById('bookingForm');
+      const success = document.getElementById('bookingSuccess');
+      const formData = new FormData(form);
+      
+      fetch("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(formData).toString()
+      })
+      .then(() => {
+        form.classList.add('hidden');
+        success.classList.remove('hidden');
+      })
+      .catch(error => {
+        console.error("Netlify Form submission error:", error);
+        form.classList.add('hidden');
+        success.classList.remove('hidden');
+      });
+    }
+
+    // Dependency setup in select options
+    document.addEventListener('DOMContentLoaded', () => {
+      const bookingType = document.getElementById('booking-type');
+      const bookingLocation = document.getElementById('booking-location');
+      
+      if (bookingType && bookingLocation) {
+        bookingType.addEventListener('change', function() {
+          if (this.value === 'app') {
+            bookingLocation.value = 'none';
+          } else if (bookingLocation.value === 'none') {
+            bookingLocation.value = 'siegen';
+          }
+        });
+      }
+    });
+
+    // 1. Mouse Spotlight Tracker Glow (Radial spotlight background)
+    const spotlight = document.createElement('div');
+    spotlight.className = "fixed pointer-events-none w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,rgba(57,255,20,0.07)_0%,rgba(6,182,212,0.02)_40%,transparent_70%)] -translate-x-1/2 -translate-y-1/2 z-0 hidden lg:block";
+    spotlight.style.mixBlendMode = "screen";
+    spotlight.style.transition = "transform 0.15s ease-out, opacity 0.3s ease-in-out";
+    document.body.appendChild(spotlight);
+
+    document.addEventListener('mousemove', (e) => {
+      spotlight.style.left = e.clientX + 'px';
+      spotlight.style.top = e.clientY + 'px';
+    });
+
+    // 2. 3D Tilt Effect on Profile Card and Vision Card
+    const tiltElements = document.querySelectorAll('.group, .bg-dark.border.border-dark-border');
+    tiltElements.forEach(el => {
+      if (el.classList.contains('max-w-6xl') || el.closest('#bookingModal')) return;
+      
+      el.addEventListener('mousemove', (e) => {
+        const rect = el.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const xc = rect.width / 2;
+        const yc = rect.height / 2;
+        
+        const angleX = (yc - y) / 20;
+        const angleY = (x - xc) / 20;
+        
+        el.style.transform = `perspective(1000px) rotateX(${angleX}deg) rotateY(${angleY}deg) scale3d(1.015, 1.015, 1.015)`;
+        el.style.transition = 'none';
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        el.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+        el.style.transition = 'transform 0.5s ease';
+      });
+    });
+
+    // 3. Magnetic Hover Effect on CTA Buttons
+    const magnetButtons = document.querySelectorAll('button');
+    magnetButtons.forEach(btn => {
+      if (!btn.classList.contains('bg-neonGreen')) return;
+      
+      btn.addEventListener('mousemove', (e) => {
+        const rect = btn.getBoundingClientRect();
+        const x = e.clientX - rect.left - (rect.width / 2);
+        const y = e.clientY - rect.top - (rect.height / 2);
+        
+        btn.style.transform = `translate(${x * 0.25}px, ${y * 0.25}px)`;
+        btn.style.transition = 'none';
+      });
+      
+      btn.addEventListener('mouseleave', () => {
+        btn.style.transform = `translate(0px, 0px)`;
+        btn.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
+      });
+    });
+  </script>
+</body>
+</html>

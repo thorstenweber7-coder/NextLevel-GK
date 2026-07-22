@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Impressum | NextLevel Goalkeeping Academy</title>
+  <meta name="robots" content="noindex, follow">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="Assets/logo_tiny.png">
+
+  <!-- Preloads for LCP Optimization -->
+  <link rel="preload" href="Assets/logo_small.png" as="image">
+
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Custom Tailwind Configuration -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              DEFAULT: '#0A0D14',
+              light: '#131824',
+              lighter: '#1C2336',
+              border: '#2A344A'
+            },
+            neonGreen: {
+              DEFAULT: '#39FF14',
+              hover: '#29e00c',
+              glow: 'rgba(57, 255, 20, 0.4)',
+              dim: 'rgba(57, 255, 20, 0.1)'
+            },
+            accentCyan: {
+              DEFAULT: '#06B6D4',
+              hover: '#0891B2',
+              glow: 'rgba(6, 182, 212, 0.4)',
+              dim: 'rgba(6, 182, 212, 0.1)'
+            }
+          },
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: #0A0D14;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0A0D14;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1C2336;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #39FF14;
+    }
+  </style>
+</head>
+<body class="text-slate-100 overflow-x-hidden antialiased">
+
+  <!-- Header & Navigation -->
+  <header class="sticky top-0 z-50 backdrop-blur-lg bg-dark/80 border-b border-white/5 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 sm:h-24 flex items-center justify-between">
+      <!-- Logo & Name -->
+      <a href="index.html" class="flex items-center gap-3 group">
+        <img src="Assets/logo_small.png" alt="NextLevel Goalkeeping Academy Logo" class="h-14 w-14 sm:h-16 sm:w-16 object-contain transition-transform duration-300 group-hover:scale-105" fetchpriority="high">
+        <div class="flex flex-col w-[130px] sm:w-[170px]">
+          <div class="flex justify-between text-white font-black text-[22px] sm:text-[28px] leading-none group-hover:text-neonGreen transition-colors uppercase w-full">
+            <span>N</span><span>E</span><span>X</span><span>T</span><span>L</span><span>E</span><span>V</span><span>E</span><span>L</span>
+          </div>
+          <div class="flex justify-between text-[9px] sm:text-[11px] font-bold text-accentCyan uppercase leading-none mt-0.5 w-full">
+            <span>G</span><span>O</span><span>A</span><span>L</span><span>K</span><span>E</span><span>E</span><span>P</span><span>I</span><span>N</span><span>G</span><span>&nbsp;</span><span>A</span><span>C</span><span>A</span><span>D</span><span>E</span><span>M</span><span>Y</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- Desktop Navigation -->
+      <nav class="hidden xl:flex items-center gap-4 xl:gap-6 text-sm font-semibold tracking-wide ml-auto">
+        <a href="index.html#saeulen" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">DIE 4 SÄULEN</a>
+        <a href="index.html#altersklassen" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">ALTERSKLASSEN</a>
+        <a href="index.html#eltern" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">ELTERN-INFOS</a>
+        <a href="index.html#hybrid" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">HYBRID-TRAINING</a>
+        <a href="index.html#preise" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">PREISE & PAKETE</a>
+        <a href="ueber-mich.html" class="text-slate-400 hover:text-neonGreen hover:translate-y-[-1px] transition-all">ÜBER MICH</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Content Section -->
+  <main class="py-20 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+    <div class="bg-dark-light/50 border border-dark-border rounded-[2rem] p-8 sm:p-12 backdrop-blur shadow-2xl">
+      <h1 class="text-3xl sm:text-4xl font-black text-white uppercase mb-8 border-b border-dark-border pb-4">
+        Impressum
+      </h1>
+
+      <div class="space-y-8 text-slate-300 text-sm sm:text-base leading-relaxed">
+        <div>
+          <h2 class="text-lg font-bold text-white uppercase tracking-wider mb-2">Angaben gemäß § 5 TMG</h2>
+          <p class="font-bold text-white">Dr. Thorsten Weber</p>
+          <p>Erbsengasse 17</p>
+          <p>97953 Königheim</p>
+        </div>
+
+        <div>
+          <h2 class="text-lg font-bold text-white uppercase tracking-wider mb-2">Kontakt</h2>
+          <p>E-Mail: <a href="mailto:Nextlevelgk@gmail.com" class="text-accentCyan hover:underline">Nextlevelgk@gmail.com</a></p>
+          <p>Webseite: <a href="https://nextlevel-gk.de" class="text-accentCyan hover:underline">nextlevel-gk.de</a></p>
+        </div>
+
+        <div>
+          <h2 class="text-lg font-bold text-white uppercase tracking-wider mb-2">Verantwortlich für den Inhalt nach § 55 Abs. 2 RStV</h2>
+          <p class="font-bold text-white">Dr. Thorsten Weber</p>
+          <p>Erbsengasse 17</p>
+          <p>97953 Königheim</p>
+        </div>
+
+        <div class="border-t border-dark-border/60 pt-6">
+          <h2 class="text-base font-bold text-white uppercase mb-2">Haftung für Inhalte</h2>
+          <p class="text-xs text-slate-400">
+            Als Diensteanbieter sind wir gemäß § 7 Abs.1 TMG für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich. Nach §§ 8 bis 10 TMG sind wir als Diensteanbieter jedoch nicht verpflichtet, übermittelte oder gespeicherte fremde Informationen zu überwachen oder nach Umständen zu forschen, die auf eine rechtswidrige Tätigkeit hinweisen. Verpflichtungen zur Entfernung oder Sperrung der Nutzung von Informationen nach den allgemeinen Gesetzen bleiben hiervon unberührt. Eine diesbezügliche Haftung ist jedoch erst ab dem Zeitpunkt der Kenntnis einer konkreten Rechtsverletzung möglich. Bei Bekanntwerden von entsprechenden Rechtsverletzungen werden wir diese Inhalte umgehend entfernen.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-base font-bold text-white uppercase mb-2">Urheberrecht</h2>
+          <p class="text-xs text-slate-400">
+            Die durch die Seitenbetreiber erstellten Inhalte und Werke auf diesen Seiten unterliegen dem deutschen Urheberrecht. Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art der Verwertung außerhalb der Grenzen des Urheberrechtes bedürfen der schriftlichen Zustimmung des jeweiligen Autors bzw. Erstellers. Downloads und Kopien dieser Seite sind nur für den privaten, nicht kommerziellen Gebrauch gestattet. Soweit die Inhalte auf dieser Seite nicht vom Betreiber erstellt wurden, werden die Urheberrechte Dritter beachtet. Insbesondere werden Inhalte Dritter als solche gekennzeichnet. Sollten Sie trotzdem auf eine Urheberrechtsverletzung aufmerksam werden, bitten wir um einen entsprechenden Hinweis. Bei Bekanntwerden von Rechtsverletzungen werden wir derartige Inhalte umgehend entfernen.
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-dark border-t border-dark-border py-12 relative z-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-8">
+        
+        <!-- Logo -->
+        <a href="index.html" class="flex items-center gap-4 group">
+          <img src="Assets/logo_small.png" alt="NextLevel Logo" class="h-16 w-16 object-contain">
+          <div class="flex flex-col">
+            <div class="text-white font-black text-lg group-hover:text-neonGreen transition-colors uppercase tracking-wider">
+              NEXTLEVEL
+            </div>
+            <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+              GOALKEEPING ACADEMY
+            </div>
+          </div>
+        </a>
+
+        <!-- Links -->
+        <div class="flex flex-wrap justify-center gap-8 text-xs font-semibold text-slate-500">
+          <a href="index.html" class="hover:text-neonGreen transition-colors">STARTSEITE</a>
+          <a href="index.html#saeulen" class="hover:text-neonGreen transition-colors">DIE 4 SÄULEN</a>
+          <a href="index.html#altersklassen" class="hover:text-neonGreen transition-colors">ALTERSKLASSEN</a>
+          <a href="index.html#hybrid" class="hover:text-neonGreen transition-colors">HYBRID-TRAINING</a>
+          <a href="index.html#preise" class="hover:text-neonGreen transition-colors">PREISE & PAKETE</a>
+          <a href="ueber-mich.html" class="hover:text-neonGreen transition-colors">ÜBER MICH</a>
+          <a href="impressum.html" class="hover:text-neonGreen transition-colors">IMPRESSUM</a>
+          <a href="datenschutz.html" class="hover:text-neonGreen transition-colors">DATENSCHUTZ</a>
+        </div>
+
+      </div>
+
+      <div class="mt-8 border-t border-dark-border pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p class="text-xs text-slate-500">&copy; 2026 NextLevel Goalkeeping Academy. Alle Rechte vorbehalten.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
