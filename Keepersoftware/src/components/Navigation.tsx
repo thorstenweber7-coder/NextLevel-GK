@@ -41,9 +41,11 @@ export default function Navigation({ activeTab, setActiveTab, userRole, userName
     <nav className="sticky top-0 z-50 w-full flex items-center bg-brand-panel border-b border-brand-border px-4 sm:px-6 py-3">
       {/* Left Side: Logo */}
       <div className="flex items-center gap-2.5 sm:gap-3 mr-4 sm:mr-8 shrink-0">
-        <div className="w-8 h-8 bg-gradient-to-tr from-brand-neon to-brand-neon-hover rounded-lg flex items-center justify-center shadow-[0_0_10px_rgba(192,255,0,0.2)]">
-          <span className="text-brand-bg font-black italic text-sm">N</span>
-        </div>
+        <img 
+          src="/Logo.png" 
+          alt="NextLevel Goalkeeping" 
+          className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-[0_0_10px_rgba(192,255,0,0.2)]"
+        />
         <div className="flex flex-col">
           <span className="font-black text-xs tracking-tight text-white uppercase font-display leading-none">
             NextLevel

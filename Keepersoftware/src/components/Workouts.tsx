@@ -417,15 +417,13 @@ export default function Workouts({ userProfile, onUpdatePoints, onWorkoutActiveC
           }
         }
 
-        // Load logs for this user
-        const logsQuery = userProfile.role === 'admin'
-          ? collection(db, 'workout_logs')
-          : query(collection(db, 'workout_logs'), where('userId', '==', userProfile.uid));
+        // Load logs for this user (only own Kraftsport logs)
+        const logsQuery = query(collection(db, 'workout_logs'), where('userId', '==', userProfile.uid));
         const logsSnap = await getDocs(logsQuery);
         const logsList: WorkoutLog[] = [];
         logsSnap.forEach((doc) => {
           const log = { id: doc.id, ...doc.data() } as WorkoutLog;
-          if (userProfile.role === 'admin' || log.userId === userProfile.uid) {
+          if (log.userId === userProfile.uid) {
             logsList.push(log);
           }
         });

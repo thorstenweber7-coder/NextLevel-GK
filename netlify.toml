@@ -2,7 +2,7 @@
 # Automatically builds the React Keepersoftware into /app and serves all static pages from dist.
 
 [build]
-  command = "cd Keepersoftware && npm install && npm run build:frontend && cd .. && mkdir -p dist && cp -r Assets *.html dist/ 2>/dev/null || true && mkdir -p dist/app && cp -r Keepersoftware/dist/* dist/app/"
+  command = "cd Keepersoftware && npm install && npm run build:frontend && cd .. && mkdir -p dist && cp -r Assets *.html dist/ 2>/dev/null || true && cp Assets/Logo.png dist/Logo.png 2>/dev/null || true && cp Assets/Logo.jpg dist/Logo.jpg 2>/dev/null || true && mkdir -p dist/app && cp -r Keepersoftware/dist/* dist/app/"
   publish = "dist"
 
 [build.environment]

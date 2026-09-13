@@ -183,6 +183,7 @@ export default function VideoAnalysis({ userProfile, onUpdatePoints, initialView
   };
 
   const isSceneVisible = (scene: VideoScene) => {
+    if (userProfile.role === 'admin') return true;
     if (!scene.assignedUsers || scene.assignedUsers.length === 0) return true;
     return scene.assignedUsers.includes(userProfile.uid);
   };
@@ -226,24 +227,10 @@ export default function VideoAnalysis({ userProfile, onUpdatePoints, initialView
         subSnap.forEach((doc) => {
           const s = { id: doc.id, ...doc.data() } as VideoSubmission;
           allPlayerSubs.push(s);
-          if (userProfile.role === 'admin' || s.userId === userProfile.uid) {
+          if (s.userId === userProfile.uid) {
             subMap[s.sceneId] = s;
           }
         });
-
-        // Automatically clear admin's submission for Lernszene 1 if requested
-        if (userProfile.role === 'admin') {
-          const lernszene1 = scenesList.find(s => s.type === 'elfmeter_lernen');
-          if (lernszene1 && subMap[lernszene1.id]) {
-            const adminSubId = `${userProfile.uid}_${lernszene1.id}`;
-            delete subMap[lernszene1.id];
-            try {
-              await deleteDoc(doc(db, 'video_submissions', adminSubId));
-            } catch (e) {
-              console.error('Error removing admin sub for Lernszene 1:', e);
-            }
-          }
-        }
 
         setSubmissions(subMap);
         setPlayerSubmissions(allPlayerSubs);
