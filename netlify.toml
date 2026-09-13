@@ -1,0 +1,43 @@
+# Netlify Configuration for NextLevel Goalkeeping
+# Automatically builds the React Keepersoftware into /app and serves all static pages from dist.
+
+[build]
+  command = "cd Keepersoftware && npm install && npm run build:frontend && cd .. && mkdir -p dist && cp -r Assets *.html dist/ 2>/dev/null || true && mkdir -p dist/app && cp -r Keepersoftware/dist/* dist/app/"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA client-side routing for the Keepersoftware
+[[redirects]]
+  from = "/app/*"
+  to = "/app/index.html"
+  status = 200
+
+# Trailing slash redirect for /app
+[[redirects]]
+  from = "/app"
+  to = "/app/"
+  status = 301
+
+# Legacy redirects from Keepersoftware folder
+[[redirects]]
+  from = "/Keepersoftware/*"
+  to = "/app/:splat"
+  status = 301
+
+[[redirects]]
+  from = "/Keepersoftware"
+  to = "/app/"
+  status = 301
+
+# Cache headers for optimal asset performance
+[[headers]]
+  for = "/Assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/app/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
