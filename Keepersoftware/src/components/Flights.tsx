@@ -43,7 +43,7 @@ export default function Flights({ userProfile, onBack, onUpdatePoints, onTrainin
 
   // Strobe effect during flight or occlusion
   useEffect(() => {
-    if (gameState !== 'flying' && gameState !== 'occluded') {
+    if (gameState !== 'playing') {
       setStrobeActive(false);
       return;
     }
@@ -426,7 +426,19 @@ export default function Flights({ userProfile, onBack, onUpdatePoints, onTrainin
     setGameState('feedback');
   };
 
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Clean animation frame & audio on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+      }
+    };
+  }, []);
+
+  const handleCanvasClick = (e: React.PointerEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>) => {
     if (gameState !== 'playing') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -753,8 +765,8 @@ export default function Flights({ userProfile, onBack, onUpdatePoints, onTrainin
               ref={canvasRef}
               width={350}
               height={460}
-              onClick={handleCanvasClick}
-              className="w-full h-full block cursor-pointer"
+              onPointerDown={handleCanvasClick}
+              className="w-full h-full block cursor-pointer touch-none select-none"
             />
           </div>
 

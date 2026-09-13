@@ -54,9 +54,9 @@ export default function Memobox({ userProfile, onBack, onUpdatePoints, onTrainin
   const [level, setLevel] = useState<Level>(3);
   const [strobeActive, setStrobeActive] = useState<boolean>(false);
 
-  // Strobe effect during playing_sequence
+  // Strobe effect during playing
   useEffect(() => {
-    if (gameState !== 'playing_sequence') {
+    if (gameState !== 'playing') {
       setStrobeActive(false);
       return;
     }
@@ -68,6 +68,15 @@ export default function Memobox({ userProfile, onBack, onUpdatePoints, onTrainin
       setStrobeActive(false);
     };
   }, [gameState]);
+
+  // Clean up AudioContext on unmount
+  useEffect(() => {
+    return () => {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+      }
+    };
+  }, []);
   const [currentRound, setCurrentRound] = useState<number>(1);
   const [totalRounds] = useState<number>(3);
   

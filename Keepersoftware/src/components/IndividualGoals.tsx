@@ -5,6 +5,7 @@ import { syncUserLevelTodos } from '../utils/levelTodos';
 import { getGoalEvaluationStatus, calculateThreeWeeksFromNow } from '../utils/goalUtils';
 import { UserProfile, Goal } from '../types';
 import { Plus, Target, Check, AlertCircle, Save, Calendar, Star, HelpCircle, ArrowLeft, Video, ExternalLink, Clock, Sparkles } from 'lucide-react';
+import { resolveVideoInfo } from '../utils/videoUtils';
 
 interface IndividualGoalsProps {
   userProfile: UserProfile;
@@ -85,34 +86,44 @@ export default function IndividualGoals({ userProfile, onUpdatePoints }: Individ
   }, [showWhy]);
 
   const renderEmbedVideo = (url: string, iframeTitle: string) => {
-    let embedId = '';
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    if (match && match[2].length === 11) {
-      embedId = match[2];
-    }
+    const videoInfo = resolveVideoInfo(url, iframeTitle);
 
-    if (embedId) {
+    if (videoInfo.type === 'youtube' || videoInfo.type === 'drive') {
       return (
-        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow shadow-slate-950">
+        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow shadow-slate-950 bg-black">
           <iframe
             width="100%"
             height="100%"
-            src={`https://www.youtube.com/embed/${embedId}?vq=tiny&rel=0`}
+            src={videoInfo.embedUrl}
             title={iframeTitle}
             frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
             loading="lazy"
-            preload="none"
+            referrerPolicy="strict-origin-when-cross-origin"
+            className="w-full h-full border-0"
           ></iframe>
+        </div>
+      );
+    }
+
+    if (videoInfo.type === 'direct') {
+      return (
+        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow shadow-slate-950 bg-black">
+          <video
+            src={videoInfo.embedUrl}
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full h-full object-contain"
+          />
         </div>
       );
     }
 
     return (
       <div className="p-4 bg-slate-950 border border-slate-850 rounded-2xl text-center text-xs text-slate-400 space-y-2">
-        <p>Kein integriertes YouTube-Video erkannt oder der Link ist ungültig.</p>
+        <p>Kein kompatibles Video erkannt oder der Link ist ungültig.</p>
         {url && (
           <a
             href={url}

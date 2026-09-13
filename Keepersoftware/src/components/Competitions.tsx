@@ -3,6 +3,7 @@ import { collection, getDocs, doc, setDoc, getDoc, updateDoc, increment, addDoc,
 import { db } from '../firebase';
 import { UserProfile, Competition, hasModulePermission } from '../types';
 import { getUserLevelQuizzes } from '../utils/levelQuizzes';
+import { resolveVideoInfo } from '../utils/videoUtils';
 import { Swords, Trophy, Sparkles, Brain, Lock, ArrowLeft, Timer, AlertCircle, Check, Play, ExternalLink, RefreshCw, Video, Zap, Eye, EyeOff, Target, User, CheckCircle2, XCircle, Calendar, Shield, Users, Activity, HelpCircle, BookOpen, RotateCcw } from 'lucide-react';
 import VideoAnalysis from './VideoAnalysis';
 import ReactionGrid from './ReactionGrid';
@@ -873,27 +874,33 @@ export default function Competitions({ userProfile, onUpdatePoints }: Competitio
 
   const renderEmbedVideo = (url: string, title: string) => {
     if (!url) return null;
-    let embedUrl = url;
-    if (url.includes('youtube.com/watch?v=')) {
-      const videoId = url.split('v=')[1]?.split('&')[0];
-      if (videoId) embedUrl = `https://www.youtube.com/embed/${videoId}`;
-    } else if (url.includes('youtu.be/')) {
-      const videoId = url.split('youtu.be/')[1]?.split('?')[0];
-      if (videoId) embedUrl = `https://www.youtube.com/embed/${videoId}`;
-    }
+    const videoInfo = resolveVideoInfo(url, title);
 
-    const isEmbed = embedUrl.includes('youtube.com/embed/') || embedUrl.includes('player.vimeo.com');
-
-    if (isEmbed) {
+    if (videoInfo.type === 'youtube' || videoInfo.type === 'drive') {
       return (
         <div className="aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow bg-black">
           <iframe
-            src={embedUrl}
+            src={videoInfo.embedUrl}
             title={title}
-            className="w-full h-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            className="w-full h-full border-0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
           ></iframe>
+        </div>
+      );
+    }
+
+    if (videoInfo.type === 'direct') {
+      return (
+        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow bg-black">
+          <video
+            src={videoInfo.embedUrl}
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full h-full object-contain"
+          />
         </div>
       );
     }
@@ -908,10 +915,10 @@ export default function Competitions({ userProfile, onUpdatePoints }: Competitio
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-[10px] uppercase tracking-wider flex items-center gap-1 shrink-0"
+          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors"
         >
-          <span>Link öffnen</span>
-          <ExternalLink className="w-3 h-3" />
+          <span>Extern ansehen</span>
+          <ExternalLink className="w-3.5 h-3.5" />
         </a>
       </div>
     );

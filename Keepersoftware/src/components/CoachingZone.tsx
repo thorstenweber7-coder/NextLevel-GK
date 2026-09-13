@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp, deleteApp, getApp, getApps } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, getDocs, doc, setDoc, getDoc, updateDoc, increment, deleteDoc, addDoc, onSnapshot } from 'firebase/firestore';
-import { db, firebaseConfig } from '../firebase';
+import { auth, db, firebaseConfig } from '../firebase';
 import { syncUserLevelTodos, syncAllUsersLevelTodos, fetchLevelTodos, saveLevelTodosConfig, updateAllExistingGoalsWhatsNextToTaktikanalyse, LEVEL_TITLES, sanitizeWhatsNextText } from '../utils/levelTodos';
 import { getGoalEvaluationStatus, calculateThreeWeeksFromNow } from '../utils/goalUtils';
 import { LEVEL_QUIZZES } from '../utils/levelQuizzes';
@@ -611,9 +611,13 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
       // Synchronize with Firebase Auth if changed
       if (newEmail && newEmail !== oldEmail) {
         try {
+          const idToken = await auth.currentUser?.getIdToken();
           const syncRes = await fetch('/api/update-user-email', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+            },
             body: JSON.stringify({ uid: selectedUser.uid, email: newEmail })
           });
           if (!syncRes.ok) {

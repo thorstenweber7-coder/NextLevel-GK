@@ -122,11 +122,14 @@ export default function ReflexFocus({
     speedupAmountRef.current = speedupAmount;
   }, [speedupAmount]);
 
-  // Clean up timers on unmount
+  // Clean up timers and speech on unmount
   useEffect(() => {
     return () => {
       clearInterval(exerciseTimerRef.current);
       clearInterval(metronomeIntervalRef.current);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
       if (audioCtxRef.current) {
         audioCtxRef.current.close().catch(() => {});
       }
@@ -382,6 +385,9 @@ export default function ReflexFocus({
   const terminateExerciseEarly = () => {
     clearInterval(exerciseTimerRef.current);
     clearInterval(metronomeIntervalRef.current);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     setExerciseState('idle');
   };
 

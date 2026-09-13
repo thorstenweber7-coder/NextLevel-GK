@@ -3,6 +3,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'fire
 import { collection, doc, getDoc, getDocs, setDoc, query, where } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { Shield, Lock, User as UserIcon, AlertCircle } from 'lucide-react';
+import logoImg from '../assets/Logo.png';
 
 interface LoginProps {
   onLoginSuccess: (userProfile: any) => void;
@@ -134,9 +135,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-brand-neon via-brand-neon-hover to-brand-neon"></div>
         
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-brand-neon/10 border border-brand-neon/20 flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(192,255,0,0.1)]">
-            <Shield className="w-8 h-8 text-brand-neon" />
-          </div>
+          <img 
+            src={logoImg} 
+            alt="NextLevel Goalkeeping Academy" 
+            className="w-24 h-24 object-contain mb-3 drop-shadow-[0_0_20px_rgba(192,255,0,0.25)]" 
+          />
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white font-display text-center">
             NextLevel
           </h1>

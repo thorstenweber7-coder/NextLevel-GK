@@ -44,6 +44,16 @@ export default function TargetStriking({ userProfile, onBack, onTrainingComplete
   const audioCtxRef = useRef<AudioContext | null>(null);
   const feedbackTimeoutRef = useRef<any>(null);
 
+  // Clean up Web Audio Context and pending timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+      }
+    };
+  }, []);
+
   // Play synthetic feedback sound
   const playSound = (type: 'correct' | 'incorrect' | 'tick' | 'complete') => {
     if (!soundEnabled) return;

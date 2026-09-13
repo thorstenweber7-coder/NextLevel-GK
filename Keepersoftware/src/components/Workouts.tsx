@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, increment, deleteDoc, query, where } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { UserProfile, Workout, Exercise, WorkoutLog, WorkoutLogExercise, WorkoutLogSet } from '../types';
-import { Play, Calendar, ClipboardList, Dumbbell, Clock, Plus, Trash2, Check, Star, ArrowLeft, Video, Save, ChevronDown, ChevronUp, Timer, Sparkles, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { Play, Calendar, ClipboardList, Dumbbell, Clock, Plus, Trash2, Check, Star, ArrowLeft, Video, Save, ChevronDown, ChevronUp, Timer, Sparkles, ChevronLeft, ChevronRight, AlertCircle, ExternalLink } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { resolveVideoInfo } from '../utils/videoUtils';
 
 
 // Custom Inline SVG Icons representing strength training movements
@@ -417,13 +418,19 @@ export default function Workouts({ userProfile, onUpdatePoints, onWorkoutActiveC
           }
         }
 
-        // Load logs for this user (only own Kraftsport logs)
-        const logsQuery = query(collection(db, 'workout_logs'), where('userId', '==', userProfile.uid));
+        // Load logs for this user (strictly only own Kraftsport logs)
+        const currentUid = auth.currentUser?.uid || userProfile?.uid;
+        if (!currentUid) {
+          setWorkoutLogs([]);
+          return;
+        }
+
+        const logsQuery = query(collection(db, 'workout_logs'), where('userId', '==', currentUid));
         const logsSnap = await getDocs(logsQuery);
         const logsList: WorkoutLog[] = [];
         logsSnap.forEach((doc) => {
           const log = { id: doc.id, ...doc.data() } as WorkoutLog;
-          if (log.userId === userProfile.uid) {
+          if (log.userId === currentUid) {
             logsList.push(log);
           }
         });
@@ -431,7 +438,7 @@ export default function Workouts({ userProfile, onUpdatePoints, onWorkoutActiveC
         setWorkoutLogs(logsList.sort((a, b) => b.date.localeCompare(a.date)));
 
         // Load personal bests
-        const pbSnap = await getDocs(collection(db, `users/${userProfile.uid}/personal_bests`));
+        const pbSnap = await getDocs(collection(db, `users/${currentUid}/personal_bests`));
         const pbMap: { [exerciseId: string]: number } = {};
         pbSnap.forEach((doc) => {
           pbMap[doc.id] = doc.data().value || 0;
@@ -444,7 +451,7 @@ export default function Workouts({ userProfile, onUpdatePoints, onWorkoutActiveC
     };
 
     loadData();
-  }, [userProfile.uid]);
+  }, [userProfile?.uid, auth.currentUser?.uid]);
 
   // Duration Tracker Interval
   useEffect(() => {
@@ -860,8 +867,9 @@ export default function Workouts({ userProfile, onUpdatePoints, onWorkoutActiveC
     const todayStr = new Date().toISOString().split('T')[0];
 
     // Build final log object
+    const currentUid = auth.currentUser?.uid || userProfile?.uid;
     const finalLog: Omit<WorkoutLog, 'id'> = {
-      userId: userProfile.uid,
+      userId: currentUid,
       workoutId: activeWorkout.id,
       workoutName: activeWorkout.name,
       date: todayStr,
@@ -879,13 +887,13 @@ export default function Workouts({ userProfile, onUpdatePoints, onWorkoutActiveC
         setPersonalBestRecords(newPersonalBests);
         for (const exId of Object.keys(newPersonalBests)) {
           if (newPersonalBests[exId] > (personalBestRecords[exId] || 0)) {
-            await setDoc(doc(db, `users/${userProfile.uid}/personal_bests`, exId), { value: newPersonalBests[exId] });
+            await setDoc(doc(db, `users/${currentUid}/personal_bests`, exId), { value: newPersonalBests[exId] });
           }
         }
       }
 
       // 3. Award 1 point in Bestenliste for Kraftsport
-      const userRef = doc(db, 'users', userProfile.uid);
+      const userRef = doc(db, 'users', currentUid);
       await updateDoc(userRef, {
         points: increment(1),
         [`pointsByCategory.Kraftsport`]: increment(1)
@@ -893,7 +901,7 @@ export default function Workouts({ userProfile, onUpdatePoints, onWorkoutActiveC
 
       // 4. Log point transaction for period filtering
       await addDoc(collection(db, 'point_logs'), {
-        userId: userProfile.uid,
+        userId: currentUid,
         points: 1,
         category: 'Kraftsport',
         action: `Trainingsplan abgeschlossen: ${activeWorkout.name}`,
@@ -2182,37 +2190,53 @@ export default function Workouts({ userProfile, onUpdatePoints, onWorkoutActiveC
                 [ Schließen ]
               </button>
             </div>
-            <div className="aspect-video w-full">
+            <div className="aspect-video w-full bg-black">
               {(() => {
-                // simple regex extractor for youtube watch / share link
-                let embedId = '';
-                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-                const match = videoPopupUrl.match(regExp);
-                if (match && match[2].length === 11) {
-                  embedId = match[2];
-                }
+                const videoInfo = resolveVideoInfo(videoPopupUrl, "Übungsvideo");
 
-                if (embedId) {
+                if (videoInfo.type === 'youtube' || videoInfo.type === 'drive') {
                   return (
                     <iframe
                       width="100%"
                       height="100%"
-                      src={`https://www.youtube.com/embed/${embedId}?vq=tiny&rel=0`}
-                      title="YouTube video player"
+                      src={videoInfo.embedUrl}
+                      title="Übungsvideo Player"
                       frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       allowFullScreen
                       loading="lazy"
-                      preload="none"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      className="w-full h-full border-0"
                     ></iframe>
                   );
-                } else {
+                }
+
+                if (videoInfo.type === 'direct') {
                   return (
-                    <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs p-8">
-                      Keine YouTube Video-ID erkannt. Link: <a href={videoPopupUrl} target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:underline ml-1">{videoPopupUrl}</a>
-                    </div>
+                    <video
+                      src={videoInfo.embedUrl}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="w-full h-full object-contain"
+                    />
                   );
                 }
+
+                return (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 text-xs p-8 space-y-3 text-center">
+                    <p>Kein integrierter Player verfügbar für diesen Link.</p>
+                    <a
+                      href={videoPopupUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-amber-500 text-slate-950 font-bold rounded-lg text-xs hover:bg-amber-400 flex items-center gap-1"
+                    >
+                      <span>Link extern öffnen</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                );
               })()}
             </div>
           </div>

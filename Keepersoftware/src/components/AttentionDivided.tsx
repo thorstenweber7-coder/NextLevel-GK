@@ -72,12 +72,20 @@ export default function AttentionDivided({ userProfile, onBack, onUpdatePoints, 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const circlesRef = useRef<Circle[]>([]);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Sound generator
   const playSound = (type: 'correct' | 'wrong' | 'complete' | 'tick' | 'start') => {
     if (!soundEnabled) return;
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const audioCtx = audioCtxRef.current;
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       
@@ -192,6 +200,9 @@ export default function AttentionDivided({ userProfile, onBack, onUpdatePoints, 
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
       }
     };
   }, []);
@@ -435,25 +446,16 @@ export default function AttentionDivided({ userProfile, onBack, onUpdatePoints, 
     };
   }, [gameState, circles]);
 
-  // Handle clicking/tapping canvas
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  // Handle clicking/tapping canvas (unified pointer event prevents double-tap ghost clicks on mobile)
+  const handleCanvasClick = (e: React.PointerEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>) => {
     if (gameState !== 'selection_phase') return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    let clientX = 0;
-    let clientY = 0;
-
-    if ('touches' in e) {
-      if (e.touches.length === 0) return;
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
+    const clientX = e.clientX;
+    const clientY = e.clientY;
 
     // Convert screen coordinates to canvas virtual units (800x600)
     const clickX = ((clientX - rect.left) / rect.width) * VIRTUAL_WIDTH;
@@ -679,9 +681,8 @@ export default function AttentionDivided({ userProfile, onBack, onUpdatePoints, 
                 ref={canvasRef}
                 width={700}
                 height={525}
-                onClick={handleCanvasClick}
-                onTouchStart={handleCanvasClick}
-                className="w-full aspect-[4/3] bg-slate-950 rounded-2xl cursor-pointer"
+                onPointerDown={handleCanvasClick}
+                className="w-full aspect-[4/3] bg-slate-950 rounded-2xl cursor-pointer touch-none select-none"
                 id="mot-canvas"
               />
 

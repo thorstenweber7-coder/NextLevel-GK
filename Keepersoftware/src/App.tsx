@@ -87,7 +87,7 @@ export default function App() {
               setLoading(false);
               return;
             }
-            setUserProfile({ uid: firebaseUser.uid, ...data } as UserProfile);
+            setUserProfile({ ...data, uid: firebaseUser.uid } as UserProfile);
           } else {
             // Profile doesn't exist yet (e.g. initial seed admin or fallback)
             setUserProfile({

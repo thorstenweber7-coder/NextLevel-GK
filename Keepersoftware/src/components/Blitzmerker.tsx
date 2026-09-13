@@ -57,9 +57,9 @@ export default function Blitzmerker({ userProfile, onBack, onUpdatePoints, onTra
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [strobeActive, setStrobeActive] = useState<boolean>(false);
 
-  // Strobe effect during playing or flash
+  // Strobe effect during fixation and flash
   useEffect(() => {
-    if (gameState !== 'playing' && gameState !== 'flash') {
+    if (gameState !== 'fixation' && gameState !== 'flash') {
       setStrobeActive(false);
       return;
     }
@@ -76,12 +76,29 @@ export default function Blitzmerker({ userProfile, onBack, onUpdatePoints, onTra
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const shapesRef = useRef<FlashShape[]>([]);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Clean up AudioContext on unmount
+  useEffect(() => {
+    return () => {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+      }
+    };
+  }, []);
 
   // Sound feedback system
   const playSound = (type: 'correct' | 'wrong' | 'tick' | 'flash' | 'complete') => {
     if (!soundEnabled) return;
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const audioCtx = audioCtxRef.current;
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       
@@ -201,15 +218,11 @@ export default function Blitzmerker({ userProfile, onBack, onUpdatePoints, onTra
     return () => clearTimeout(timer);
   }, [gameState]);
 
-  // Handle flash phase (150 milliseconds)
+  // Handle flash phase (exactly 150 milliseconds)
   useEffect(() => {
     if (gameState !== 'flash') return;
 
     playSound('flash');
-    const timer = setTimeout(() => {
-      setGameState('mask');
-    }, 1500); // We clear the drawing instantly in the canvas renderer based on state, but we transition to mask after 150ms. Oh, the requirement is disappear after exactly 150ms!
-    // Let's set the timeout to exactly 150ms.
     const flashTimer = setTimeout(() => {
       setGameState('mask');
     }, 150);

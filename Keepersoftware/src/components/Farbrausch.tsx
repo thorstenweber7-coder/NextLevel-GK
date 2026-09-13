@@ -83,12 +83,29 @@ export default function Farbrausch({ userProfile, onBack, onUpdatePoints, onTrai
   const [countdown, setCountdown] = useState<number>(3);
 
   const roundStartTimeRef = useRef<number>(0);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Clean up AudioContext on unmount
+  useEffect(() => {
+    return () => {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+      }
+    };
+  }, []);
 
   // Audio synthesis using Web Audio API
   const playSound = (type: 'correct' | 'wrong' | 'complete' | 'tick' | 'start') => {
     if (!soundEnabled) return;
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const audioCtx = audioCtxRef.current;
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       

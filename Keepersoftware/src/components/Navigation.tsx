@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { UserRole, UserProfile, hasModulePermission } from '../types';
 import { Trophy, Dumbbell, Video, Swords, BookOpen, Target, Settings, LogOut, ChevronLeft, ChevronRight, Lock, MessageSquare } from 'lucide-react';
+import logoImg from '../assets/Logo.png';
 
 interface NavigationProps {
   activeTab: string;
@@ -42,7 +43,7 @@ export default function Navigation({ activeTab, setActiveTab, userRole, userName
       {/* Left Side: Logo */}
       <div className="flex items-center gap-2.5 sm:gap-3 mr-4 sm:mr-8 shrink-0">
         <img 
-          src="/Logo.png" 
+          src={logoImg} 
           alt="NextLevel Goalkeeping" 
           className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-[0_0_10px_rgba(192,255,0,0.2)]"
         />
@@ -126,9 +127,11 @@ export default function Navigation({ activeTab, setActiveTab, userRole, userName
           <div className="text-[10px] text-zinc-500 uppercase font-bold leading-none mb-0.5">Eingeloggt als</div>
           <div className="text-xs font-bold text-white leading-none">{userName}</div>
         </div>
-        <div className="w-8 h-8 rounded-full bg-brand-border border border-brand-border-light flex items-center justify-center text-xs font-black uppercase text-brand-neon">
-          {userName.slice(0, 2)}
-        </div>
+        <img 
+          src={logoImg} 
+          alt="NextLevel Goalkeeping Academy" 
+          className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-[0_0_8px_rgba(192,255,0,0.25)]" 
+        />
         <button
           onClick={onLogout}
           title="Abmelden"

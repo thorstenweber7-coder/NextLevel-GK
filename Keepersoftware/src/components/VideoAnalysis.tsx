@@ -5,6 +5,7 @@ import { GoogleAuthProvider, linkWithPopup, signInWithPopup } from 'firebase/aut
 import { UserProfile, VideoScene, VideoSubmission, hasModulePermission } from '../types';
 import { Play, ArrowLeft, Check, AlertCircle, Award, BookOpen, ExternalLink, RefreshCw, Trophy, FileText, ChevronDown, ChevronUp, Shield, Target, Sparkles, X, Eye, HelpCircle, Tv, Video, Lock, Upload, Maximize2, CheckCircle2, XCircle } from 'lucide-react';
 import GoalkeeperSimulator from './GoalkeeperSimulator';
+import { resolveVideoInfo, getYouTubeEmbedId } from '../utils/videoUtils';
 
 interface VideoAnalysisProps {
   userProfile: UserProfile;
@@ -462,25 +463,49 @@ export default function VideoAnalysis({ userProfile, onUpdatePoints, initialView
     return (match && match[2].length === 11) ? match[2] : '';
   };
 
-  // Render Youtube Video embed with Vollbild toggle button
+  // Render Video embed (YouTube, Google Drive, Direct HTML5) with Vollbild toggle button
   const renderEmbedVideo = (url: string, title?: string) => {
-    const embedId = getYouTubeEmbedId(url);
+    const videoInfo = resolveVideoInfo(url, title);
 
-    if (embedId) {
+    if (videoInfo.type === 'youtube' || videoInfo.type === 'drive') {
       return (
         <div className="relative group aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow shadow-slate-950 bg-black">
           <iframe
             width="100%"
             height="100%"
-            src={`https://www.youtube.com/embed/${embedId}?rel=0`}
+            src={videoInfo.embedUrl}
             title={title || "Videoanalyse"}
             frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
             allowFullScreen
             loading="lazy"
-            className="w-full h-full"
+            referrerPolicy="strict-origin-when-cross-origin"
+            className="w-full h-full border-0"
           ></iframe>
 
+          <button
+            type="button"
+            onClick={() => setFullscreenVideoUrl(url)}
+            className="absolute top-3 right-3 px-3 py-1.5 bg-slate-950/85 hover:bg-amber-500 hover:text-slate-950 text-slate-200 text-xs font-mono font-bold rounded-xl border border-slate-700/80 backdrop-blur-md flex items-center gap-1.5 transition-all shadow-lg cursor-pointer z-10"
+            title="Vollbildmodus öffnen"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>Vollbild</span>
+          </button>
+        </div>
+      );
+    }
+
+    if (videoInfo.type === 'direct') {
+      return (
+        <div className="relative group aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow shadow-slate-950 bg-black">
+          <video
+            src={videoInfo.embedUrl}
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full h-full object-contain"
+          />
           <button
             type="button"
             onClick={() => setFullscreenVideoUrl(url)}
@@ -1292,28 +1317,52 @@ export default function VideoAnalysis({ userProfile, onUpdatePoints, initialView
               </button>
             </div>
             <div className="flex-1 w-full h-full bg-black relative">
-              {getYouTubeEmbedId(fullscreenVideoUrl) ? (
-                <iframe
-                  width="100%"
-                  height="100%"
-                  src={`https://www.youtube.com/embed/${getYouTubeEmbedId(fullscreenVideoUrl)}?autoplay=1&rel=0`}
-                  title="Videoanalyse Vollbild"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                  allowFullScreen
-                  className="w-full h-full"
-                ></iframe>
-              ) : (
-                <iframe
-                  width="100%"
-                  height="100%"
-                  src={fullscreenVideoUrl}
-                  title="Videoanalyse Vollbild"
-                  frameBorder="0"
-                  allowFullScreen
-                  className="w-full h-full"
-                ></iframe>
-              )}
+              {(() => {
+                const fsInfo = resolveVideoInfo(fullscreenVideoUrl);
+                if (fsInfo.type === 'youtube' || fsInfo.type === 'drive') {
+                  const src = fsInfo.type === 'youtube'
+                    ? `${fsInfo.embedUrl}&autoplay=1`
+                    : fsInfo.embedUrl;
+                  return (
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src={src}
+                      title="Videoanalyse Vollbild"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
+                      allowFullScreen
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      className="w-full h-full border-0"
+                    ></iframe>
+                  );
+                }
+                if (fsInfo.type === 'direct') {
+                  return (
+                    <video
+                      src={fsInfo.embedUrl}
+                      controls
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-contain"
+                    />
+                  );
+                }
+                return (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 space-y-4">
+                    <p className="text-sm">Video kann nicht direkt im Vollbild-Modal eingebettet werden.</p>
+                    <a
+                      href={fullscreenVideoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-amber-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-amber-400 flex items-center gap-2"
+                    >
+                      <span>In neuem Tab öffnen</span>
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
