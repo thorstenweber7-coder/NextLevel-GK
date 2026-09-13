@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        request.auth.token.email == 'thorsten.weber7@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    // Public / App Configuration
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Users and Profile data
+    match /users/{userId} {
+      // Authenticated users can read profiles (needed for leaderboards, chat partner names, trainer views)
+      allow read: if isAuthenticated();
+      
+      // Creating a user profile: user can create their own profile, but cannot self-assign the 'admin' role
+      allow create: if isAuthenticated() && (
+        isAdmin() || 
+        (isOwner(userId) && request.resource.data.role != 'admin')
+      );
+      
+      // Updating user profile: user can update own profile, but CANNOT change their role (privilege escalation prevention)
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (isOwner(userId) && request.resource.data.role == resource.data.role)
+      );
+      
+      // Only admin can delete user profiles
+      allow delete: if isAdmin();
+
+      // User-specific subcollections:
+      // - exercise_notes (eigene Notizen zu Kraftgeräten/Übungen)
+      // - personal_bests (persönliche Rekorde)
+      // - quiz_submissions (eigene Quiz-Antworten)
+      match /{subcollection}/{docId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Individual Goals (Individuelle Ziele)
+    match /goals/{goalId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid)
+      );
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Workout Logs (Kraftsport-Dokumentation)
+    match /workout_logs/{logId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid)
+      );
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Video Submissions (Lern- und Testszenen Antworten)
+    match /video_submissions/{submissionId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid)
+      );
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // 1-to-1 Support Chat Messages (TW-Chat zwischen Keeper und Trainer)
+    match /chat_messages/{messageId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Kognitionsspiele Training Statistics
+    match /kognitionsspiele_training_stats/{statId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isAuthenticated() && (
+        isAdmin() || 
+        (request.resource.data.userId == request.auth.uid && (resource == null || resource.data.userId == request.auth.uid))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Neuroathletik Training Statistics
+    match /neuroathletik_training_stats/{statId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isAuthenticated() && (
+        isAdmin() || 
+        (request.resource.data.userId == request.auth.uid && (resource == null || resource.data.userId == request.auth.uid))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Shared Training & Content Database (Exercises, Workouts, Video Scenes, Categories, Competitions)
+    match /exercises/{exerciseId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /workouts/{workoutId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /video_scenes/{sceneId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /video_categories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /competitions/{compId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /kognitionsspiele_challenges/{challengeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Points and Leaderboard Logs
+    match /point_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // Default deny for any unmatched document paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

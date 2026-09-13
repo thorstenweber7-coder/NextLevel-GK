@@ -1,7 +1,10 @@
 .DS_Store
 .npm-cache/
+node_modules/
+dist/
 Logo/
 Screenshots der App/
 Videos/
 *~
 *.log
+

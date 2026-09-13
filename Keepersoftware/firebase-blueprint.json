@@ -1,0 +1,222 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information, role, and points details.",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "kraftsport", "keeper_verein", "keeper_extern"] },
+        "name": { "type": "string" },
+        "club": { "type": "string" },
+        "position": { "type": "string" },
+        "location": { "type": "string" },
+        "school": { "type": "string" },
+        "otherInfo": { "type": "string" },
+        "points": { "type": "number" },
+        "pointsByCategory": { "type": "object" },
+        "weightHistory": { "type": "array" },
+        "heightHistory": { "type": "array" }
+      },
+      "required": ["username", "role", "name", "points"]
+    },
+    "Exercise": {
+      "title": "Exercise",
+      "description": "An exercise in the exercise database.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "imageLink": { "type": "string" },
+        "muscleGroup": { "type": "string", "enum": ["PUSH", "PULL", "Leg", "Core"] },
+        "trainerNote": { "type": "string" },
+        "cadence": { "type": "string" },
+        "videoLink": { "type": "string" },
+        "bodyweightMoved": { "type": "boolean" },
+        "bodyweightPartiallyMoved": { "type": "boolean" },
+        "unilateral": { "type": "boolean" }
+      },
+      "required": ["name", "muscleGroup"]
+    },
+    "Workout": {
+      "title": "Workout Plan",
+      "description": "A workout plan containing exercises assigned to users.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "exercises": { "type": "array" },
+        "assignedUsers": { "type": "array" }
+      },
+      "required": ["name", "exercises", "assignedUsers"]
+    },
+    "WorkoutLog": {
+      "title": "Workout Log",
+      "description": "A record of a completed workout session by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "workoutId": { "type": "string" },
+        "workoutName": { "type": "string" },
+        "date": { "type": "string" },
+        "duration": { "type": "number" },
+        "exercises": { "type": "array" },
+        "totalVolume": { "type": "number" }
+      },
+      "required": ["userId", "workoutId", "date", "totalVolume"]
+    },
+    "VideoScene": {
+      "title": "Video Scene",
+      "description": "A video clip with training questions or rules.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["analysis", "whatsnext", "coaching", "freestoss", "elfmeter_lernen", "elfmeter_uebung", "veo", "bigsave"] },
+        "categoryId": { "type": "string" },
+        "videoLink": { "type": "string" },
+        "question": { "type": "string" },
+        "answers": { "type": "array" },
+        "correctAnswer": { "type": "string" },
+        "followUpText": { "type": "string" },
+        "analysisRules": { "type": "string" },
+        "team": { "type": "string" },
+        "date": { "type": "string" },
+        "season": { "type": "string" },
+        "part": { "type": "string" },
+        "nominations": { "type": "string" },
+        "winner": { "type": "string" }
+      },
+      "required": ["type", "videoLink"]
+    },
+    "VideoSubmission": {
+      "title": "Video Submission",
+      "description": "A user's response to a video scene.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "sceneId": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "submission": { "type": "object" },
+        "correct": { "type": "boolean" }
+      },
+      "required": ["userId", "sceneId", "timestamp"]
+    },
+    "Goal": {
+      "title": "Individual Goal",
+      "description": "A developmental goal set by the goalkeeper.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["Technik", "Taktik", "Entscheidung"] },
+        "description": { "type": "string" },
+        "assessment": { "type": "string" },
+        "evaluation": { "type": "number" },
+        "actions": { "type": "object" },
+        "completed": { "type": "boolean" },
+        "date": { "type": "string" }
+      },
+      "required": ["userId", "type", "description", "completed", "date"]
+    },
+    "Competition": {
+      "title": "Competition Item",
+      "description": "Competitions details (trainingswettkampf, challenge, quiz).",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["training", "challenge", "quiz"] },
+        "date": { "type": "string" },
+        "winner": { "type": "string" },
+        "second": { "type": "string" },
+        "period": { "type": "string" },
+        "videoLink": { "type": "string" },
+        "creator": { "type": "string" },
+        "successfulUsers": { "type": "array" },
+        "question": { "type": "string" },
+        "answers": { "type": "array" },
+        "correctAnswer": { "type": "number" }
+      },
+      "required": ["type"]
+    },
+    "KognitionsspieleTrainingStat": {
+      "title": "Kognitionsspiele Training Statistics",
+      "description": "Training statistics (best score, play count) for a specific game and user in Kognitionsspiele.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "gameId": { "type": "string" },
+        "bestScore": { "type": "number" },
+        "playCount": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "gameId", "bestScore", "playCount", "updatedAt"]
+    },
+    "NeuroathletikTrainingStat": {
+      "title": "Neuroathletik Training Statistics",
+      "description": "Training statistics (play count) for a specific game and user in Neuroathletik.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "gameId": { "type": "string" },
+        "playCount": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "gameId", "playCount", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "A persistent 1-to-1 chat message between a regular user and the admin.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "topic": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "senderRole": { "type": "string", "enum": ["User", "Admin"] }
+      },
+      "required": ["userId", "userName", "topic", "message", "timestamp", "senderRole"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "User profiles and points statistics"
+    },
+    "exercises": {
+      "schema": "Exercise",
+      "description": "Exercise definitions"
+    },
+    "workouts": {
+      "schema": "Workout",
+      "description": "Workout plans and mappings"
+    },
+    "workout_logs": {
+      "schema": "WorkoutLog",
+      "description": "Workout execution logs"
+    },
+    "video_scenes": {
+      "schema": "VideoScene",
+      "description": "Video clips and questions"
+    },
+    "video_submissions": {
+      "schema": "VideoSubmission",
+      "description": "Analysis or quiz submissions from goalkeepers"
+    },
+    "goals": {
+      "schema": "Goal",
+      "description": "Goal tracking list"
+    },
+    "competitions": {
+      "schema": "Competition",
+      "description": "Trainingswettkaempfe, challenge, and quizzes"
+    },
+    "kognitionsspiele_training_stats": {
+      "schema": "KognitionsspieleTrainingStat",
+      "description": "Persistent best scores and play counts for regular Kognitionsspiele training sessions"
+    },
+    "neuroathletik_training_stats": {
+      "schema": "NeuroathletikTrainingStat",
+      "description": "Persistent play counts for regular Neuroathletik training sessions"
+    },
+    "chat_messages": {
+      "schema": "ChatMessage",
+      "description": "Messages sent inside 1-to-1 user-admin chats"
+    }
+  }
+}
