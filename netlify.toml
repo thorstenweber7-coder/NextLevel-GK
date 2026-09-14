@@ -1,14 +1,14 @@
 # Netlify Configuration for NextLevel Goalkeeping
-# Automatically builds the React Keepersoftware into /app and serves all static pages from dist.
+# Automatically builds both apps (Keepersoftware & Trainingsplanung) and serves all static pages from dist.
 
 [build]
-  command = "cd Keepersoftware && npm install && npm run build:frontend && cd .. && mkdir -p dist && cp -r Assets *.html dist/ 2>/dev/null || true && cp Assets/Logo.png dist/Logo.png 2>/dev/null || true && cp Assets/Logo.jpg dist/Logo.jpg 2>/dev/null || true && mkdir -p dist/app && cp -r Keepersoftware/dist/* dist/app/"
+  command = "cd Keepersoftware && npm install && npm run build:frontend && cd ../Trainingsplanung && npm install && npm run build && cd .. && mkdir -p dist && cp -r Assets *.html dist/ 2>/dev/null || true && cp Assets/Logo.png dist/Logo.png 2>/dev/null || true && cp Assets/Logo.jpg dist/Logo.jpg 2>/dev/null || true && mkdir -p dist/app && cp -r Keepersoftware/dist/* dist/app/ && mkdir -p dist/Trainingsplanung && cp -r Trainingsplanung/dist/* dist/Trainingsplanung/ && mkdir -p dist/trainingsplanung && cp -r Trainingsplanung/dist/* dist/trainingsplanung/"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "20"
 
-# SPA client-side routing for the Keepersoftware
+# SPA client-side routing for the Keepersoftware (/app)
 [[redirects]]
   from = "/app/*"
   to = "/app/index.html"
@@ -31,6 +31,49 @@
   to = "/app/"
   status = 301
 
+# SPA client-side routing for Trainingsplanung (/Trainingsplanung)
+[[redirects]]
+  from = "/Trainingsplanung/*"
+  to = "/Trainingsplanung/index.html"
+  status = 200
+
+# Trailing slash redirect for /Trainingsplanung
+[[redirects]]
+  from = "/Trainingsplanung"
+  to = "/Trainingsplanung/"
+  status = 301
+
+# Lowercase and alternate alias redirects for Trainingsplanung
+[[redirects]]
+  from = "/trainingsplanung/*"
+  to = "/Trainingsplanung/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/trainingsplanung"
+  to = "/Trainingsplanung/"
+  status = 301
+
+[[redirects]]
+  from = "/coach/*"
+  to = "/Trainingsplanung/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/coach"
+  to = "/Trainingsplanung/"
+  status = 301
+
+[[redirects]]
+  from = "/trainer/*"
+  to = "/Trainingsplanung/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/trainer"
+  to = "/Trainingsplanung/"
+  status = 301
+
 # Cache headers for optimal asset performance
 [[headers]]
   for = "/Assets/*"
@@ -39,5 +82,15 @@
 
 [[headers]]
   for = "/app/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/Trainingsplanung/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/trainingsplanung/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"

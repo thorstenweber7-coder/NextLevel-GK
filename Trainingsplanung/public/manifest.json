@@ -1,0 +1,25 @@
+{
+  "name": "NextLevel Coach PRO — Torwart-Trainingsplanung",
+  "short_name": "NextLevel Coach",
+  "description": "Torwart-Trainingsplanung, Ausbildungsstrukturen und Taktikboard für Torwarttrainer",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020617",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/Logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/Logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
