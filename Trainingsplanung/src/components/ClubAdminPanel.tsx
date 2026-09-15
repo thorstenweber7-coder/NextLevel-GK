@@ -65,7 +65,9 @@ import {
   UserPlus,
   ArrowRightLeft,
   Eye,
-  X
+  X,
+  Calendar,
+  ArrowUpRight
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -114,6 +116,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
   // Methodical Progressions (Technikprinzipien & Vereins-Standards) state
   const [progressions, setProgressions] = useState<MethodicalProgression[]>([]);
   const [principlesGroupFilter, setPrinciplesGroupFilter] = useState<string>('all');
+  const [principlesCoachFilterOnly, setPrinciplesCoachFilterOnly] = useState<boolean>(false);
   const [principlesSearchQuery, setPrinciplesSearchQuery] = useState<string>('');
   const [expandedTechniqueId, setExpandedTechniqueId] = useState<string | null>(null);
   const [draftStufen, setDraftStufen] = useState<Record<string, MethodischeReiheStufen>>({});
@@ -123,6 +126,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
   // Tactical Principles (Taktikprinzipien & Vereins-Standards) state
   const [tacticalPrinciples, setTacticalPrinciples] = useState<TacticalPrinciple[]>([]);
   const [tacticalGroupFilter, setTacticalGroupFilter] = useState<string>('all');
+  const [tacticalCoachFilterOnly, setTacticalCoachFilterOnly] = useState<boolean>(false);
   const [tacticalSearchQuery, setTacticalSearchQuery] = useState<string>('');
   const [expandedTacticId, setExpandedTacticId] = useState<string | null>(null);
   const [draftTactics, setDraftTactics] = useState<Record<string, string>>({});
@@ -242,11 +246,61 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
     return () => unsub();
   }, []);
 
+  // Coach emails and UIDs belonging to this club
+  const clubCoachEmails = useMemo(() => {
+    const set = new Set<string>();
+    if (currentClub?.adminEmail) set.add(currentClub.adminEmail.toLowerCase().trim());
+    (currentClub?.coachEmails || []).forEach(e => e && set.add(e.toLowerCase().trim()));
+    trainingGroups.forEach(g => {
+      if (g.assignedCoachEmail) set.add(g.assignedCoachEmail.toLowerCase().trim());
+      (g.observerCoachEmails || []).forEach(e => e && set.add(e.toLowerCase().trim()));
+    });
+    return Array.from(set);
+  }, [currentClub, trainingGroups]);
+
+  const clubCoachUids = useMemo(() => {
+    const set = new Set<string>();
+    if (currentClub?.adminUid) set.add(currentClub.adminUid);
+    (currentClub?.coachUids || []).forEach(id => id && set.add(id));
+    return Array.from(set);
+  }, [currentClub]);
+
+  // Helper to get all coach progressions for a technique
+  const getCoachTechniqueProgressions = (techniqueId: string, techniqueName: string): MethodicalProgression[] => {
+    const cleanId = techniqueId.toLowerCase().trim();
+    const cleanName = techniqueName.toLowerCase().trim();
+
+    return progressions.filter(p => {
+      if (p.scope !== 'user') return false;
+      const techMatch = p.techniqueId?.toLowerCase().trim() === cleanId || p.techniqueName?.toLowerCase().trim() === cleanName;
+      if (!techMatch) return false;
+
+      const isClubCoachMatch = Boolean(
+        (effectiveClubId && p.clubId === effectiveClubId) ||
+        (p.userEmail && clubCoachEmails.includes(p.userEmail.toLowerCase().trim())) ||
+        (p.userId && clubCoachUids.includes(p.userId)) ||
+        (!effectiveClubId && isMasterAdmin)
+      );
+      if (!isClubCoachMatch) return false;
+
+      const hasContent = Boolean(p.technikprinzipien?.trim()) || Object.values(p.stufen || {}).some(v => Boolean(v?.trim()));
+      return hasContent;
+    });
+  };
+
+  // Total techniques with coach templates
+  const totalTechniquesWithCoachTemplates = useMemo(() => {
+    return SKILL_DEFINITIONS.Technik.filter(t => getCoachTechniqueProgressions(t.id, t.name).length > 0).length;
+  }, [SKILL_DEFINITIONS.Technik, progressions, effectiveClubId, clubCoachEmails, clubCoachUids]);
+
   // Filtered techniques for principles tab
   const filteredTechniques = useMemo(() => {
     let list = SKILL_DEFINITIONS.Technik;
     if (principlesGroupFilter !== 'all') {
       list = list.filter(t => t.group === principlesGroupFilter);
+    }
+    if (principlesCoachFilterOnly) {
+      list = list.filter(t => getCoachTechniqueProgressions(t.id, t.name).length > 0);
     }
     const q = principlesSearchQuery.toLowerCase().trim();
     if (!q) return list;
@@ -254,7 +308,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
       t.name.toLowerCase().includes(q) || 
       (t.group && t.group.toLowerCase().includes(q))
     );
-  }, [principlesGroupFilter, principlesSearchQuery]);
+  }, [principlesGroupFilter, principlesCoachFilterOnly, principlesSearchQuery, progressions, effectiveClubId, clubCoachEmails, clubCoachUids]);
 
   // Helper to check if a custom Club Standard exists for a technique
   const getClubTechniqueDoc = (techniqueId: string, techniqueName: string) => {
@@ -453,11 +507,61 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
     }
   };
 
+  const handleAdoptCoachTechniqueProgression = (techId: string, techName: string, coachProg: MethodicalProgression) => {
+    const coachName = coachProg.authorName || coachProg.userEmail || 'Trainer';
+    setDraftStufen(prev => ({
+      ...prev,
+      [techId]: {
+        stufe1: coachProg.stufen?.stufe1 || '',
+        stufe2: coachProg.stufen?.stufe2 || '',
+        stufe3: coachProg.stufen?.stufe3 || '',
+        stufe4: coachProg.stufen?.stufe4 || '',
+        stufe5: coachProg.stufen?.stufe5 || '',
+        stufe6: coachProg.stufen?.stufe6 || ''
+      }
+    }));
+    setDraftPrinciples(prev => ({
+      ...prev,
+      [techId]: coachProg.technikprinzipien || ''
+    }));
+    showToast(`Vorlage für „${techName}“ von „${coachName}“ in das Formular geladen! Du kannst sie jetzt anpassen oder als Vereins-Standard speichern.`);
+  };
+
+  // Helper to get all coach tactical principles for a tactical focus
+  const getCoachTacticalPrinciples = (tacticId: string, tacticName: string): TacticalPrinciple[] => {
+    const cleanId = tacticId.toLowerCase().trim();
+    const cleanName = tacticName.toLowerCase().trim();
+
+    return tacticalPrinciples.filter(p => {
+      if (p.scope !== 'user') return false;
+      const tacticMatch = p.tacticId?.toLowerCase().trim() === cleanId || p.tacticName?.toLowerCase().trim() === cleanName;
+      if (!tacticMatch) return false;
+
+      const isClubCoachMatch = Boolean(
+        (effectiveClubId && p.clubId === effectiveClubId) ||
+        (p.userEmail && clubCoachEmails.includes(p.userEmail.toLowerCase().trim())) ||
+        (p.userId && clubCoachUids.includes(p.userId)) ||
+        (!effectiveClubId && isMasterAdmin)
+      );
+      if (!isClubCoachMatch) return false;
+
+      return Boolean(p.taktikprinzipien?.trim());
+    });
+  };
+
+  // Total tactics with coach templates
+  const totalTacticsWithCoachTemplates = useMemo(() => {
+    return SKILL_DEFINITIONS.Taktik.filter(t => getCoachTacticalPrinciples(t.id, t.name).length > 0).length;
+  }, [SKILL_DEFINITIONS.Taktik, tacticalPrinciples, effectiveClubId, clubCoachEmails, clubCoachUids]);
+
   // Filtered tactics for tactic_principles tab
   const filteredTactics = useMemo(() => {
     let list = SKILL_DEFINITIONS.Taktik;
     if (tacticalGroupFilter !== 'all') {
       list = list.filter(t => t.group === tacticalGroupFilter);
+    }
+    if (tacticalCoachFilterOnly) {
+      list = list.filter(t => getCoachTacticalPrinciples(t.id, t.name).length > 0);
     }
     const q = tacticalSearchQuery.toLowerCase().trim();
     if (!q) return list;
@@ -465,7 +569,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
       t.name.toLowerCase().includes(q) || 
       (t.group && t.group.toLowerCase().includes(q))
     );
-  }, [tacticalGroupFilter, tacticalSearchQuery]);
+  }, [tacticalGroupFilter, tacticalCoachFilterOnly, tacticalSearchQuery, tacticalPrinciples, effectiveClubId, clubCoachEmails, clubCoachUids]);
 
   // Helper to check if a custom Club Standard exists for a tactical focus
   const getClubTacticDoc = (tacticId: string, tacticName: string) => {
@@ -634,6 +738,15 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
         setSavingTacticId(null);
       }
     }
+  };
+
+  const handleAdoptCoachTacticalPrinciple = (tacticId: string, coachPrinciple: TacticalPrinciple) => {
+    const coachName = coachPrinciple.authorName || coachPrinciple.userEmail || 'Trainer';
+    setDraftTactics(prev => ({
+      ...prev,
+      [tacticId]: coachPrinciple.taktikprinzipien || ''
+    }));
+    showToast(`Taktikprinzipien von „${coachName}“ in den Vereins-Standard geladen! Du kannst sie jetzt anpassen oder als Vereins-Standard speichern.`);
   };
 
   // List of licensed coaches in club for group assignment
@@ -2003,6 +2116,12 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                     {SKILL_DEFINITIONS.Technik.filter(t => Boolean(getClubTechniqueDoc(t.id, t.name))).length} / {SKILL_DEFINITIONS.Technik.length}
                   </span>
                 </div>
+                <div className="bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-2xl text-center">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Trainer-Vorlagen</span>
+                  <span className="text-lg font-black text-indigo-400">
+                    {totalTechniquesWithCoachTemplates}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -2021,10 +2140,13 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                   <button
                     key={group.id}
                     type="button"
-                    onClick={() => setPrinciplesGroupFilter(group.id)}
+                    onClick={() => {
+                      setPrinciplesGroupFilter(group.id);
+                      if (principlesCoachFilterOnly) setPrinciplesCoachFilterOnly(false);
+                    }}
                     className={cn(
                       "px-3 py-1.5 rounded-xl text-xs font-bold transition",
-                      principlesGroupFilter === group.id
+                      principlesGroupFilter === group.id && !principlesCoachFilterOnly
                         ? "bg-sky-600 text-white shadow-md shadow-sky-950/50"
                         : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700"
                     )}
@@ -2032,6 +2154,20 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                     {group.label}
                   </button>
                 ))}
+
+                <button
+                  type="button"
+                  onClick={() => setPrinciplesCoachFilterOnly(prev => !prev)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5",
+                    principlesCoachFilterOnly
+                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-950/50"
+                      : "bg-slate-950 text-indigo-300 hover:text-white border border-indigo-900/50 hover:border-indigo-700"
+                  )}
+                >
+                  <Users className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Mit Trainer-Vorlagen ({totalTechniquesWithCoachTemplates})</span>
+                </button>
               </div>
 
               <div className="relative w-full sm:w-72">
@@ -2056,6 +2192,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
               const draftPrinciplesCurrent = getDraftPrinciplesFor(tech.id, tech.name);
               const isSaving = savingTechniqueId === tech.id;
               const hasClubStandard = source === 'club';
+              const coachProgressions = getCoachTechniqueProgressions(tech.id, tech.name);
 
               return (
                 <div
@@ -2089,6 +2226,17 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                     </div>
 
                     <div className="flex items-center gap-3">
+                      {coachProgressions.length > 0 ? (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-indigo-950/80 text-indigo-300 border border-indigo-700/80 flex items-center gap-1.5 shadow-sm">
+                          <Users className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>{coachProgressions.length} Trainer-Vorlage{coachProgressions.length > 1 ? 'n' : ''}</span>
+                        </span>
+                      ) : (
+                        <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-950 text-slate-500 border border-slate-800">
+                          0 Trainer-Vorlagen
+                        </span>
+                      )}
+
                       {hasClubStandard ? (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-950/80 text-emerald-300 border border-emerald-700/80 flex items-center gap-1.5 shadow-sm">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -2109,7 +2257,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
 
                   {/* Expanded Editor Body */}
                   {isExpanded && (
-                    <div className="p-6 sm:p-8 border-t border-slate-800/80 bg-slate-950/40 space-y-6 animate-in fade-in duration-200">
+                    <div className="p-6 sm:p-8 border-t border-slate-800/80 bg-slate-950/40 space-y-8 animate-in fade-in duration-200">
                       <div className="p-3.5 bg-sky-950/30 border border-sky-800/50 rounded-2xl text-sky-200 text-xs flex items-start gap-2.5">
                         <Info className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />
                         <div className="leading-relaxed text-[11px]">
@@ -2123,7 +2271,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                         <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
                           <span className="flex items-center gap-1.5 text-sky-300">
                             <Sparkles className="w-3.5 h-3.5" />
-                            <span>Didaktische Technikprinzipien & Coaching Points</span>
+                            <span>Didaktische Technikprinzipien & Coaching Points (Vereins-Standard)</span>
                           </span>
                           <span className="text-[10px] text-slate-500 font-normal">
                             Kernmerkmale & Merksätze für das Trainerteam
@@ -2143,7 +2291,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                         <div className="flex items-center justify-between">
                           <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 text-sky-300">
                             <Layers className="w-3.5 h-3.5" />
-                            <span>Methodische Reihe (6 Stufen)</span>
+                            <span>Methodische Reihe (6 Stufen Vereins-Standard)</span>
                           </h4>
                           <span className="text-[10px] text-slate-500">
                             Vom isolierten Basisschwerpunkt zur komplexen Entscheidung
@@ -2216,6 +2364,142 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                           <span>{isSaving ? 'Wird gespeichert...' : 'Als Vereins-Standard speichern'}</span>
                         </button>
                       </div>
+
+                      {/* SECTION: ABGESPEICHERTE TRAINER-VORLAGEN & METHODISCHE REIHEN */}
+                      <div className="pt-6 border-t border-slate-800/80 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
+                              <Users className="w-4 h-4 text-indigo-400" />
+                              <span>Abgespeicherte Vorlagen & Methodische Reihen deiner Trainer</span>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-950 text-indigo-300 border border-indigo-800">
+                                {coachProgressions.length}
+                              </span>
+                            </h4>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                              Hier siehst du alle Prinzipien und methodischen 6-Stufen-Reihen, die die Trainer deines Vereins für „{tech.name}“ abgespeichert haben.
+                            </p>
+                          </div>
+                        </div>
+
+                        {coachProgressions.length > 0 ? (
+                          <div className="space-y-4">
+                            {coachProgressions.map(coachProg => {
+                              const coachName = coachProg.authorName || coachProg.userEmail || 'Vereinstrainer';
+                              const formattedDate = coachProg.updatedAt
+                                ? new Date(coachProg.updatedAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                : 'Gespeichert';
+                              const stufenCount = Object.values(coachProg.stufen || {}).filter(v => Boolean(v?.trim())).length;
+
+                              return (
+                                <div 
+                                  key={coachProg.id}
+                                  className="bg-slate-900 border border-indigo-900/40 rounded-2xl p-4 sm:p-5 space-y-4 shadow-lg"
+                                >
+                                  {/* Coach Card Header */}
+                                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-xl bg-indigo-950/80 border border-indigo-700/80 text-indigo-300 flex items-center justify-center font-black text-xs shadow-inner">
+                                        {coachName.charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-sm font-bold text-white">{coachName}</span>
+                                          {coachProg.userEmail && (
+                                            <span className="text-[10px] text-slate-400 bg-slate-950 px-2 py-0.5 rounded-full border border-slate-800">
+                                              {coachProg.userEmail}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5 flex-wrap">
+                                          <Calendar className="w-3 h-3 text-slate-500" />
+                                          <span>Zuletzt gespeichert: {formattedDate}</span>
+                                          <span>•</span>
+                                          <span className="text-indigo-400 font-bold">{stufenCount} von 6 Stufen ausgefüllt</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAdoptCoachTechniqueProgression(tech.id, tech.name, coachProg)}
+                                      className="px-3.5 py-1.5 rounded-xl bg-indigo-950 border border-indigo-700/80 hover:bg-indigo-900 text-indigo-200 text-xs font-bold transition flex items-center gap-1.5 shadow active:scale-95"
+                                      title="Kopiert diese Trainer-Vorlage in das obige Formular als Vereins-Standard"
+                                    >
+                                      <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400" />
+                                      <span>In Vereins-Standard übernehmen</span>
+                                    </button>
+                                  </div>
+
+                                  {/* Trainer's Technikprinzipien */}
+                                  <div className="space-y-1.5">
+                                    <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                                      <span>Technikprinzipien & Coaching Points des Trainers:</span>
+                                    </span>
+                                    {coachProg.technikprinzipien?.trim() ? (
+                                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 font-mono leading-relaxed whitespace-pre-wrap">
+                                        {coachProg.technikprinzipien}
+                                      </div>
+                                    ) : (
+                                      <div className="bg-slate-950/60 border border-slate-800/60 rounded-xl p-2.5 text-[11px] text-slate-500 italic">
+                                        Keine gesonderten Prinzipien hinterlegt
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Trainer's 6 Stufen Methodische Reihe */}
+                                  <div className="space-y-2">
+                                    <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Layers className="w-3 h-3 text-indigo-400" />
+                                      <span>Methodische Reihe (6 Stufen) des Trainers:</span>
+                                    </span>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                      {(['stufe1', 'stufe2', 'stufe3', 'stufe4', 'stufe5', 'stufe6'] as const).map((stufeKey, idx) => {
+                                        const stepNum = idx + 1;
+                                        const label = METHODISCHE_REIHE_LABELS[stufeKey];
+                                        const val = coachProg.stufen?.[stufeKey]?.trim();
+
+                                        return (
+                                          <div
+                                            key={stufeKey}
+                                            className={cn(
+                                              "rounded-xl p-2.5 space-y-1 transition",
+                                              val 
+                                                ? "bg-slate-950 border border-indigo-900/50" 
+                                                : "bg-slate-950/40 border border-slate-850 opacity-60"
+                                            )}
+                                          >
+                                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-300">
+                                              <span className="w-4 h-4 rounded-md bg-indigo-950 border border-indigo-800 text-[9px] flex items-center justify-center text-indigo-300">
+                                                {stepNum}
+                                              </span>
+                                              <span className="truncate">{label}</span>
+                                            </div>
+                                            <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                                              {val || <span className="text-slate-600 italic">Kein Inhalt</span>}
+                                            </p>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="bg-slate-950/60 border border-dashed border-slate-800 rounded-2xl p-5 text-center space-y-1.5">
+                            <Users className="w-6 h-6 text-slate-600 mx-auto" />
+                            <p className="text-xs font-bold text-slate-400">
+                              Noch keine Trainer-Vorlagen für „{tech.name}“ hinterlegt
+                            </p>
+                            <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                              Sobald ein Trainer deines Vereins im Übungseditor bei dieser Technik eigene Prinzipien oder Stufen abspeichert, kannst du sie hier direkt einsehen und bei Bedarf als offiziellen Vereins-Standard übernehmen.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2257,6 +2541,12 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                     {SKILL_DEFINITIONS.Taktik.filter(t => Boolean(getClubTacticDoc(t.id, t.name))).length} / {SKILL_DEFINITIONS.Taktik.length}
                   </span>
                 </div>
+                <div className="bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-2xl text-center">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Trainer-Vorlagen</span>
+                  <span className="text-lg font-black text-purple-400">
+                    {totalTacticsWithCoachTemplates}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -2275,10 +2565,13 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                   <button
                     key={group.id}
                     type="button"
-                    onClick={() => setTacticalGroupFilter(group.id)}
+                    onClick={() => {
+                      setTacticalGroupFilter(group.id);
+                      if (tacticalCoachFilterOnly) setTacticalCoachFilterOnly(false);
+                    }}
                     className={cn(
                       "px-3 py-1.5 rounded-xl text-xs font-bold transition",
-                      tacticalGroupFilter === group.id
+                      tacticalGroupFilter === group.id && !tacticalCoachFilterOnly
                         ? "bg-purple-600 text-white shadow-md shadow-purple-950/50"
                         : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700"
                     )}
@@ -2286,6 +2579,20 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                     {group.label}
                   </button>
                 ))}
+
+                <button
+                  type="button"
+                  onClick={() => setTacticalCoachFilterOnly(prev => !prev)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5",
+                    tacticalCoachFilterOnly
+                      ? "bg-purple-600 text-white shadow-md shadow-purple-950/50"
+                      : "bg-slate-950 text-purple-300 hover:text-white border border-purple-900/50 hover:border-purple-700"
+                  )}
+                >
+                  <Users className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Mit Trainer-Vorlagen ({totalTacticsWithCoachTemplates})</span>
+                </button>
               </div>
 
               <div className="relative w-full sm:w-72">
@@ -2309,6 +2616,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
               const draftTacticCurrent = getDraftTacticFor(tactic.id, tactic.name);
               const isSaving = savingTacticId === tactic.id;
               const hasClubStandard = source === 'club';
+              const coachPrinciples = getCoachTacticalPrinciples(tactic.id, tactic.name);
 
               return (
                 <div
@@ -2342,6 +2650,17 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                     </div>
 
                     <div className="flex items-center gap-3">
+                      {coachPrinciples.length > 0 ? (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-purple-950/80 text-purple-300 border border-purple-700/80 flex items-center gap-1.5 shadow-sm">
+                          <Users className="w-3.5 h-3.5 text-purple-400" />
+                          <span>{coachPrinciples.length} Trainer-Vorlage{coachPrinciples.length > 1 ? 'n' : ''}</span>
+                        </span>
+                      ) : (
+                        <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-950 text-slate-500 border border-slate-800">
+                          0 Trainer-Vorlagen
+                        </span>
+                      )}
+
                       {hasClubStandard ? (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-950/80 text-emerald-300 border border-emerald-700/80 flex items-center gap-1.5 shadow-sm">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -2362,7 +2681,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
 
                   {/* Expanded Editor Body */}
                   {isExpanded && (
-                    <div className="p-6 sm:p-8 border-t border-slate-800/80 bg-slate-950/40 space-y-6 animate-in fade-in duration-200">
+                    <div className="p-6 sm:p-8 border-t border-slate-800/80 bg-slate-950/40 space-y-8 animate-in fade-in duration-200">
                       <div className="p-3.5 bg-purple-950/30 border border-purple-800/50 rounded-2xl text-purple-200 text-xs flex items-start gap-2.5">
                         <Info className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
                         <div className="leading-relaxed text-[11px]">
@@ -2377,7 +2696,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                         <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
                           <span className="flex items-center gap-1.5 text-purple-300">
                             <Sparkles className="w-3.5 h-3.5" />
-                            <span>Taktikprinzipien & Coaching Points ({tactic.name})</span>
+                            <span>Taktikprinzipien & Coaching Points (Vereins-Standard)</span>
                           </span>
                           <span className="text-[10px] text-slate-500 font-normal">
                             Coaching Points & Ausbildungs-Leitlinien
@@ -2427,6 +2746,96 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                           <Save className="w-4 h-4" />
                           <span>{isSaving ? 'Wird gespeichert...' : 'Als Vereins-Standard speichern'}</span>
                         </button>
+                      </div>
+
+                      {/* SECTION: ABGESPEICHERTE TAKTIKPRINZIPIEN DEINER TRAINER */}
+                      <div className="pt-6 border-t border-slate-800/80 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
+                              <Users className="w-4 h-4 text-purple-400" />
+                              <span>Abgespeicherte Taktikprinzipien deiner Trainer</span>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-950 text-purple-300 border border-purple-800">
+                                {coachPrinciples.length}
+                              </span>
+                            </h4>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                              Hier siehst du alle Coaching Points und taktischen Verhaltensweisen, die die Trainer für „{tactic.name}“ hinterlegt haben.
+                            </p>
+                          </div>
+                        </div>
+
+                        {coachPrinciples.length > 0 ? (
+                          <div className="space-y-4">
+                            {coachPrinciples.map(coachPrinciple => {
+                              const coachName = coachPrinciple.authorName || coachPrinciple.userEmail || 'Vereinstrainer';
+                              const formattedDate = coachPrinciple.updatedAt
+                                ? new Date(coachPrinciple.updatedAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                : 'Gespeichert';
+
+                              return (
+                                <div 
+                                  key={coachPrinciple.id}
+                                  className="bg-slate-900 border border-purple-900/40 rounded-2xl p-4 sm:p-5 space-y-4 shadow-lg"
+                                >
+                                  {/* Coach Card Header */}
+                                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-xl bg-purple-950/80 border border-purple-700/80 text-purple-300 flex items-center justify-center font-black text-xs shadow-inner">
+                                        {coachName.charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-sm font-bold text-white">{coachName}</span>
+                                          {coachPrinciple.userEmail && (
+                                            <span className="text-[10px] text-slate-400 bg-slate-950 px-2 py-0.5 rounded-full border border-slate-800">
+                                              {coachPrinciple.userEmail}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                                          <Calendar className="w-3 h-3 text-slate-500" />
+                                          <span>Zuletzt gespeichert: {formattedDate}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAdoptCoachTacticalPrinciple(tactic.id, coachPrinciple)}
+                                      className="px-3.5 py-1.5 rounded-xl bg-purple-950 border border-purple-700/80 hover:bg-purple-900 text-purple-200 text-xs font-bold transition flex items-center gap-1.5 shadow active:scale-95"
+                                      title="Kopiert diese Trainer-Prinzipien in das obige Formular als Vereins-Standard"
+                                    >
+                                      <ArrowUpRight className="w-3.5 h-3.5 text-purple-400" />
+                                      <span>In Vereins-Standard übernehmen</span>
+                                    </button>
+                                  </div>
+
+                                  {/* Trainer's Taktikprinzipien */}
+                                  <div className="space-y-1.5">
+                                    <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Sparkles className="w-3 h-3 text-purple-400" />
+                                      <span>Taktikprinzipien & Coaching Points des Trainers:</span>
+                                    </span>
+                                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-200 font-mono leading-relaxed whitespace-pre-wrap">
+                                      {coachPrinciple.taktikprinzipien}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="bg-slate-950/60 border border-dashed border-slate-800 rounded-2xl p-5 text-center space-y-1.5">
+                            <Users className="w-6 h-6 text-slate-600 mx-auto" />
+                            <p className="text-xs font-bold text-slate-400">
+                              Noch keine Trainer-Prinzipien für „{tactic.name}“ hinterlegt
+                            </p>
+                            <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                              Sobald ein Trainer deines Vereins im Übungseditor eigene Taktikprinzipien für diesen Schwerpunkt abspeichert, kannst du sie hier direkt einsehen und bei Bedarf als offiziellen Vereins-Standard übernehmen.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

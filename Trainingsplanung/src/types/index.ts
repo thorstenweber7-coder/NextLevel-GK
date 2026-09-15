@@ -850,6 +850,22 @@ export const ABSENCE_REASONS: AbsenceReason[] = [
   'Sonstiges'
 ];
 
+export interface AbsenceWeekdayOption {
+  dayIndex: number; // 0=Sonntag, 1=Montag, ..., 5=Freitag, 6=Samstag
+  short: string;
+  name: string;
+}
+
+export const ABSENCE_WEEKDAYS: AbsenceWeekdayOption[] = [
+  { dayIndex: 1, short: 'Mo', name: 'Montag' },
+  { dayIndex: 2, short: 'Di', name: 'Dienstag' },
+  { dayIndex: 3, short: 'Mi', name: 'Mittwoch' },
+  { dayIndex: 4, short: 'Do', name: 'Donnerstag' },
+  { dayIndex: 5, short: 'Fr', name: 'Freitag' },
+  { dayIndex: 6, short: 'Sa', name: 'Samstag' },
+  { dayIndex: 0, short: 'So', name: 'Sonntag' },
+];
+
 export interface PlayerAbsence {
   id: string;
   groupId: string;
@@ -858,6 +874,9 @@ export interface PlayerAbsence {
   playerName: string; // "Vorname Nachname"
   startDate: string; // YYYY-MM-DD
   endDate?: string; // YYYY-MM-DD (optional if same day)
+  isRecurring?: boolean; // Wiederkehrende Fehlzeit (z.B. immer an einem Wochentag)
+  recurringWeekday?: number; // 0=Sonntag, 1=Montag, 2=Dienstag, 3=Mittwoch, 4=Donnerstag, 5=Freitag, 6=Samstag
+  recurringWeekdayName?: string; // "Freitag", "Montag", etc.
   reason: AbsenceReason;
   injuredBodyPart?: string;
   note?: string;

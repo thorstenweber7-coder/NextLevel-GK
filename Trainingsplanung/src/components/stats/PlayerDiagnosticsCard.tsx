@@ -139,8 +139,25 @@ export const PlayerDiagnosticsCard: React.FC<PlayerDiagnosticsCardProps> = ({
   const absenceDatesSet = useMemo(() => {
     const set = new Set<string>();
     filteredAbsences.forEach(a => {
+      if (a.isRecurring && a.recurringWeekday !== undefined) {
+        const startStr = a.startDate || '2020-01-01';
+        const endStr = a.endDate || '2035-12-31';
+        const cur = new Date(startStr);
+        const end = new Date(endStr);
+        if (!isNaN(cur.getTime()) && !isNaN(end.getTime())) {
+          while (cur <= end) {
+            if (cur.getDay() === Number(a.recurringWeekday)) {
+              set.add(cur.toISOString().split('T')[0]);
+            }
+            cur.setDate(cur.getDate() + 1);
+          }
+        }
+        return;
+      }
+
       const cur = new Date(a.startDate || '');
       const end = new Date(a.endDate || a.startDate || '');
+      if (isNaN(cur.getTime()) || isNaN(end.getTime())) return;
       while (cur <= end) {
         set.add(cur.toISOString().split('T')[0]);
         cur.setDate(cur.getDate() + 1);

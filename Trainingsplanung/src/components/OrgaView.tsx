@@ -16,6 +16,7 @@ import {
   type MatchLocation,
   type MatchType,
   ABSENCE_REASONS,
+  ABSENCE_WEEKDAYS,
   SKILL_DEFINITIONS,
   MATCH_TEAMS,
   MATCH_TYPES,
@@ -369,11 +370,25 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
 
   const [isBodyModalOpen, setIsBodyModalOpen] = useState(false);
   const [editingAbsenceId, setEditingAbsenceId] = useState<string | null>(null);
-  const [absenceFormData, setAbsenceFormData] = useState({
+  const [absenceFormData, setAbsenceFormData] = useState<{
+    groupId: string;
+    playerId: string;
+    mode: 'single' | 'range' | 'recurring';
+    singleDate: string;
+    startDate: string;
+    endDate: string;
+    recurringWeekday: number;
+    reason: AbsenceReason;
+    injuredBodyPart: string;
+    note: string;
+  }>({
     groupId: '',
     playerId: '',
+    mode: 'single',
+    singleDate: new Date().toISOString().substring(0, 10),
     startDate: new Date().toISOString().substring(0, 10),
     endDate: new Date().toISOString().substring(0, 10),
+    recurringWeekday: 5, // Standard: Freitag
     reason: 'Krankheit' as AbsenceReason,
     injuredBodyPart: '',
     note: ''
@@ -1053,11 +1068,18 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
   // --------------------------------------------------------------------------
   const handleEditAbsence = (absence: PlayerAbsence) => {
     setEditingAbsenceId(absence.id);
+    const isRec = Boolean(absence.isRecurring && absence.recurringWeekday !== undefined);
+    const isSingle = !isRec && (!absence.endDate || absence.startDate === absence.endDate);
+    const mode = isRec ? 'recurring' : isSingle ? 'single' : 'range';
+
     setAbsenceFormData({
       groupId: absence.groupId,
       playerId: absence.playerId,
-      startDate: absence.startDate,
-      endDate: absence.endDate || absence.startDate,
+      mode,
+      singleDate: absence.startDate || new Date().toISOString().substring(0, 10),
+      startDate: absence.startDate || new Date().toISOString().substring(0, 10),
+      endDate: absence.endDate || absence.startDate || new Date().toISOString().substring(0, 10),
+      recurringWeekday: absence.recurringWeekday !== undefined ? Number(absence.recurringWeekday) : 5,
       reason: absence.reason,
       injuredBodyPart: absence.injuredBodyPart || '',
       note: absence.note || ''
@@ -1068,8 +1090,11 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     setEditingAbsenceId(null);
     setAbsenceFormData(prev => ({
       ...prev,
+      mode: 'single',
+      singleDate: new Date().toISOString().substring(0, 10),
       startDate: new Date().toISOString().substring(0, 10),
       endDate: new Date().toISOString().substring(0, 10),
+      recurringWeekday: 5,
       reason: 'Krankheit',
       injuredBodyPart: '',
       note: ''
@@ -1086,16 +1111,43 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       alert('Bitte wähle einen Spieler aus.');
       return;
     }
-    if (!absenceFormData.startDate) {
-      alert('Bitte gib ein Startdatum an.');
-      return;
-    }
-    if (!absenceFormData.endDate) {
-      alert('Bitte gib ein Enddatum an.');
-      return;
+
+    let finalStartDate = '';
+    let finalEndDate = '';
+    let isRecurring = false;
+    let recurringWeekday: number | undefined = undefined;
+    let recurringWeekdayName: string | undefined = undefined;
+
+    if (absenceFormData.mode === 'single') {
+      if (!absenceFormData.singleDate) {
+        alert('Bitte wähle das Datum der Fehlzeit aus.');
+        return;
+      }
+      finalStartDate = absenceFormData.singleDate;
+      finalEndDate = absenceFormData.singleDate;
+      isRecurring = false;
+    } else if (absenceFormData.mode === 'range') {
+      if (!absenceFormData.startDate) {
+        alert('Bitte gib ein Startdatum an.');
+        return;
+      }
+      if (!absenceFormData.endDate) {
+        alert('Bitte gib ein Enddatum an.');
+        return;
+      }
+      finalStartDate = absenceFormData.startDate;
+      finalEndDate = absenceFormData.endDate;
+      isRecurring = false;
+    } else if (absenceFormData.mode === 'recurring') {
+      isRecurring = true;
+      recurringWeekday = absenceFormData.recurringWeekday;
+      const foundWeekday = ABSENCE_WEEKDAYS.find(w => w.dayIndex === recurringWeekday);
+      recurringWeekdayName = foundWeekday ? foundWeekday.name : 'Freitag';
+      finalStartDate = absenceFormData.startDate || new Date().toISOString().substring(0, 10);
+      finalEndDate = absenceFormData.endDate || '';
     }
 
-    const group = groups.find(g => g.id === absenceFormData.groupId);
+    const group = visibleGroups.find(g => g.id === absenceFormData.groupId) || groups.find(g => g.id === absenceFormData.groupId);
     const player = group?.players.find(p => p.id === absenceFormData.playerId);
 
     if (!group || !player) {
@@ -1112,8 +1164,11 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         groupName: group.name,
         playerId: player.id,
         playerName: `${player.firstName} ${player.lastName}`,
-        startDate: absenceFormData.startDate,
-        endDate: absenceFormData.endDate,
+        startDate: finalStartDate,
+        endDate: finalEndDate,
+        isRecurring,
+        recurringWeekday,
+        recurringWeekdayName,
         reason: absenceFormData.reason,
         injuredBodyPart: absenceFormData.reason === 'Verletzung' ? (absenceFormData.injuredBodyPart?.trim() || undefined) : undefined,
         note: absenceFormData.note.trim()
@@ -1123,8 +1178,11 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       setEditingAbsenceId(null);
       setAbsenceFormData(prev => ({
         ...prev,
+        mode: 'single',
+        singleDate: new Date().toISOString().substring(0, 10),
         startDate: new Date().toISOString().substring(0, 10),
         endDate: new Date().toISOString().substring(0, 10),
+        recurringWeekday: 5,
         reason: 'Krankheit',
         injuredBodyPart: '',
         note: ''
@@ -2952,52 +3010,251 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                         </div>
                       )}
 
-                      {/* 4. Datum von und Datum bis (Pflichtfelder mit Kalenderklick) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-slate-300 font-bold mb-1.5 text-xs flex items-center gap-1.5">
+                      {/* 4. Art der Fehlzeit & Datumsauswahl (Einzeltag, Zeitraum oder Wiederkehrend) */}
+                      <div className="space-y-3 bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4">
+                        <div className="flex items-center justify-between">
+                          <label className="text-slate-300 font-bold text-xs flex items-center gap-1.5">
                             <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Datum von <span className="text-amber-400">*</span></span>
+                            <span>Art der Fehlzeit & Datum <span className="text-amber-400">*</span></span>
                           </label>
-                          <input
-                            type="date"
-                            required
-                            value={absenceFormData.startDate}
-                            onChange={e => {
-                              const val = e.target.value;
-                              setAbsenceFormData(prev => ({
-                                ...prev,
-                                startDate: val,
-                                endDate: (!prev.endDate || prev.endDate < val) ? val : prev.endDate
-                              }));
-                            }}
-                            onClick={e => {
-                              try {
-                                (e.currentTarget as HTMLInputElement).showPicker?.();
-                              } catch (err) {}
-                            }}
-                            className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2.5 text-slate-100 focus:outline-none text-xs font-semibold cursor-pointer transition shadow-inner"
-                          />
                         </div>
-                        <div>
-                          <label className="block text-slate-300 font-bold mb-1.5 text-xs flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Datum bis <span className="text-amber-400">*</span></span>
-                          </label>
-                          <input
-                            type="date"
-                            required
-                            min={absenceFormData.startDate}
-                            value={absenceFormData.endDate}
-                            onChange={e => setAbsenceFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                            onClick={e => {
-                              try {
-                                (e.currentTarget as HTMLInputElement).showPicker?.();
-                              } catch (err) {}
-                            }}
-                            className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2.5 text-slate-100 focus:outline-none text-xs font-semibold cursor-pointer transition shadow-inner"
-                          />
+
+                        {/* Mode Selection Tabs (1 Klick) */}
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setAbsenceFormData(prev => ({ ...prev, mode: 'single' }))}
+                            className={cn(
+                              "px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border cursor-pointer active:scale-95",
+                              absenceFormData.mode === 'single'
+                                ? "bg-amber-600 border-amber-500 text-white shadow-lg shadow-amber-950/60"
+                                : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                            )}
+                          >
+                            <span>📅 Einzeltag (1 Tag)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAbsenceFormData(prev => ({ ...prev, mode: 'range' }))}
+                            className={cn(
+                              "px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border cursor-pointer active:scale-95",
+                              absenceFormData.mode === 'range'
+                                ? "bg-amber-600 border-amber-500 text-white shadow-lg shadow-amber-950/60"
+                                : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                            )}
+                          >
+                            <span>📆 Zeitraum</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAbsenceFormData(prev => ({ ...prev, mode: 'recurring' }))}
+                            className={cn(
+                              "px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border cursor-pointer active:scale-95",
+                              absenceFormData.mode === 'recurring'
+                                ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-950/60"
+                                : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                            )}
+                          >
+                            <span>🔁 Wöchentlich</span>
+                          </button>
                         </div>
+
+                        {/* A. EINZELTAG MODUS */}
+                        {absenceFormData.mode === 'single' && (
+                          <div className="space-y-2 pt-1 animate-in fade-in duration-150">
+                            <div className="flex items-center justify-between gap-2">
+                              <label className="text-[11px] font-bold text-slate-400">
+                                Tag der Fehlzeit
+                              </label>
+                              {absenceFormData.singleDate && (
+                                <span className="text-[11px] font-mono font-bold text-amber-300 bg-amber-950/60 border border-amber-800/60 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                  <span>📅 {new Date(absenceFormData.singleDate + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="date"
+                                required
+                                value={absenceFormData.singleDate}
+                                onChange={e => setAbsenceFormData(prev => ({
+                                  ...prev,
+                                  singleDate: e.target.value,
+                                  startDate: e.target.value,
+                                  endDate: e.target.value
+                                }))}
+                                onClick={e => {
+                                  try {
+                                    (e.currentTarget as HTMLInputElement).showPicker?.();
+                                  } catch (err) {}
+                                }}
+                                className="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2.5 text-slate-100 focus:outline-none text-xs font-semibold cursor-pointer transition shadow-inner"
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const today = new Date().toISOString().substring(0, 10);
+                                  setAbsenceFormData(prev => ({ ...prev, singleDate: today, startDate: today, endDate: today }));
+                                }}
+                                className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 cursor-pointer"
+                              >
+                                Heute
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const tom = new Date();
+                                  tom.setDate(tom.getDate() + 1);
+                                  const tomStr = tom.toISOString().substring(0, 10);
+                                  setAbsenceFormData(prev => ({ ...prev, singleDate: tomStr, startDate: tomStr, endDate: tomStr }));
+                                }}
+                                className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 cursor-pointer"
+                              >
+                                Morgen
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const d = new Date();
+                                  const day = d.getDay();
+                                  const diff = (5 - day + 7) % 7 || 7;
+                                  d.setDate(d.getDate() + diff);
+                                  const friStr = d.toISOString().substring(0, 10);
+                                  setAbsenceFormData(prev => ({ ...prev, singleDate: friStr, startDate: friStr, endDate: friStr }));
+                                }}
+                                className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-900 border border-slate-800 text-amber-400 hover:text-amber-300 hover:border-amber-700/60 cursor-pointer flex items-center gap-1"
+                              >
+                                <span>Kommender Freitag</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* B. ZEITRAUM MODUS */}
+                        {absenceFormData.mode === 'range' && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 animate-in fade-in duration-150">
+                            <div>
+                              <label className="block text-slate-400 font-bold mb-1 text-[11px]">
+                                Datum von <span className="text-amber-400">*</span>
+                              </label>
+                              <input
+                                type="date"
+                                required
+                                value={absenceFormData.startDate}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setAbsenceFormData(prev => ({
+                                    ...prev,
+                                    startDate: val,
+                                    endDate: (!prev.endDate || prev.endDate < val) ? val : prev.endDate
+                                  }));
+                                }}
+                                onClick={e => {
+                                  try {
+                                    (e.currentTarget as HTMLInputElement).showPicker?.();
+                                  } catch (err) {}
+                                }}
+                                className="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2.5 text-slate-100 focus:outline-none text-xs font-semibold cursor-pointer transition shadow-inner"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-slate-400 font-bold mb-1 text-[11px]">
+                                Datum bis <span className="text-amber-400">*</span>
+                              </label>
+                              <input
+                                type="date"
+                                required
+                                min={absenceFormData.startDate}
+                                value={absenceFormData.endDate}
+                                onChange={e => setAbsenceFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                                onClick={e => {
+                                  try {
+                                    (e.currentTarget as HTMLInputElement).showPicker?.();
+                                  } catch (err) {}
+                                }}
+                                className="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2.5 text-slate-100 focus:outline-none text-xs font-semibold cursor-pointer transition shadow-inner"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* C. WIEDERKEHREND AN WOCHENTAG MODUS */}
+                        {absenceFormData.mode === 'recurring' && (
+                          <div className="space-y-3 pt-1 animate-in fade-in duration-150">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-bold text-indigo-300 flex items-center gap-1.5">
+                                  <RotateCcw className="w-3.5 h-3.5 text-indigo-400" />
+                                  <span>Fester Wochentag der Fehlzeit (z. B. jeden Freitag)</span>
+                                </label>
+                              </div>
+                              <div className="grid grid-cols-7 gap-1.5">
+                                {ABSENCE_WEEKDAYS.map(w => {
+                                  const isSelected = absenceFormData.recurringWeekday === w.dayIndex;
+                                  return (
+                                    <button
+                                      key={w.dayIndex}
+                                      type="button"
+                                      onClick={() => setAbsenceFormData(prev => ({ ...prev, recurringWeekday: w.dayIndex }))}
+                                      className={cn(
+                                        "py-2 rounded-xl text-xs font-extrabold transition flex flex-col items-center justify-center border cursor-pointer active:scale-95",
+                                        isSelected
+                                          ? "bg-indigo-600 border-indigo-400 text-white shadow-md shadow-indigo-950 ring-1 ring-white/30"
+                                          : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-850"
+                                      )}
+                                      title={`Jeden ${w.name}`}
+                                    >
+                                      <span className="text-[11px]">{w.short}</span>
+                                      <span className="text-[9px] opacity-75 font-normal">{w.name.substring(0, 2)}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-[11px] text-indigo-300/80 bg-indigo-950/40 border border-indigo-900/50 rounded-xl p-2.5">
+                                💡 <strong>Wöchentlicher Ausfall:</strong> Der Torhüter wird an jedem <strong>{ABSENCE_WEEKDAYS.find(w => w.dayIndex === absenceFormData.recurringWeekday)?.name}</strong> im Trainingsplaner und in den Anwesenheitsstatistiken als abwesend gewertet.
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
+                              <div>
+                                <label className="block text-slate-400 font-bold mb-1 text-[11px]">
+                                  Gültig ab <span className="text-slate-500 font-normal">(Startdatum)</span>
+                                </label>
+                                <input
+                                  type="date"
+                                  value={absenceFormData.startDate}
+                                  onChange={e => setAbsenceFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                                  onClick={e => {
+                                    try {
+                                      (e.currentTarget as HTMLInputElement).showPicker?.();
+                                    } catch (err) {}
+                                  }}
+                                  className="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 focus:border-indigo-500 rounded-xl px-3 py-2 text-slate-100 focus:outline-none text-xs font-semibold cursor-pointer transition shadow-inner"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-slate-400 font-bold mb-1 text-[11px]">
+                                  Gültig bis <span className="text-slate-500 font-normal">(optional)</span>
+                                </label>
+                                <input
+                                  type="date"
+                                  min={absenceFormData.startDate}
+                                  value={absenceFormData.endDate}
+                                  onChange={e => setAbsenceFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                                  onClick={e => {
+                                    try {
+                                      (e.currentTarget as HTMLInputElement).showPicker?.();
+                                    } catch (err) {}
+                                  }}
+                                  placeholder="Unbefristet"
+                                  className="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 focus:border-indigo-500 rounded-xl px-3 py-2 text-slate-100 focus:outline-none text-xs font-semibold cursor-pointer transition shadow-inner"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* 5. Notiz / Bemerkung */}
@@ -3009,7 +3266,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                           rows={2}
                           value={absenceFormData.note}
                           onChange={e => setAbsenceFormData(prev => ({ ...prev, note: e.target.value }))}
-                          placeholder="z. B. Bänderdehnung, MRT-Befund, Schonung, Klausurphase..."
+                          placeholder="z. B. Kommt freitags nicht wegen Spätschicht / Schule, Klausurphase, Bänderdehnung..."
                           className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none text-xs transition resize-none shadow-inner"
                         />
                       </div>
@@ -3080,11 +3337,16 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                         const reasonMeta = getReasonBadge(item.reason);
                         const ReasonIcon = reasonMeta.icon;
                         const durationDays = getAbsenceDurationDays(item.startDate, item.endDate);
+                        const isRec = Boolean(item.isRecurring && item.recurringWeekday !== undefined);
+                        const weekdayName = item.recurringWeekdayName || ABSENCE_WEEKDAYS.find(w => w.dayIndex === item.recurringWeekday)?.name || 'Wochentag';
 
                         return (
                           <div
                             key={item.id}
-                            className="bg-slate-950 border border-slate-800/90 hover:border-slate-700/80 rounded-2xl p-4 transition shadow-sm space-y-2.5 group"
+                            className={cn(
+                              "bg-slate-950 border rounded-2xl p-4 transition shadow-sm space-y-2.5 group",
+                              isRec ? "border-indigo-800/80 bg-indigo-950/20" : "border-slate-800/90 hover:border-slate-700/80"
+                            )}
                           >
                             {/* Top Row: Reason badge + injured body part + Delete button */}
                             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -3100,7 +3362,6 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                   </span>
                                 )}
                               </div>
-
 
                               {canEditGroupData(selectedAbsenceGroup) && (
                                 <div className="flex items-center gap-1">
@@ -3125,32 +3386,50 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                             </div>
 
                             {/* Middle Row: Date & Duration */}
-                            <div className="flex items-center justify-between text-xs text-slate-300 pt-1 border-t border-slate-900">
-                              <div className="flex items-center gap-2 font-mono">
-                                <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                                <span>
-                                  {item.startDate === item.endDate || !item.endDate ? (
-                                    <span className="font-semibold text-slate-200">{formatDisplayDate(item.startDate)}</span>
-                                  ) : (
-                                    <span>
-                                      <span className="font-semibold text-slate-200">{formatDisplayDate(item.startDate)}</span>
-                                      <span className="text-slate-500 mx-1.5">bis</span>
-                                      <span className="font-semibold text-slate-200">{formatDisplayDate(item.endDate)}</span>
+                            <div className="flex items-center justify-between text-xs text-slate-300 pt-1 border-t border-slate-900 flex-wrap gap-2">
+                              {isRec ? (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="px-2 py-0.5 rounded-lg bg-indigo-950 text-indigo-300 border border-indigo-700/80 text-[11px] font-bold flex items-center gap-1">
+                                    <RotateCcw className="w-3 h-3 text-indigo-400" />
+                                    <span>Jeden {weekdayName}</span>
+                                  </span>
+                                  {item.startDate && (
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      ab {formatDisplayDate(item.startDate)} {item.endDate ? `bis ${formatDisplayDate(item.endDate)}` : ''}
                                     </span>
                                   )}
-                                </span>
-                              </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 font-mono">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                  <span>
+                                    {item.startDate === item.endDate || !item.endDate ? (
+                                      <span className="font-semibold text-slate-200">
+                                        {formatDisplayDate(item.startDate)} ({new Date(item.startDate + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' })})
+                                      </span>
+                                    ) : (
+                                      <span>
+                                        <span className="font-semibold text-slate-200">{formatDisplayDate(item.startDate)}</span>
+                                        <span className="text-slate-500 mx-1.5">bis</span>
+                                        <span className="font-semibold text-slate-200">{formatDisplayDate(item.endDate)}</span>
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              )}
 
-                              <span className="text-[11px] font-semibold text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md">
-                                {durationDays} {durationDays === 1 ? 'Tag' : 'Tage'}
-                              </span>
+                              {!isRec && (
+                                <span className="text-[11px] font-semibold text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-md">
+                                  {durationDays} {durationDays === 1 ? 'Tag' : 'Tage'}
+                                </span>
+                              )}
                             </div>
 
                             {/* Bottom Row: Note */}
                             {item.note && (
-                  <div className="text-xs text-slate-300 bg-slate-900/70 border border-slate-800/60 rounded-xl px-3 py-2 text-left italic">
-                    &quot;{item.note}&quot;
-                  </div>
+                              <div className="text-xs text-slate-300 bg-slate-900/70 border border-slate-800/60 rounded-xl px-3 py-2 text-left italic">
+                                &quot;{item.note}&quot;
+                              </div>
                             )}
                           </div>
                         );

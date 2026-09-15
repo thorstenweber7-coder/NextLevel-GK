@@ -105,6 +105,25 @@ export const AttendanceStatsSection: React.FC<AttendanceStatsSectionProps> = ({
   const absenceDatesSet = useMemo(() => {
     const set = new Set<string>();
     filteredAbsences.forEach(a => {
+      if (a.isRecurring && a.recurringWeekday !== undefined) {
+        const startNorm = normalizeDateStr(a.startDate) || '2020-01-01';
+        const endNorm = normalizeDateStr(a.endDate) || '2035-12-31';
+        const cur = new Date(startNorm);
+        const end = new Date(endNorm);
+        if (!isNaN(cur.getTime()) && !isNaN(end.getTime())) {
+          while (cur <= end) {
+            if (cur.getDay() === Number(a.recurringWeekday)) {
+              const y = cur.getFullYear();
+              const m = String(cur.getMonth() + 1).padStart(2, '0');
+              const d = String(cur.getDate()).padStart(2, '0');
+              set.add(`${y}-${m}-${d}`);
+            }
+            cur.setDate(cur.getDate() + 1);
+          }
+        }
+        return;
+      }
+
       if (!a.startDate) return;
       const startNorm = normalizeDateStr(a.startDate);
       const endNorm = normalizeDateStr(a.endDate || a.startDate);

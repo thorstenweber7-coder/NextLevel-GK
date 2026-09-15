@@ -315,15 +315,32 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     if (!planDate) return activePlayers.length;
 
     const targetDateStr = planDate.split('T')[0];
-    const targetTime = new Date(targetDateStr).getTime();
+    const targetDateObj = new Date(targetDateStr + 'T12:00:00');
+    const targetTime = targetDateObj.getTime();
+    const targetDayOfWeek = targetDateObj.getDay(); // 0 = So, 1 = Mo, 2 = Di, 3 = Mi, 4 = Do, 5 = Fr, 6 = Sa
 
     const absentCount = activePlayers.filter(player => {
       return absences.some(abs => {
-        if (abs.playerId !== player.id || !abs.startDate) return false;
+        if (abs.playerId !== player.id) return false;
+
+        // Check recurring weekday absence
+        if (abs.isRecurring && abs.recurringWeekday !== undefined) {
+          if (Number(abs.recurringWeekday) === targetDayOfWeek) {
+            const startStr = abs.startDate ? abs.startDate.split('T')[0] : null;
+            const endStr = abs.endDate ? abs.endDate.split('T')[0] : null;
+            if (startStr && targetDateStr < startStr) return false;
+            if (endStr && targetDateStr > endStr) return false;
+            return true;
+          }
+          return false;
+        }
+
+        // Standard date range absence
+        if (!abs.startDate) return false;
         const startStr = abs.startDate.split('T')[0];
         const endStr = (abs.endDate || abs.startDate).split('T')[0];
-        const startTime = new Date(startStr).getTime();
-        const endTime = new Date(endStr).getTime();
+        const startTime = new Date(startStr + 'T00:00:00').getTime();
+        const endTime = new Date(endStr + 'T23:59:59').getTime();
         if (isNaN(startTime) || isNaN(endTime)) return false;
         return targetTime >= startTime && targetTime <= endTime;
       });
@@ -820,22 +837,23 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     return calculateGroupWorkload(currentPlannerGroup, visibleTrainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans);
   }, [currentPlannerGroup, visibleTrainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans]);
 
-  // Matching Periodization
+  // Matching Periodization (strictly for selected target group & planDate)
   const matchedPeriodization = useMemo(() => {
     if (!planDate || mesoPlans.length === 0) return null;
-    const currentGroup = visibleTrainingGroups.find(g => g.name === targetGroup);
+    const currentGroup = visibleTrainingGroups.find(g => g.name === targetGroup || g.id === targetGroup);
     const currentGroupId = currentGroup?.id;
+    if (!currentGroupId) return null;
 
-    // Filter by group first if currentGroupId exists
-    const groupMesoPlans = currentGroupId ? mesoPlans.filter(m => m.groupId === currentGroupId) : [];
-    const pool = groupMesoPlans.length > 0 ? groupMesoPlans : mesoPlans;
+    // Filter strictly by this training group
+    const groupMesoPlans = mesoPlans.filter(m => m.groupId === currentGroupId);
+    if (groupMesoPlans.length === 0) return null;
 
     let matchedDay: MesoDayItem | null = null;
     let matchedWeek: MesoWeekItem | null = null;
     let matchedMeso: MesoPlan | null = null;
 
-    // 1. Direct search across all days in pool
-    for (const meso of pool) {
+    // 1. Direct search across all days in this group's meso plans
+    for (const meso of groupMesoPlans) {
       for (const week of meso.weeks || []) {
         const found = (week.days || []).find(d => d.date === planDate);
         if (found) {
@@ -848,25 +866,28 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
       if (matchedDay) break;
     }
 
-    // 2. If not found in group pool, search in all meso plans
-    if (!matchedDay && groupMesoPlans.length > 0) {
-      for (const meso of mesoPlans) {
+    // 2. Fallback: match by week date range if exact day not found, within this group's meso plans
+    if (!matchedDay) {
+      for (const meso of groupMesoPlans) {
         for (const week of meso.weeks || []) {
-          const found = (week.days || []).find(d => d.date === planDate);
-          if (found) {
-            matchedDay = found;
-            matchedWeek = week;
-            matchedMeso = meso;
-            break;
+          const dates = (week.days || []).map(d => d.date).filter(Boolean).sort();
+          if (dates.length > 0) {
+            const startDate = dates[0];
+            const endDate = dates[dates.length - 1];
+            if (planDate >= startDate && planDate <= endDate) {
+              matchedWeek = week;
+              matchedMeso = meso;
+              break;
+            }
           }
         }
-        if (matchedDay) break;
+        if (matchedWeek) break;
       }
     }
 
-    // 3. Fallback: match by date range
+    // 3. Fallback: match by meso date range within this group's meso plans
     if (!matchedMeso) {
-      matchedMeso = pool.find(m => m.startDate && m.endDate && planDate >= m.startDate && planDate <= m.endDate) || null;
+      matchedMeso = groupMesoPlans.find(m => m.startDate && m.endDate && planDate >= m.startDate && planDate <= m.endDate) || null;
     }
 
     if (!matchedDay && !matchedWeek && !matchedMeso) return null;

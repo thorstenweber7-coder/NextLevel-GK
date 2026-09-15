@@ -389,8 +389,25 @@ export function isPlayerAbsentOnPlan(
   const pYMD = normalizeDateToYMD(planDateStr);
   if (!pYMD) return false;
 
+  const planDateObj = new Date(pYMD + 'T12:00:00');
+  const planDayOfWeek = planDateObj.getDay(); // 0 = So, 1 = Mo, 2 = Di, 3 = Mi, 4 = Do, 5 = Fr, 6 = Sa
+
   return absences.some(abs => {
     if (abs.playerId !== playerId) return false;
+
+    // Check recurring weekday absence
+    if (abs.isRecurring && abs.recurringWeekday !== undefined) {
+      if (Number(abs.recurringWeekday) === planDayOfWeek) {
+        const startYMD = abs.startDate ? normalizeDateToYMD(abs.startDate) : null;
+        const endYMD = abs.endDate ? normalizeDateToYMD(abs.endDate) : null;
+        if (startYMD && pYMD < startYMD) return false;
+        if (endYMD && pYMD > endYMD) return false;
+        return true;
+      }
+      return false;
+    }
+
+    // Standard date range absence
     if (!abs.startDate) return false;
     const startYMD = normalizeDateToYMD(abs.startDate);
     if (!startYMD) return false;
