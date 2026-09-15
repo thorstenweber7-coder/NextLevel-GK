@@ -31,7 +31,8 @@ import type {
   TacticalPrinciple,
   TrainingGroup,
   Player,
-  PlayerEvaluation
+  PlayerEvaluation,
+  SkillDefinition
 } from '../types';
 import { CATEGORY_COLORS, METHODISCHE_REIHE_LABELS, SKILL_DEFINITIONS } from '../types';
 import { ExerciseModal } from './ExerciseModal';
@@ -131,6 +132,10 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
   const [expandedTacticId, setExpandedTacticId] = useState<string | null>(null);
   const [draftTactics, setDraftTactics] = useState<Record<string, string>>({});
   const [savingTacticId, setSavingTacticId] = useState<string | null>(null);
+
+  // Coach Templates Modal state (Detail-Ansicht aller Trainer-Vorlagen)
+  const [selectedTechniqueForCoachModal, setSelectedTechniqueForCoachModal] = useState<SkillDefinition | null>(null);
+  const [selectedTacticForCoachModal, setSelectedTacticForCoachModal] = useState<SkillDefinition | null>(null);
 
   // Reject Modal state
   const [rejectModalExercise, setRejectModalExercise] = useState<Exercise | null>(null);
@@ -2226,15 +2231,20 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {coachProgressions.length > 0 ? (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-indigo-950/80 text-indigo-300 border border-indigo-700/80 flex items-center gap-1.5 shadow-sm">
+                      {coachProgressions.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTechniqueForCoachModal(tech);
+                          }}
+                          className="px-3 py-1.5 rounded-full text-[11px] font-black bg-indigo-950/90 hover:bg-indigo-900 text-indigo-300 hover:text-indigo-100 border border-indigo-700/80 hover:border-indigo-500 flex items-center gap-1.5 shadow-md shadow-indigo-950/60 transition active:scale-95 cursor-pointer"
+                          title="Klicke hier, um alle Vorlagen und methodischen Reihen deiner Trainer für diese Technik anzusehen"
+                        >
                           <Users className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>{coachProgressions.length} Trainer-Vorlage{coachProgressions.length > 1 ? 'n' : ''}</span>
-                        </span>
-                      ) : (
-                        <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-950 text-slate-500 border border-slate-800">
-                          0 Trainer-Vorlagen
-                        </span>
+                          <span>{coachProgressions.length === 1 ? '1. Trainer-Vorlage' : `${coachProgressions.length} Trainer-Vorlagen`}</span>
+                          <Eye className="w-3 h-3 text-indigo-400 ml-0.5 opacity-80" />
+                        </button>
                       )}
 
                       {hasClubStandard ? (
@@ -2650,15 +2660,20 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {coachPrinciples.length > 0 ? (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-purple-950/80 text-purple-300 border border-purple-700/80 flex items-center gap-1.5 shadow-sm">
+                      {coachPrinciples.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTacticForCoachModal(tactic);
+                          }}
+                          className="px-3 py-1.5 rounded-full text-[11px] font-black bg-purple-950/90 hover:bg-purple-900 text-purple-300 hover:text-purple-100 border border-purple-700/80 hover:border-purple-500 flex items-center gap-1.5 shadow-md shadow-purple-950/60 transition active:scale-95 cursor-pointer"
+                          title="Klicke hier, um alle Taktikprinzipien deiner Trainer für diesen Schwerpunkt anzusehen"
+                        >
                           <Users className="w-3.5 h-3.5 text-purple-400" />
-                          <span>{coachPrinciples.length} Trainer-Vorlage{coachPrinciples.length > 1 ? 'n' : ''}</span>
-                        </span>
-                      ) : (
-                        <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-950 text-slate-500 border border-slate-800">
-                          0 Trainer-Vorlagen
-                        </span>
+                          <span>{coachPrinciples.length === 1 ? '1. Trainer-Vorlage' : `${coachPrinciples.length} Trainer-Vorlagen`}</span>
+                          <Eye className="w-3 h-3 text-purple-400 ml-0.5 opacity-80" />
+                        </button>
                       )}
 
                       {hasClubStandard ? (
@@ -3467,6 +3482,328 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL: TRAINER-VORLAGEN ÜBERSICHT (TECHNIK) */}
+      {selectedTechniqueForCoachModal && (() => {
+        const tech = selectedTechniqueForCoachModal;
+        const coachProgressions = getCoachTechniqueProgressions(tech.id, tech.name);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+            <div className="bg-slate-900 border border-indigo-700/60 rounded-3xl max-w-4xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+              {/* Header */}
+              <div className="p-5 sm:p-6 bg-slate-950/80 border-b border-slate-800 flex items-start justify-between gap-4 flex-shrink-0">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-indigo-950 text-indigo-300 border border-indigo-800">
+                      {tech.group || 'Technik'}
+                    </span>
+                    <span className="text-xs text-slate-400 font-bold">•</span>
+                    <span className="text-xs text-indigo-400 font-extrabold flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5" />
+                      <span>{coachProgressions.length === 1 ? '1 Trainer-Vorlage' : `${coachProgressions.length} Trainer-Vorlagen`}</span>
+                    </span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5">
+                    <BookOpen className="w-6 h-6 text-sky-400 flex-shrink-0" />
+                    <span>Trainer-Vorlagen: {tech.name}</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
+                    Hier siehst du den genauen Inhalt aller didaktischen Prinzipien und methodischen 6-Stufen-Reihen, die deine Vereinstrainer für diese Technik abgespeichert haben.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedTechniqueForCoachModal(null)}
+                  className="w-9 h-9 rounded-xl bg-slate-850 hover:bg-slate-800 border border-slate-700/80 text-slate-400 hover:text-white flex items-center justify-center transition flex-shrink-0 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 bg-slate-900/50">
+                {coachProgressions.length > 0 ? (
+                  <div className="space-y-6">
+                    {coachProgressions.map((coachProg, cIdx) => {
+                      const coachName = coachProg.authorName || coachProg.userEmail || 'Vereinstrainer';
+                      const formattedDate = coachProg.updatedAt
+                        ? new Date(coachProg.updatedAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : 'Gespeichert';
+                      const filledStufenCount = Object.values(coachProg.stufen || {}).filter(v => Boolean(v?.trim())).length;
+
+                      return (
+                        <div
+                          key={coachProg.id || `coach_${cIdx}`}
+                          className="bg-slate-950 border border-indigo-900/50 rounded-2xl p-5 sm:p-6 space-y-5 shadow-xl relative overflow-hidden"
+                        >
+                          <div className="absolute top-0 right-0 w-36 h-36 bg-indigo-600/5 rounded-full blur-2xl pointer-events-none" />
+
+                          {/* Coach Header */}
+                          <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-800">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-2xl bg-indigo-950 border border-indigo-700 text-indigo-300 flex items-center justify-center font-black text-sm shadow-inner">
+                                {coachName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-base font-extrabold text-white">{coachName}</span>
+                                  {coachProg.userEmail && (
+                                    <span className="text-[11px] text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-full border border-slate-800 font-mono">
+                                      {coachProg.userEmail}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1 flex-wrap">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Zuletzt gespeichert: {formattedDate}</span>
+                                  <span>•</span>
+                                  <span className="text-indigo-400 font-bold">{filledStufenCount} von 6 Stufen ausgefüllt</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAdoptCoachTechniqueProgression(tech.id, tech.name, coachProg);
+                                setExpandedTechniqueId(tech.id);
+                                setSelectedTechniqueForCoachModal(null);
+                              }}
+                              className="px-4 py-2 rounded-xl bg-indigo-950 border border-indigo-600 hover:bg-indigo-900 text-indigo-200 text-xs font-black transition flex items-center gap-2 shadow-lg shadow-indigo-950/60 active:scale-95 cursor-pointer"
+                              title="Überträgt diese Vorlage direkt in den Vereins-Standard"
+                            >
+                              <ArrowUpRight className="w-4 h-4 text-indigo-400" />
+                              <span>In Vereins-Standard übernehmen</span>
+                            </button>
+                          </div>
+
+                          {/* Field 1: Didaktische Technikprinzipien */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2 text-indigo-300">
+                              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                              <span>Didaktische Technikprinzipien & Coaching Points (vom Trainer)</span>
+                            </label>
+                            {coachProg.technikprinzipien?.trim() ? (
+                              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-xs text-slate-100 font-mono leading-relaxed whitespace-pre-wrap">
+                                {coachProg.technikprinzipien}
+                              </div>
+                            ) : (
+                              <div className="bg-slate-900/60 border border-slate-850 rounded-xl p-3 text-xs text-slate-500 italic">
+                                Keine gesonderten Prinzipien hinterlegt
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Field 2: Methodische 6-Stufen-Reihe */}
+                          <div className="space-y-2.5">
+                            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2 text-indigo-300">
+                              <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                              <span>Methodische Reihe (6 Stufen vom Trainer)</span>
+                            </label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {(['stufe1', 'stufe2', 'stufe3', 'stufe4', 'stufe5', 'stufe6'] as const).map((stufeKey, idx) => {
+                                const stepNum = idx + 1;
+                                const label = METHODISCHE_REIHE_LABELS[stufeKey];
+                                const val = coachProg.stufen?.[stufeKey]?.trim();
+
+                                return (
+                                  <div
+                                    key={stufeKey}
+                                    className={cn(
+                                      "rounded-xl p-3.5 space-y-1.5 transition",
+                                      val 
+                                        ? "bg-slate-900 border border-indigo-900/60 shadow-sm" 
+                                        : "bg-slate-900/40 border border-slate-850 opacity-60"
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-2 text-[11px] font-black text-indigo-300">
+                                      <span className="w-5 h-5 rounded-lg bg-indigo-950 border border-indigo-800 text-[10px] flex items-center justify-center text-indigo-300 shadow-inner">
+                                        {stepNum}
+                                      </span>
+                                      <span className="truncate">{label}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-200 leading-relaxed font-sans pl-7">
+                                      {val || <span className="text-slate-600 italic">Kein Inhalt hinterlegt</span>}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-slate-950 border border-dashed border-slate-800 rounded-2xl p-8 text-center space-y-2">
+                    <Users className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-sm font-bold text-slate-300">
+                      Noch keine Vorlagen für „{tech.name}“ vorhanden
+                    </p>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Sobald ein Trainer deines Vereins im Übungseditor bei dieser Technik eine Vorlage speichert, erscheint sie hier.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3 flex-shrink-0">
+                <span className="text-xs text-slate-400 font-semibold">
+                  Insgesamt {coachProgressions.length} Trainer-Vorlage{coachProgressions.length !== 1 ? 'n' : ''} für {tech.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTechniqueForCoachModal(null)}
+                  className="px-5 py-2 rounded-xl text-slate-300 bg-slate-850 hover:bg-slate-800 font-bold text-xs transition cursor-pointer"
+                >
+                  Schließen
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: TRAINER-VORLAGEN ÜBERSICHT (TAKTIK) */}
+      {selectedTacticForCoachModal && (() => {
+        const tactic = selectedTacticForCoachModal;
+        const coachPrinciples = getCoachTacticalPrinciples(tactic.id, tactic.name);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+            <div className="bg-slate-900 border border-purple-700/60 rounded-3xl max-w-3xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+              {/* Header */}
+              <div className="p-5 sm:p-6 bg-slate-950/80 border-b border-slate-800 flex items-start justify-between gap-4 flex-shrink-0">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-950 text-purple-300 border border-purple-800">
+                      {tactic.group || 'Taktik'}
+                    </span>
+                    <span className="text-xs text-slate-400 font-bold">•</span>
+                    <span className="text-xs text-purple-400 font-extrabold flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5" />
+                      <span>{coachPrinciples.length === 1 ? '1 Trainer-Vorlage' : `${coachPrinciples.length} Trainer-Vorlagen`}</span>
+                    </span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5">
+                    <Compass className="w-6 h-6 text-purple-400 flex-shrink-0" />
+                    <span>Trainer-Vorlagen: {tactic.name}</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
+                    Hier siehst du alle Coaching Points und taktischen Verhaltensweisen, die deine Vereinstrainer für diesen Schwerpunkt hinterlegt haben.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedTacticForCoachModal(null)}
+                  className="w-9 h-9 rounded-xl bg-slate-850 hover:bg-slate-800 border border-slate-700/80 text-slate-400 hover:text-white flex items-center justify-center transition flex-shrink-0 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 bg-slate-900/50">
+                {coachPrinciples.length > 0 ? (
+                  <div className="space-y-5">
+                    {coachPrinciples.map((coachPrinciple, cIdx) => {
+                      const coachName = coachPrinciple.authorName || coachPrinciple.userEmail || 'Vereinstrainer';
+                      const formattedDate = coachPrinciple.updatedAt
+                        ? new Date(coachPrinciple.updatedAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : 'Gespeichert';
+
+                      return (
+                        <div
+                          key={coachPrinciple.id || `tact_${cIdx}`}
+                          className="bg-slate-950 border border-purple-900/50 rounded-2xl p-5 sm:p-6 space-y-4 shadow-xl relative overflow-hidden"
+                        >
+                          <div className="absolute top-0 right-0 w-36 h-36 bg-purple-600/5 rounded-full blur-2xl pointer-events-none" />
+
+                          {/* Coach Header */}
+                          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-2xl bg-purple-950 border border-purple-700 text-purple-300 flex items-center justify-center font-black text-sm shadow-inner">
+                                {coachName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-base font-extrabold text-white">{coachName}</span>
+                                  {coachPrinciple.userEmail && (
+                                    <span className="text-[11px] text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-full border border-slate-800 font-mono">
+                                      {coachPrinciple.userEmail}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Zuletzt gespeichert: {formattedDate}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAdoptCoachTacticalPrinciple(tactic.id, coachPrinciple);
+                                setExpandedTacticId(tactic.id);
+                                setSelectedTacticForCoachModal(null);
+                              }}
+                              className="px-4 py-2 rounded-xl bg-purple-950 border border-purple-600 hover:bg-purple-900 text-purple-200 text-xs font-black transition flex items-center gap-2 shadow-lg shadow-purple-950/60 active:scale-95 cursor-pointer"
+                              title="Überträgt diese Taktikprinzipien direkt in den Vereins-Standard"
+                            >
+                              <ArrowUpRight className="w-4 h-4 text-purple-400" />
+                              <span>In Vereins-Standard übernehmen</span>
+                            </button>
+                          </div>
+
+                          {/* Taktikprinzipien Box */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2 text-purple-300">
+                              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                              <span>Taktikprinzipien & Coaching Points (vom Trainer)</span>
+                            </label>
+                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-xs text-slate-100 font-mono leading-relaxed whitespace-pre-wrap">
+                              {coachPrinciple.taktikprinzipien}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-slate-950 border border-dashed border-slate-800 rounded-2xl p-8 text-center space-y-2">
+                    <Users className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-sm font-bold text-slate-300">
+                      Noch keine Taktikprinzipien für „{tactic.name}“ vorhanden
+                    </p>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Sobald ein Trainer deines Vereins im Übungseditor eigene Taktikprinzipien für diesen Schwerpunkt speichert, erscheinen sie hier.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3 flex-shrink-0">
+                <span className="text-xs text-slate-400 font-semibold">
+                  Insgesamt {coachPrinciples.length} Trainer-Vorlage{coachPrinciples.length !== 1 ? 'n' : ''} für {tactic.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTacticForCoachModal(null)}
+                  className="px-5 py-2 rounded-xl text-slate-300 bg-slate-850 hover:bg-slate-800 font-bold text-xs transition cursor-pointer"
+                >
+                  Schließen
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Fixed Floating Toast Feedback Notification */}
       {feedback && (
