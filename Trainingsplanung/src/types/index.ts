@@ -823,9 +823,11 @@ export interface TrainingGroup {
   ownerName?: string;
   createdByName?: string;
   createdByRole?: string;
-  assignedCoachEmail?: string; // E-Mail des zugewiesenen Trainers
+  assignedCoachEmail?: string; // E-Mail des zugewiesenen Trainers (Haupttrainer)
   assignedCoachId?: string; // User ID des zugewiesenen Trainers
   assignedCoachName?: string; // Name des zugewiesenen Trainers
+  observerCoachEmails?: string[]; // E-Mails der lizensierten Vereinstrainer mit Beobachter-/Einsichtsrechten
+  observerCoachIds?: string[]; // User IDs der Trainer mit Beobachter-Rechten
   clubId?: string;
   createdAt: number;
   updatedAt?: number;

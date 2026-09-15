@@ -317,6 +317,8 @@ export function normalizeTrainingGroup(raw: any): TrainingGroup {
     name: String(raw.name || 'Trainingsgruppe').trim(),
     ageGroup: raw.ageGroup || 'Herren',
     players: Array.isArray(raw.players) ? raw.players : [],
+    observerCoachEmails: Array.isArray(raw.observerCoachEmails) ? raw.observerCoachEmails : (raw.observerCoachEmails ? [raw.observerCoachEmails] : []),
+    observerCoachIds: Array.isArray(raw.observerCoachIds) ? raw.observerCoachIds : (raw.observerCoachIds ? [raw.observerCoachIds] : []),
     createdAt: Number(raw.createdAt) || Date.now(),
     updatedAt: Number(raw.updatedAt) || Date.now()
   };

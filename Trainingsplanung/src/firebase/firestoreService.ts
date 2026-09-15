@@ -2259,6 +2259,8 @@ export async function saveTrainingGroupToFirestore(
     assignedCoachEmail: group.assignedCoachEmail || undefined,
     assignedCoachId: group.assignedCoachId || undefined,
     assignedCoachName: group.assignedCoachName || undefined,
+    observerCoachEmails: Array.isArray(group.observerCoachEmails) ? group.observerCoachEmails : [],
+    observerCoachIds: Array.isArray(group.observerCoachIds) ? group.observerCoachIds : [],
     clubId: clubId || group.clubId || undefined,
     createdAt: group.createdAt || now,
     updatedAt: now
@@ -2293,6 +2295,8 @@ export async function saveTrainingGroupToFirestore(
         assignedCoachEmail: newGroup.assignedCoachEmail || null,
         assignedCoachId: newGroup.assignedCoachId || null,
         assignedCoachName: newGroup.assignedCoachName || null,
+        observerCoachEmails: newGroup.observerCoachEmails || [],
+        observerCoachIds: newGroup.observerCoachIds || [],
         clubId: newGroup.clubId || null,
         createdAt: newGroup.createdAt,
         updatedAt: newGroup.updatedAt

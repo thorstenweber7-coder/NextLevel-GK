@@ -106,6 +106,7 @@ import {
   AlertTriangle,
   ArrowRight,
   ArrowRightLeft,
+  Eye,
   Lock
 } from 'lucide-react';
 import { cn } from '../utils/cn';
@@ -134,7 +135,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
   initialSubTab = 'periodization',
   onNavigateToPlanner
 }) => {
-  const { user, currentClub, clubName, clubId, userProfile, isAdmin, isMasterAdmin, isClubAdmin, hasProAccess } = useAuth();
+  const { user, currentClub, clubName, clubId, userProfile, isAdmin, isMasterAdmin, isClubAdmin, isClubCoach, hasProAccess } = useAuth();
   
   // Normalize initial tab (if 'absences' or 'playtimes', map to 'dataEntry'; if 'macro'/'meso'/'micro', map to 'periodization')
   const [activeSubTab, setActiveSubTab] = useState<OrgaSubTab>(() => {
@@ -250,12 +251,20 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
   // Modals state for Groups & Absences
   const [editingGroup, setEditingGroup] = useState<TrainingGroup | null>(null);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  const [groupFormData, setGroupFormData] = useState({
+  const [groupFormData, setGroupFormData] = useState<{
+    name: string;
+    description: string;
+    ageCategory: string;
+    color: string;
+    assignedCoachEmail: string;
+    observerCoachEmails: string[];
+  }>({
     name: '',
     description: '',
     ageCategory: 'U17',
     color: 'emerald',
-    assignedCoachEmail: ''
+    assignedCoachEmail: '',
+    observerCoachEmails: []
   });
 
   // Available licensed coaches in club
@@ -278,7 +287,43 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     return list;
   }, [currentClub]);
 
-  // Central permission check for group data editing
+  // Permission check if a user is allowed to view a group (Assigned Coach or Observer Coach)
+  const canViewGroup = (group?: TrainingGroup | null): boolean => {
+    if (!group) return false;
+    if (isMasterAdmin || isClubAdmin) return true;
+    const userEmail = (user?.email || '').toLowerCase().trim();
+    const uid = user?.uid;
+
+    // Non-club groups: owned by user
+    if (!group.clubId) {
+      return group.ownerId === uid || !group.ownerId || (Boolean(group.ownerEmail) && group.ownerEmail?.toLowerCase() === userEmail);
+    }
+
+    // In a club context for a ClubCoach:
+    if (isClubCoach) {
+      // 1. Primary assigned coach
+      const isAssigned = (Boolean(group.assignedCoachEmail) && group.assignedCoachEmail?.toLowerCase() === userEmail) ||
+                         (Boolean(group.assignedCoachId) && group.assignedCoachId === uid);
+      if (isAssigned) return true;
+
+      // 2. Observer coach (Beobachter)
+      const isObserver = (group.observerCoachEmails || []).some(e => e && e.toLowerCase().trim() === userEmail) ||
+                         (group.observerCoachIds || []).includes(uid || '');
+      if (isObserver) return true;
+
+      // 3. Creator/Owner
+      if (group.ownerId === uid || (Boolean(group.ownerEmail) && group.ownerEmail?.toLowerCase() === userEmail)) {
+        return true;
+      }
+
+      return false;
+    }
+
+    // Default fallback
+    return group.ownerId === uid || (Boolean(group.ownerEmail) && group.ownerEmail?.toLowerCase() === userEmail);
+  };
+
+  // Central permission check for group data editing (Only assigned coach or club admin)
   const canEditGroupData = (group?: TrainingGroup | null): boolean => {
     if (!group) return false;
     if (isMasterAdmin || isClubAdmin) return true;
@@ -300,6 +345,11 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     if (!hasProAccess) return false;
     return canEditGroupData(group);
   };
+
+  // Filtered groups visible to current user (taking observer permissions into account)
+  const visibleGroups = useMemo(() => {
+    return groups.filter(g => canViewGroup(g));
+  }, [groups, user, isMasterAdmin, isClubAdmin, isClubCoach]);
 
   const [selectedGroupForPlayer, setSelectedGroupForPlayer] = useState<TrainingGroup | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
@@ -446,9 +496,9 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
 
   // Sync selected group and player when groups change for Evaluations
   useEffect(() => {
-    if (groups.length > 0) {
-      const activeGroup = groups.find(g => g.id === selectedEvaluationGroupId) || groups[0];
-      if (!selectedEvaluationGroupId || !groups.some(g => g.id === selectedEvaluationGroupId)) {
+    if (visibleGroups.length > 0) {
+      const activeGroup = visibleGroups.find(g => g.id === selectedEvaluationGroupId) || visibleGroups[0];
+      if (!selectedEvaluationGroupId || !visibleGroups.some(g => g.id === selectedEvaluationGroupId)) {
         setSelectedEvaluationGroupId(activeGroup.id);
       }
       const activePlayers = (activeGroup.players || []).filter(p => !p.archived);
@@ -460,13 +510,13 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         setSelectedEvaluationPlayerId('');
       }
     }
-  }, [groups, selectedEvaluationGroupId, selectedEvaluationPlayerId]);
+  }, [visibleGroups, selectedEvaluationGroupId, selectedEvaluationPlayerId]);
 
   // Sync selected group and player when groups change for Feedbackgespräche
   useEffect(() => {
-    if (groups.length > 0) {
-      const activeGroup = groups.find(g => g.id === selectedFeedbackGroupId) || groups[0];
-      if (!selectedFeedbackGroupId || !groups.some(g => g.id === selectedFeedbackGroupId)) {
+    if (visibleGroups.length > 0) {
+      const activeGroup = visibleGroups.find(g => g.id === selectedFeedbackGroupId) || visibleGroups[0];
+      if (!selectedFeedbackGroupId || !visibleGroups.some(g => g.id === selectedFeedbackGroupId)) {
         setSelectedFeedbackGroupId(activeGroup.id);
       }
       const activePlayers = (activeGroup.players || []).filter(p => !p.archived);
@@ -478,17 +528,17 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         setSelectedFeedbackPlayerId('');
       }
     }
-  }, [groups, selectedFeedbackGroupId, selectedFeedbackPlayerId]);
+  }, [visibleGroups, selectedFeedbackGroupId, selectedFeedbackPlayerId]);
 
   // Sync selected group and player when groups change for Fehlzeiten
   useEffect(() => {
-    if (groups.length > 0) {
-      const activeGroup = groups.find(g => g.id === absenceFormData.groupId) || groups[0];
-      const validGroupId = (absenceFormData.groupId && groups.some(g => g.id === absenceFormData.groupId))
+    if (visibleGroups.length > 0) {
+      const activeGroup = visibleGroups.find(g => g.id === absenceFormData.groupId) || visibleGroups[0];
+      const validGroupId = (absenceFormData.groupId && visibleGroups.some(g => g.id === absenceFormData.groupId))
         ? absenceFormData.groupId
         : activeGroup.id;
 
-      const currentGroupObj = groups.find(g => g.id === validGroupId) || groups[0];
+      const currentGroupObj = visibleGroups.find(g => g.id === validGroupId) || visibleGroups[0];
       const activePlayers = (currentGroupObj.players || []).filter(p => !p.archived);
 
       const validPlayerId = (absenceFormData.playerId && activePlayers.some(p => p.id === absenceFormData.playerId))
@@ -503,7 +553,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         }));
       }
     }
-  }, [groups, absenceFormData.groupId, absenceFormData.playerId]);
+  }, [visibleGroups, absenceFormData.groupId, absenceFormData.playerId]);
 
   // Helper for player initials
   const getPlayerInitials = (firstName: string, lastName: string): string => {
@@ -568,10 +618,10 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     return (categoryAverages.reduce((a, b) => a + b, 0) / categoryAverages.length).toFixed(1);
   };
 
-  // List of all archived players across all groups
+  // List of all archived players across all visible groups
   const archivedPlayers = useMemo(() => {
     const list: Array<{ player: Player; group: TrainingGroup }> = [];
-    groups.forEach(g => {
+    visibleGroups.forEach(g => {
       (g.players || []).forEach(p => {
         if (p.archived) {
           list.push({ player: p, group: g });
@@ -579,7 +629,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       });
     });
     return list;
-  }, [groups]);
+  }, [visibleGroups]);
 
   // Load existing evaluation data when player or category changes
   // Pre-fill matrices and biological status with the latest dataset for that player
@@ -715,7 +765,8 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       description: '',
       ageCategory: 'U17',
       color: 'emerald',
-      assignedCoachEmail: currentClub?.adminEmail || user?.email || ''
+      assignedCoachEmail: currentClub?.adminEmail || user?.email || '',
+      observerCoachEmails: []
     });
     setIsGroupModalOpen(true);
   };
@@ -727,7 +778,8 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       description: group.description || '',
       ageCategory: group.ageCategory || 'U17',
       color: group.color || 'emerald',
-      assignedCoachEmail: group.assignedCoachEmail || ''
+      assignedCoachEmail: group.assignedCoachEmail || '',
+      observerCoachEmails: Array.isArray(group.observerCoachEmails) ? [...group.observerCoachEmails] : []
     });
     setIsGroupModalOpen(true);
   };
@@ -743,6 +795,10 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       const assignedCoachObj = availableCoaches.find(c => c.email.toLowerCase() === (groupFormData.assignedCoachEmail || '').toLowerCase());
       const assignedCoachName = assignedCoachObj ? assignedCoachObj.name : (groupFormData.assignedCoachEmail || undefined);
 
+      const cleanObservers = groupFormData.observerCoachEmails.filter(
+        em => em && em.toLowerCase() !== (groupFormData.assignedCoachEmail || '').toLowerCase()
+      );
+
       if (editingGroup) {
         await saveTrainingGroupToFirestore({
           ...editingGroup,
@@ -752,6 +808,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
           color: groupFormData.color,
           assignedCoachEmail: groupFormData.assignedCoachEmail || undefined,
           assignedCoachName: assignedCoachName || undefined,
+          observerCoachEmails: cleanObservers,
         }, user, clubId);
         showToast('Trainingsgruppe erfolgreich aktualisiert!');
       } else {
@@ -762,6 +819,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
           color: groupFormData.color,
           assignedCoachEmail: groupFormData.assignedCoachEmail || undefined,
           assignedCoachName: assignedCoachName || undefined,
+          observerCoachEmails: cleanObservers,
           players: []
         }, user, clubId);
         showToast('Neue Trainingsgruppe erfolgreich angelegt!');
@@ -1489,11 +1547,12 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
 
 
   // Available Goalkeepers for Spielzeiten Filter
+  // Available Goalkeepers for Spielzeiten Filter
   const availableFilterPlayers = useMemo(() => {
     if (filterPlaytimeGroup === 'ALL') {
       const all: Player[] = [];
       const seen = new Set<string>();
-      groups.forEach(g => {
+      visibleGroups.forEach(g => {
         (g.players || []).forEach(p => {
           if (!p.archived && !seen.has(p.id)) {
             seen.add(p.id);
@@ -1503,13 +1562,17 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       });
       return all;
     }
-    const grp = groups.find(g => g.id === filterPlaytimeGroup);
+    const grp = visibleGroups.find(g => g.id === filterPlaytimeGroup);
     return (grp?.players || []).filter(p => !p.archived);
-  }, [groups, filterPlaytimeGroup]);
+  }, [visibleGroups, filterPlaytimeGroup]);
 
   // Filtered Match Playtimes
   const filteredMatchPlaytimes = useMemo(() => {
+    const visibleGroupIds = new Set(visibleGroups.map(g => g.id));
     return matchPlaytimes.filter(m => {
+      if (!isMasterAdmin && !isClubAdmin && !visibleGroupIds.has(m.groupId)) {
+        return false;
+      }
       const matchesGroup = filterPlaytimeGroup === 'ALL' || m.groupId === filterPlaytimeGroup || m.team === filterPlaytimeGroup;
       const matchesPlayer = filterPlaytimePlayer === 'ALL' || (
         m.playerMinutes && (m.playerMinutes[filterPlaytimePlayer] !== undefined && Number(m.playerMinutes[filterPlaytimePlayer]) > 0)
@@ -1524,7 +1587,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         (m.date && m.date.toLowerCase().includes(q));
       return matchesGroup && matchesPlayer && matchesType && matchesSearch;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [matchPlaytimes, filterPlaytimeGroup, filterPlaytimePlayer, filterPlaytimeType, searchPlaytime]);
+  }, [matchPlaytimes, filterPlaytimeGroup, filterPlaytimePlayer, filterPlaytimeType, searchPlaytime, visibleGroups, isMasterAdmin, isClubAdmin]);
 
   // Handlers for Match Playtimes
   const handleCancelEditMatch = () => {
@@ -1535,7 +1598,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       opponent: '',
       location: 'Heimspiel',
       matchType: 'Meisterschaftsspiel',
-      groupId: groups[0]?.id || '',
+      groupId: visibleGroups[0]?.id || '',
       playerMinutes: {},
       playerGrades: {},
       playerBenchStatus: {},
@@ -1561,13 +1624,13 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
 
   const handleSaveMatch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const effectiveGroupId = matchFormData.groupId || groups[0]?.id;
+    const effectiveGroupId = matchFormData.groupId || visibleGroups[0]?.id;
     if (!effectiveGroupId) {
       showToast('Bitte wähle eine Trainingsgruppe aus.', 'error');
       return;
     }
 
-    const group = groups.find(g => g.id === effectiveGroupId);
+    const group = visibleGroups.find(g => g.id === effectiveGroupId) || groups.find(g => g.id === effectiveGroupId);
 
     try {
       await saveMatchPlaytimeToFirestore({
@@ -1739,11 +1802,12 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
   };
 
   // Available filter players for Feedbackgespräche right column
+  // Available filter players for Feedbackgespräche right column
   const availableFeedbackFilterPlayers = useMemo(() => {
     if (filterFeedbackGroup === 'ALL') {
       const allP: { id: string; firstName: string; lastName: string; jerseyNumber?: number | string }[] = [];
       const seen = new Set<string>();
-      groups.forEach(g => {
+      visibleGroups.forEach(g => {
         (g.players || []).forEach(p => {
           if (!p.archived && !seen.has(p.id)) {
             seen.add(p.id);
@@ -1753,14 +1817,18 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       });
       return allP;
     }
-    const grp = groups.find(g => g.id === filterFeedbackGroup);
+    const grp = visibleGroups.find(g => g.id === filterFeedbackGroup);
     return (grp?.players || []).filter(p => !p.archived);
-  }, [groups, filterFeedbackGroup]);
+  }, [visibleGroups, filterFeedbackGroup]);
 
   // Filtered feedback talks for right column
   const filteredFeedbackTalks = useMemo(() => {
+    const visibleGroupIds = new Set(visibleGroups.map(g => g.id));
     return feedbackTalks
       .filter(talk => {
+        if (!isMasterAdmin && !isClubAdmin && !visibleGroupIds.has(talk.groupId)) {
+          return false;
+        }
         if (filterFeedbackGroup !== 'ALL' && talk.groupId !== filterFeedbackGroup) {
           return false;
         }
@@ -1769,7 +1837,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         }
         if (searchFeedback.trim()) {
           const query = searchFeedback.toLowerCase();
-          const player = groups.flatMap(g => g.players || []).find(p => p.id === talk.playerId);
+          const player = visibleGroups.flatMap(g => g.players || []).find(p => p.id === talk.playerId) || groups.flatMap(g => g.players || []).find(p => p.id === talk.playerId);
           const playerName = player ? `${player.firstName} ${player.lastName}`.toLowerCase() : (talk.playerName || '').toLowerCase();
           const trainer1 = (talk.trainer1 || '').toLowerCase();
           const trainer2 = (talk.trainer2 || '').toLowerCase();
@@ -1782,7 +1850,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         return true;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [feedbackTalks, filterFeedbackGroup, filterFeedbackPlayer, searchFeedback, groups]);
+  }, [feedbackTalks, filterFeedbackGroup, filterFeedbackPlayer, searchFeedback, visibleGroups, groups, isMasterAdmin, isClubAdmin]);
 
   // Handlers for Feedbackgespräche
   const handleEditFeedback = (talk: PlayerFeedbackTalk) => {
@@ -1817,8 +1885,8 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       showToast('Feedbackgespräche sind ein PRO-Feature.', 'error');
       return;
     }
-    const effectiveGroupId = selectedFeedbackGroupId || groups[0]?.id;
-    const currentGrp = groups.find(g => g.id === effectiveGroupId) || groups[0];
+    const effectiveGroupId = selectedFeedbackGroupId || visibleGroups[0]?.id;
+    const currentGrp = visibleGroups.find(g => g.id === effectiveGroupId) || groups.find(g => g.id === effectiveGroupId);
     const activePlayers = (currentGrp?.players || []).filter(p => !p.archived);
     const effectivePlayerId = selectedFeedbackPlayerId || (activePlayers.length > 0 ? activePlayers[0].id : '');
 
@@ -1840,7 +1908,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       return;
     }
 
-    const player = (currentGrp?.players || []).find(p => p.id === effectivePlayerId) || groups.flatMap(g => g.players || []).find(p => p.id === effectivePlayerId);
+    const player = (currentGrp?.players || []).find(p => p.id === effectivePlayerId) || visibleGroups.flatMap(g => g.players || []).find(p => p.id === effectivePlayerId);
 
     try {
       await saveFeedbackTalkToFirestore({
@@ -2045,7 +2113,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
             <div className="min-w-0 flex-1">
               <span className="block text-xs sm:text-sm font-bold truncate">Trainingsgruppe</span>
               <span className={cn("text-[10px] block truncate", activeSubTab === 'groups' ? "text-emerald-100" : "text-slate-500")}>
-                {groups.length} {groups.length === 1 ? 'Gruppe' : 'Gruppen'} angelegt
+                {visibleGroups.length} {visibleGroups.length === 1 ? 'Gruppe' : 'Gruppen'} angelegt
               </span>
             </div>
           </button>
@@ -2107,7 +2175,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       {/* --------------------------------------------------------------------- */}
       {activeSubTab === 'periodization' && (
         <PeriodizationView
-          groups={groups}
+          groups={visibleGroups}
           showToast={showToast}
           onNavigateToPlanner={onNavigateToPlanner}
           initialStage={periodizationStage}
@@ -2145,23 +2213,31 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
           </div>
 
           {/* Groups Grid */}
-          {groups.length === 0 ? (
+          {visibleGroups.length === 0 ? (
             <div className="p-12 text-center bg-slate-950 rounded-3xl border border-dashed border-slate-800 space-y-3">
               <Users className="w-8 h-8 mx-auto text-slate-600" />
               <p className="text-sm font-semibold text-slate-400">
-                Noch keine Trainingsgruppen angelegt.
+                {isClubCoach 
+                  ? 'Du bist aktuell noch keiner Trainingsgruppe als zuständiger Trainer oder Beobachter zugewiesen.'
+                  : 'Noch keine Trainingsgruppen angelegt.'}
               </p>
-              <button
-                type="button"
-                onClick={handleOpenNewGroupModal}
-                className="text-xs text-emerald-400 font-bold hover:underline"
-              >
-                + Jetzt die erste Trainingsgruppe erstellen
-              </button>
+              {isClubCoach ? (
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Bitte wende dich an deinen Club-Administrator, damit er dir Trainingsgruppen zuweist oder dich als Beobachter für relevante Gruppen einträgt.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleOpenNewGroupModal}
+                  className="text-xs text-emerald-400 font-bold hover:underline"
+                >
+                  + Jetzt die erste Trainingsgruppe erstellen
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {groups.map(group => {
+              {visibleGroups.map(group => {
                 const colorObj = GROUP_COLORS.find(c => c.key === group.color) || GROUP_COLORS[0];
 
                 return (
@@ -2193,6 +2269,28 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                               <span className="italic">Trainer: Club-Admin (nicht zugewiesen)</span>
                             </div>
                           ) : null}
+
+                          {/* Observer Badge */}
+                          {(group.observerCoachEmails && group.observerCoachEmails.length > 0) && (
+                            <div className="flex items-center gap-1.5 text-xs text-slate-300 mt-1 flex-wrap">
+                              <Eye className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                              <span className="text-slate-400 text-[11px]">Beobachter:</span>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {group.observerCoachEmails.map(email => {
+                                  const coachObj = availableCoaches.find(c => c.email.toLowerCase() === email.toLowerCase());
+                                  const displayName = coachObj ? coachObj.name.replace(' (Club-Admin)', '') : email;
+                                  return (
+                                    <span 
+                                      key={email}
+                                      className="text-[10px] font-semibold text-emerald-300 bg-emerald-950/70 px-2 py-0.5 rounded-lg border border-emerald-800/70"
+                                    >
+                                      {displayName}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
 
                           {(group.ownerName || group.createdByName || group.ownerEmail) && (
                             <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-1">
@@ -2569,7 +2667,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
 
           {/* 1. FEHLZEITEN VIEW (ZWEISPALTIG: LINKS 70% FORMULAR ALS REITER, RECHTS 30% FEHLZEITEN DES AUSGEWÄHLTEN SPIELERS) */}
           {activeDataEntryTab === 'absences' && (() => {
-            const selectedAbsenceGroup = groups.find(g => g.id === absenceFormData.groupId) || groups[0];
+            const selectedAbsenceGroup = visibleGroups.find(g => g.id === absenceFormData.groupId) || visibleGroups[0];
             const selectedAbsenceGroupPlayers = (selectedAbsenceGroup?.players || []).filter(p => !p.archived);
             const selectedAbsencePlayer = selectedAbsenceGroupPlayers.find(p => p.id === absenceFormData.playerId) || selectedAbsenceGroupPlayers[0];
             const selectedPlayerAbsences = absenceFormData.playerId
@@ -2633,19 +2731,23 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                     </button>
                   </div>
 
-                  {groups.length === 0 ? (
+                  {visibleGroups.length === 0 ? (
                     <div className="p-8 text-center bg-slate-950 rounded-2xl border border-dashed border-slate-800 space-y-3">
                       <AlertCircle className="w-8 h-8 mx-auto text-amber-500" />
                       <p className="text-xs font-semibold text-slate-300">
-                        Es sind noch keine Trainingsgruppen angelegt.
+                        {isClubCoach 
+                          ? 'Du bist aktuell keiner Trainingsgruppe zugewiesen.'
+                          : 'Es sind noch keine Trainingsgruppen angelegt.'}
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => setActiveSubTab('groups')}
-                        className="text-xs text-emerald-400 font-bold hover:underline"
-                      >
-                        + Jetzt Trainingsgruppe und Spieler erstellen
-                      </button>
+                      {!isClubCoach && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveSubTab('groups')}
+                          className="text-xs text-emerald-400 font-bold hover:underline"
+                        >
+                          + Jetzt Trainingsgruppe und Spieler erstellen
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <form onSubmit={handleSaveAbsence} className="space-y-4 text-xs">
@@ -2675,8 +2777,8 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                           <span className="text-[10px] text-slate-500 font-normal">Reiter (1 Klick)</span>
                         </label>
                         <div className="flex flex-wrap gap-2">
-                          {groups.map(g => {
-                            const isSelected = (absenceFormData.groupId === g.id) || (!absenceFormData.groupId && groups[0]?.id === g.id);
+                          {visibleGroups.map(g => {
+                            const isSelected = (absenceFormData.groupId === g.id) || (!absenceFormData.groupId && visibleGroups[0]?.id === g.id);
                             const gActivePlayers = (g.players || []).filter(p => !p.archived);
                             return (
                               <button
@@ -3091,26 +3193,30 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                   </div>
                 </div>
 
-                {groups.length === 0 ? (
+                {visibleGroups.length === 0 ? (
                   <div className="p-8 text-center bg-slate-950 rounded-2xl border border-dashed border-slate-800 space-y-3">
                     <AlertCircle className="w-8 h-8 mx-auto text-amber-500" />
                     <p className="text-xs font-semibold text-slate-300">
-                      Es sind noch keine Trainingsgruppen angelegt.
+                      {isClubCoach 
+                        ? 'Du bist aktuell keiner Trainingsgruppe zugewiesen.'
+                        : 'Es sind noch keine Trainingsgruppen angelegt.'}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => setActiveSubTab('groups')}
-                      className="text-xs text-emerald-400 font-bold hover:underline cursor-pointer"
-                    >
-                      + Jetzt Trainingsgruppe und Spieler erstellen
-                    </button>
+                    {!isClubCoach && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveSubTab('groups')}
+                        className="text-xs text-emerald-400 font-bold hover:underline cursor-pointer"
+                      >
+                        + Jetzt Trainingsgruppe und Spieler erstellen
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <form onSubmit={handleSaveMatch} className="space-y-4 text-xs">
                     {/* Read-Only Banner if coach is not assigned to this group */}
                     {(() => {
-                      const effectiveGroupId = matchFormData.groupId || groups[0]?.id;
-                      const currentGrp = groups.find(g => g.id === effectiveGroupId) || groups[0];
+                      const effectiveGroupId = matchFormData.groupId || visibleGroups[0]?.id;
+                      const currentGrp = visibleGroups.find(g => g.id === effectiveGroupId) || visibleGroups[0];
                       const isMatchGroupEditable = canEditGroupData(currentGrp);
                       if (!isMatchGroupEditable) {
                         return (
@@ -3159,8 +3265,8 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                           <span className="text-[10px] text-slate-500 font-normal">Reiter (1 Klick)</span>
                         </label>
                         <div className="flex flex-wrap gap-2">
-                          {groups.map(g => {
-                            const isSelected = (matchFormData.groupId === g.id) || (!matchFormData.groupId && groups[0]?.id === g.id);
+                          {visibleGroups.map(g => {
+                            const isSelected = (matchFormData.groupId === g.id) || (!matchFormData.groupId && visibleGroups[0]?.id === g.id);
                             const gActivePlayers = (g.players || []).filter(p => !p.archived);
                             return (
                               <button
@@ -3490,7 +3596,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                         <span>Alle</span>
                         <span className="text-[10px] opacity-75 font-mono">({matchPlaytimes.length})</span>
                       </button>
-                      {groups.map(g => {
+                      {visibleGroups.map(g => {
                         const isSelected = filterPlaytimeGroup === g.id;
                         const count = matchPlaytimes.filter(m => m.groupId === g.id).length;
                         return (
@@ -3807,7 +3913,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
               { bg: 'bg-rose-600', text: 'text-rose-400', border: 'border-rose-500/40', badge: 'bg-rose-950 text-rose-300 border-rose-700' };
 
             const currentSkills = SKILL_DEFINITIONS[currentCat] || [];
-            const activeGroup = groups.find(g => g.id === selectedEvaluationGroupId) || groups[0];
+            const activeGroup = visibleGroups.find(g => g.id === selectedEvaluationGroupId) || visibleGroups[0];
             const groupPlayers = (activeGroup?.players || []).filter(p => !p.archived);
             const activePlayer = groupPlayers.find(p => p.id === selectedEvaluationPlayerId) || groupPlayers[0];
 
@@ -3816,23 +3922,29 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
               ? (scoresList.reduce((a, b) => a + b, 0) / scoresList.length).toFixed(1) 
               : null;
 
-            if (groups.length === 0) {
+            if (visibleGroups.length === 0) {
               return (
                 <div className="p-12 text-center bg-slate-900 rounded-3xl border border-dashed border-slate-800 space-y-3">
                   <Users className="w-8 h-8 mx-auto text-slate-600" />
                   <p className="text-sm font-bold text-white">
-                    Noch keine Trainingsgruppe angelegt
+                    {isClubCoach 
+                      ? 'Du bist aktuell keiner Trainingsgruppe zugewiesen.'
+                      : 'Noch keine Trainingsgruppe angelegt'}
                   </p>
                   <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    Um Spielerfähigkeiten für {currentCat} einzugeben, erstelle bitte zuerst eine Trainingsgruppe mit Torhütern.
+                    {isClubCoach
+                      ? 'Wende dich an deinen Club-Admin, um als zuständiger Trainer oder Beobachter eingetragen zu werden.'
+                      : `Um Spielerfähigkeiten für ${currentCat} einzugeben, erstelle bitte zuerst eine Trainingsgruppe mit Torhütern.`}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSubTab('groups')}
-                    className="px-4 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow shadow-emerald-950"
-                  >
-                    + Trainingsgruppe anlegen
-                  </button>
+                  {!isClubCoach && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveSubTab('groups')}
+                      className="px-4 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow shadow-emerald-950"
+                    >
+                      + Trainingsgruppe anlegen
+                    </button>
+                  )}
                 </div>
               );
             }
@@ -4077,7 +4189,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                             onChange={e => {
                               const gid = e.target.value;
                               setSelectedEvaluationGroupId(gid);
-                              const g = groups.find(x => x.id === gid);
+                              const g = visibleGroups.find(x => x.id === gid);
                               if (g && g.players && g.players.length > 0) {
                                 setSelectedEvaluationPlayerId(g.players[0].id);
                               } else {
@@ -4086,7 +4198,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                             }}
                             className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-emerald-500"
                           >
-                            {groups.map(g => (
+                            {visibleGroups.map(g => (
                               <option key={g.id} value={g.id}>
                                 {g.name} ({g.players?.length || 0} TW)
                               </option>
@@ -4509,7 +4621,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                     onChange={e => {
                                       const gid = e.target.value;
                                       setSelectedEvaluationGroupId(gid);
-                                      const g = groups.find(x => x.id === gid);
+                                      const g = visibleGroups.find(x => x.id === gid);
                                       if (g && g.players && g.players.length > 0) {
                                         setSelectedEvaluationPlayerId(g.players[0].id);
                                       } else {
@@ -4518,7 +4630,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                     }}
                                     className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-200 focus:outline-none focus:border-teal-500"
                                   >
-                                    {groups.map(g => (
+                                    {visibleGroups.map(g => (
                                       <option key={g.id} value={g.id}>
                                         {g.name} ({g.players?.length || 0} TW)
                                       </option>
@@ -4936,7 +5048,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                     onChange={e => {
                                       const gid = e.target.value;
                                       setSelectedEvaluationGroupId(gid);
-                                      const g = groups.find(x => x.id === gid);
+                                      const g = visibleGroups.find(x => x.id === gid);
                                       if (g && g.players && g.players.length > 0) {
                                         setSelectedEvaluationPlayerId(g.players[0].id);
                                       } else {
@@ -4945,7 +5057,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                     }}
                                     className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-200 focus:outline-none focus:border-emerald-500"
                                   >
-                                    {groups.map(g => (
+                                    {visibleGroups.map(g => (
                                       <option key={g.id} value={g.id}>
                                         {g.name} ({g.players?.length || 0} TW)
                                       </option>
@@ -6005,8 +6117,8 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
 
           {/* 4. FEEDBACKGESPRÄCHE VIEW */}
           {activeDataEntryTab === 'feedback_talks' && (() => {
-            const currentFbGroupId = selectedFeedbackGroupId || groups[0]?.id || '';
-            const activeFbGroup = groups.find(g => g.id === currentFbGroupId) || groups[0];
+            const currentFbGroupId = selectedFeedbackGroupId || visibleGroups[0]?.id || '';
+            const activeFbGroup = visibleGroups.find(g => g.id === currentFbGroupId) || visibleGroups[0];
             const fbGroupPlayers = (activeFbGroup?.players || []).filter(p => !p.archived);
             const currentFbPlayerId = selectedFeedbackPlayerId || (fbGroupPlayers.length > 0 ? fbGroupPlayers[0].id : '');
 
@@ -6062,19 +6174,23 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                     </div>
                   </div>
 
-                  {groups.length === 0 ? (
+                  {visibleGroups.length === 0 ? (
                     <div className="p-8 text-center bg-slate-950 rounded-2xl border border-dashed border-slate-800 space-y-3">
                       <AlertCircle className="w-8 h-8 mx-auto text-amber-500" />
                       <p className="text-xs font-semibold text-slate-300">
-                        Es sind noch keine Trainingsgruppen angelegt.
+                        {isClubCoach 
+                          ? 'Du bist aktuell keiner Trainingsgruppe zugewiesen.'
+                          : 'Es sind noch keine Trainingsgruppen angelegt.'}
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => setActiveSubTab('groups')}
-                        className="text-xs text-indigo-400 font-bold hover:underline cursor-pointer"
-                      >
-                        + Jetzt Trainingsgruppe und Spieler erstellen
-                      </button>
+                      {!isClubCoach && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveSubTab('groups')}
+                          className="text-xs text-indigo-400 font-bold hover:underline cursor-pointer"
+                        >
+                          + Jetzt Trainingsgruppe und Spieler erstellen
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -6126,7 +6242,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                             <span className="text-[10px] text-slate-500 font-normal">Reiter (1 Klick)</span>
                           </label>
                           <div className="flex flex-wrap gap-2">
-                            {groups.map(g => {
+                            {visibleGroups.map(g => {
                               const isSelected = (currentFbGroupId === g.id);
                               const gActivePlayers = (g.players || []).filter(p => !p.archived);
                               return (
@@ -6334,7 +6450,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                           <span>Alle</span>
                           <span className="text-[10px] opacity-75 font-mono">({feedbackTalks.length})</span>
                         </button>
-                        {groups.map(g => {
+                        {visibleGroups.map(g => {
                           const isSelected = filterFeedbackGroup === g.id;
                           const count = feedbackTalks.filter(t => t.groupId === g.id).length;
                           return (
@@ -6435,8 +6551,8 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                       </div>
                     ) : (
                       filteredFeedbackTalks.map(talk => {
-                        const group = groups.find(g => g.id === talk.groupId);
-                        const player = (group?.players || []).find(p => p.id === talk.playerId) || groups.flatMap(g => g.players || []).find(p => p.id === talk.playerId);
+                        const group = visibleGroups.find(g => g.id === talk.groupId) || groups.find(g => g.id === talk.groupId);
+                        const player = (group?.players || []).find(p => p.id === talk.playerId) || visibleGroups.flatMap(g => g.players || []).find(p => p.id === talk.playerId) || groups.flatMap(g => g.players || []).find(p => p.id === talk.playerId);
                         const isEditingThis = editingFeedbackId === talk.id;
 
                         return (
@@ -6541,7 +6657,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         <OrgaStatsView
           savedPlans={savedPlans}
           exercises={exercises}
-          groups={groups}
+          groups={visibleGroups}
           absences={absences}
           evaluations={evaluations}
           matchPlaytimes={matchPlaytimes}
@@ -6615,16 +6731,25 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                 </div>
               </div>
 
-              {/* Assigned Coach Dropdown (if in Club or Admin) */}
+              {/* Assigned Primary Coach Dropdown (if in Club or Admin) */}
               {availableCoaches.length > 0 && (
                 <div>
                   <label className="block text-slate-300 font-bold mb-1 flex items-center gap-1.5">
                     <Shield className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Zuständiger Trainer (lizensierter Trainer)</span>
+                    <span>Zuständiger Haupttrainer (lizensierter Trainer)</span>
                   </label>
                   <select
                     value={groupFormData.assignedCoachEmail || ''}
-                    onChange={e => setGroupFormData(prev => ({ ...prev, assignedCoachEmail: e.target.value }))}
+                    onChange={e => {
+                      const newPrimary = e.target.value;
+                      setGroupFormData(prev => ({
+                        ...prev,
+                        assignedCoachEmail: newPrimary,
+                        observerCoachEmails: prev.observerCoachEmails.filter(
+                          em => em.toLowerCase() !== newPrimary.toLowerCase()
+                        )
+                      }));
+                    }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-xs"
                   >
                     <option value="">Kein Trainer fest zugewiesen (Club-Admin)</option>
@@ -6635,8 +6760,111 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                     ))}
                   </select>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Der zugewiesene Trainer erhält Schreibrechte für Dateneingaben und die Periodisierung dieser Gruppe.
+                    Der Haupttrainer erhält volle Schreibrechte für Dateneingaben, Periodisierung und Bewertungen dieser Gruppe.
                   </p>
+                </div>
+              )}
+
+              {/* Observer Coaches Checkbox List */}
+              {availableCoaches.length > 0 && (
+                <div className="space-y-2 p-3 bg-slate-950/80 rounded-2xl border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-300 font-bold flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Beobachter-Rechte (Vereinstrainer / Club-Coaches)</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allCoachEmails = availableCoaches
+                            .map(c => c.email)
+                            .filter(em => em.toLowerCase() !== (groupFormData.assignedCoachEmail || '').toLowerCase());
+                          setGroupFormData(prev => ({ ...prev, observerCoachEmails: allCoachEmails }));
+                        }}
+                        className="text-[10px] text-emerald-400 hover:underline font-semibold"
+                      >
+                        Alle
+                      </button>
+                      <span className="text-slate-700">|</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGroupFormData(prev => ({ ...prev, observerCoachEmails: [] }));
+                        }}
+                        className="text-[10px] text-slate-400 hover:underline font-semibold"
+                      >
+                        Keine
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    Wähle per Checkbox aus, welche weiteren Vereinstrainer diese Trainingsgruppe einsehen dürfen (Lese- und Einsichtsrechte für Torhüter, Fehlzeiten, Spielzeiten, Periodisierung & Statistiken).
+                  </p>
+
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 pt-1">
+                    {availableCoaches.map(coach => {
+                      const isPrimary = Boolean(
+                        groupFormData.assignedCoachEmail &&
+                        coach.email.toLowerCase() === groupFormData.assignedCoachEmail.toLowerCase()
+                      );
+                      const isObserver = groupFormData.observerCoachEmails.some(
+                        em => em.toLowerCase() === coach.email.toLowerCase()
+                      );
+
+                      return (
+                        <label
+                          key={coach.email}
+                          className={cn(
+                            "flex items-center justify-between p-2 rounded-xl border text-xs cursor-pointer transition select-none",
+                            isPrimary 
+                              ? "bg-sky-950/40 border-sky-800/60 opacity-80 cursor-default" 
+                              : isObserver 
+                                ? "bg-emerald-950/40 border-emerald-800 text-slate-100" 
+                                : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              disabled={isPrimary}
+                              checked={isPrimary || isObserver}
+                              onChange={e => {
+                                if (isPrimary) return;
+                                const checked = e.target.checked;
+                                setGroupFormData(prev => {
+                                  const filtered = prev.observerCoachEmails.filter(
+                                    em => em.toLowerCase() !== coach.email.toLowerCase()
+                                  );
+                                  return {
+                                    ...prev,
+                                    observerCoachEmails: checked ? [...filtered, coach.email] : filtered
+                                  };
+                                });
+                              }}
+                              className="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-slate-900"
+                            />
+                            <span className="truncate font-medium text-xs">{coach.name}</span>
+                          </div>
+
+                          {isPrimary ? (
+                            <span className="text-[10px] font-bold text-sky-300 bg-sky-950 px-2 py-0.5 rounded-full border border-sky-800 flex-shrink-0">
+                              Haupttrainer
+                            </span>
+                          ) : isObserver ? (
+                            <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-800 flex-shrink-0">
+                              Beobachter
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-600 font-medium flex-shrink-0">
+                              Kein Zugriff
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

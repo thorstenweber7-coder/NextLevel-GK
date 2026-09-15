@@ -64,6 +64,7 @@ import {
   FolderPlus,
   UserPlus,
   ArrowRightLeft,
+  Eye,
   X
 } from 'lucide-react';
 import { cn } from '../utils/cn';
@@ -149,12 +150,20 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
   // Group Modal state
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<TrainingGroup | null>(null);
-  const [groupFormData, setGroupFormData] = useState({
+  const [groupFormData, setGroupFormData] = useState<{
+    name: string;
+    description: string;
+    ageCategory: string;
+    color: string;
+    assignedCoachEmail: string;
+    observerCoachEmails: string[];
+  }>({
     name: '',
     description: '',
     ageCategory: 'U17',
     color: 'emerald',
-    assignedCoachEmail: ''
+    assignedCoachEmail: '',
+    observerCoachEmails: []
   });
 
   // Player Modal state
@@ -701,7 +710,8 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
       description: '',
       ageCategory: 'U17',
       color: 'emerald',
-      assignedCoachEmail: currentClub?.adminEmail || user?.email || ''
+      assignedCoachEmail: currentClub?.adminEmail || user?.email || '',
+      observerCoachEmails: []
     });
     setIsGroupModalOpen(true);
   };
@@ -713,7 +723,8 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
       description: group.description || '',
       ageCategory: group.ageCategory || 'U17',
       color: group.color || 'emerald',
-      assignedCoachEmail: group.assignedCoachEmail || ''
+      assignedCoachEmail: group.assignedCoachEmail || '',
+      observerCoachEmails: Array.isArray(group.observerCoachEmails) ? [...group.observerCoachEmails] : []
     });
     setIsGroupModalOpen(true);
   };
@@ -729,6 +740,11 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
       const assignedCoachObj = availableCoaches.find(c => c.email.toLowerCase() === groupFormData.assignedCoachEmail.toLowerCase());
       const assignedCoachName = assignedCoachObj ? assignedCoachObj.name : (groupFormData.assignedCoachEmail || undefined);
 
+      // Clean observer emails: remove empty and primary coach email
+      const cleanObservers = groupFormData.observerCoachEmails.filter(
+        em => em && em.toLowerCase() !== (groupFormData.assignedCoachEmail || '').toLowerCase()
+      );
+
       if (editingGroup) {
         await saveTrainingGroupToFirestore({
           ...editingGroup,
@@ -738,6 +754,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
           color: groupFormData.color,
           assignedCoachEmail: groupFormData.assignedCoachEmail || undefined,
           assignedCoachName: assignedCoachName || undefined,
+          observerCoachEmails: cleanObservers,
           clubId: effectiveClubId
         }, user, effectiveClubId);
         showToast('Trainingsgruppe erfolgreich aktualisiert!');
@@ -749,6 +766,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
           color: groupFormData.color,
           assignedCoachEmail: groupFormData.assignedCoachEmail || undefined,
           assignedCoachName: assignedCoachName || undefined,
+          observerCoachEmails: cleanObservers,
           players: [],
           clubId: effectiveClubId
         }, user, effectiveClubId);
@@ -1755,19 +1773,46 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                             </h4>
                           </div>
 
-                          {/* Coach Badge */}
-                          <div className="flex items-center gap-1.5 text-xs text-slate-300 mt-2">
-                            <ShieldCheck className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
-                            <span>Zuständiger Trainer:</span>
-                            {group.assignedCoachEmail ? (
-                              <span className="font-bold text-sky-300 bg-sky-950/80 px-2 py-0.5 rounded-lg border border-sky-800/60 truncate">
-                                {group.assignedCoachName || group.assignedCoachEmail}
-                              </span>
-                            ) : (
-                              <span className="text-slate-500 italic bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800">
-                                Club-Admin (nicht zugewiesen)
-                              </span>
-                            )}
+                          {/* Coach & Observer Badges */}
+                          <div className="flex flex-col gap-1.5 mt-2">
+                            <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                              <ShieldCheck className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+                              <span className="text-slate-400">Haupttrainer:</span>
+                              {group.assignedCoachEmail ? (
+                                <span className="font-bold text-sky-300 bg-sky-950/80 px-2 py-0.5 rounded-lg border border-sky-800/60 truncate">
+                                  {group.assignedCoachName || group.assignedCoachEmail}
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 italic bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800">
+                                  Club-Admin (nicht zugewiesen)
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 text-xs text-slate-300 flex-wrap">
+                              <Eye className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                              <span className="text-slate-400">Beobachter:</span>
+                              {(group.observerCoachEmails && group.observerCoachEmails.length > 0) ? (
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {group.observerCoachEmails.map(email => {
+                                    const coachObj = availableCoaches.find(c => c.email.toLowerCase() === email.toLowerCase());
+                                    const displayName = coachObj ? coachObj.name.replace(' (Club-Admin)', '') : email;
+                                    return (
+                                      <span 
+                                        key={email}
+                                        className="text-[10px] font-semibold text-emerald-300 bg-emerald-950/70 px-2 py-0.5 rounded-lg border border-emerald-800/70"
+                                      >
+                                        {displayName}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-500 italic">
+                                  Keine weiteren Beobachter
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -2626,15 +2671,24 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                 </div>
               </div>
 
-              {/* Assigned Coach Dropdown */}
+              {/* Assigned Primary Coach Dropdown */}
               <div>
                 <label className="block text-slate-300 font-bold mb-1 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Zuständiger Trainer (lizensierter Trainer)</span>
+                  <span>Zuständiger Haupttrainer (lizensierter Trainer)</span>
                 </label>
                 <select
                   value={groupFormData.assignedCoachEmail}
-                  onChange={e => setGroupFormData(prev => ({ ...prev, assignedCoachEmail: e.target.value }))}
+                  onChange={e => {
+                    const newPrimary = e.target.value;
+                    setGroupFormData(prev => ({
+                      ...prev,
+                      assignedCoachEmail: newPrimary,
+                      observerCoachEmails: prev.observerCoachEmails.filter(
+                        em => em.toLowerCase() !== newPrimary.toLowerCase()
+                      )
+                    }));
+                  }}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-xs"
                 >
                   <option value="">Kein Trainer fest zugewiesen (Club-Admin)</option>
@@ -2645,8 +2699,117 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                   ))}
                 </select>
                 <p className="text-[10px] text-slate-500 mt-1">
-                  Der zugewiesene Trainer erhält Schreibrechte für Dateneingaben und die Periodisierung dieser Gruppe.
+                  Der Haupttrainer erhält volle Schreibrechte für Dateneingaben, Periodisierung und Bewertungen dieser Gruppe.
                 </p>
+              </div>
+
+              {/* Observer Coaches Checkbox List */}
+              <div className="space-y-2 p-3 bg-slate-950/80 rounded-2xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-300 font-bold flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Beobachter-Rechte (Vereinstrainer / Club-Coaches)</span>
+                  </label>
+                  {availableCoaches.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allCoachEmails = availableCoaches
+                            .map(c => c.email)
+                            .filter(em => em.toLowerCase() !== groupFormData.assignedCoachEmail.toLowerCase());
+                          setGroupFormData(prev => ({ ...prev, observerCoachEmails: allCoachEmails }));
+                        }}
+                        className="text-[10px] text-emerald-400 hover:underline font-semibold"
+                      >
+                        Alle
+                      </button>
+                      <span className="text-slate-700">|</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGroupFormData(prev => ({ ...prev, observerCoachEmails: [] }));
+                        }}
+                        className="text-[10px] text-slate-400 hover:underline font-semibold"
+                      >
+                        Keine
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Wähle per Checkbox aus, welche weiteren Vereinstrainer diese Trainingsgruppe einsehen dürfen (Lese- und Einsichtsrechte für Torhüter, Fehlzeiten, Spielzeiten, Periodisierung & Statistiken).
+                </p>
+
+                {availableCoaches.length === 0 ? (
+                  <p className="text-[11px] text-slate-500 italic py-1">
+                    Bisher keine weiteren Trainer im Verein registriert.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 pt-1">
+                    {availableCoaches.map(coach => {
+                      const isPrimary = Boolean(
+                        groupFormData.assignedCoachEmail &&
+                        coach.email.toLowerCase() === groupFormData.assignedCoachEmail.toLowerCase()
+                      );
+                      const isObserver = groupFormData.observerCoachEmails.some(
+                        em => em.toLowerCase() === coach.email.toLowerCase()
+                      );
+
+                      return (
+                        <label
+                          key={coach.email}
+                          className={cn(
+                            "flex items-center justify-between p-2 rounded-xl border text-xs cursor-pointer transition select-none",
+                            isPrimary 
+                              ? "bg-sky-950/40 border-sky-800/60 opacity-80 cursor-default" 
+                              : isObserver 
+                                ? "bg-emerald-950/40 border-emerald-800 text-slate-100" 
+                                : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              disabled={isPrimary}
+                              checked={isPrimary || isObserver}
+                              onChange={e => {
+                                if (isPrimary) return;
+                                const checked = e.target.checked;
+                                setGroupFormData(prev => {
+                                  const filtered = prev.observerCoachEmails.filter(
+                                    em => em.toLowerCase() !== coach.email.toLowerCase()
+                                  );
+                                  return {
+                                    ...prev,
+                                    observerCoachEmails: checked ? [...filtered, coach.email] : filtered
+                                  };
+                                });
+                              }}
+                              className="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-slate-900"
+                            />
+                            <span className="truncate font-medium text-xs">{coach.name}</span>
+                          </div>
+
+                          {isPrimary ? (
+                            <span className="text-[10px] font-bold text-sky-300 bg-sky-950 px-2 py-0.5 rounded-full border border-sky-800 flex-shrink-0">
+                              Haupttrainer
+                            </span>
+                          ) : isObserver ? (
+                            <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-800 flex-shrink-0">
+                              Beobachter
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-600 font-medium flex-shrink-0">
+                              Kein Zugriff
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div>

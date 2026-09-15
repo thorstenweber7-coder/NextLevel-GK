@@ -99,6 +99,8 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     userProfile, 
     isAdmin, 
     isClubAdmin, 
+    isClubCoach,
+    isMasterAdmin,
     clubId, 
     clubName, 
     favoriteExerciseIds = [], 
@@ -259,20 +261,52 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     };
   }, [user, isAdmin, clubId, isClubAdmin]);
 
+  const canViewGroup = (group: TrainingGroup) => {
+    if (isMasterAdmin || isClubAdmin) return true;
+    const userEmail = (user?.email || '').toLowerCase().trim();
+    const uid = user?.uid;
+
+    if (!group.clubId) {
+      return group.ownerId === uid || !group.ownerId || (Boolean(group.ownerEmail) && group.ownerEmail?.toLowerCase() === userEmail);
+    }
+
+    if (isClubCoach) {
+      const isAssigned = (Boolean(group.assignedCoachEmail) && group.assignedCoachEmail?.toLowerCase() === userEmail) ||
+                         (Boolean(group.assignedCoachId) && group.assignedCoachId === uid);
+      if (isAssigned) return true;
+
+      const isObserver = (group.observerCoachEmails || []).some(e => e && e.toLowerCase().trim() === userEmail) ||
+                         (group.observerCoachIds || []).includes(uid || '');
+      if (isObserver) return true;
+
+      if (group.ownerId === uid || (Boolean(group.ownerEmail) && group.ownerEmail?.toLowerCase() === userEmail)) {
+        return true;
+      }
+
+      return false;
+    }
+
+    return true;
+  };
+
+  const visibleTrainingGroups = useMemo(() => {
+    return trainingGroups.filter(canViewGroup);
+  }, [trainingGroups, user, isMasterAdmin, isClubAdmin, isClubCoach]);
+
   // Ensure default targetGroup is always the first created group
   useEffect(() => {
-    if (trainingGroups.length > 0) {
+    if (visibleTrainingGroups.length > 0) {
       setTargetGroup(prev => {
-        if (prev && trainingGroups.some(g => g.name === prev)) return prev;
-        return trainingGroups[0].name;
+        if (prev && visibleTrainingGroups.some(g => g.name === prev)) return prev;
+        return visibleTrainingGroups[0].name;
       });
     }
-  }, [trainingGroups]);
+  }, [visibleTrainingGroups]);
 
   // Selected Training Group Object & Calculated Available Keepers for planDate (Group Keepers - Absences)
   const selectedGroupObj = useMemo(() => {
-    return trainingGroups.find(g => g.name === targetGroup || g.id === targetGroup) || trainingGroups[0];
-  }, [trainingGroups, targetGroup]);
+    return visibleTrainingGroups.find(g => g.name === targetGroup || g.id === targetGroup) || visibleTrainingGroups[0];
+  }, [visibleTrainingGroups, targetGroup]);
 
   const actualAvailableKeepers = useMemo(() => {
     if (!selectedGroupObj || !selectedGroupObj.players) return 0;
@@ -765,31 +799,31 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   // Group players derived
   const currentGroupPlayers = useMemo(() => {
     const tgNorm = (targetGroup || '').trim().toLowerCase();
-    const matched = trainingGroups.find(g => g.name.trim().toLowerCase() === tgNorm || g.id === targetGroup);
+    const matched = visibleTrainingGroups.find(g => g.name.trim().toLowerCase() === tgNorm || g.id === targetGroup);
     if (matched && matched.players?.length) return matched.players;
     const allP: Player[] = [];
-    trainingGroups.forEach(g => {
+    visibleTrainingGroups.forEach(g => {
       (g.players || []).forEach(p => {
         if (!allP.some(x => x.id === p.id)) allP.push(p);
       });
     });
     return allP;
-  }, [targetGroup, trainingGroups]);
+  }, [targetGroup, visibleTrainingGroups]);
 
   // Workload data
   const currentPlannerGroup = useMemo(() => {
     const tgNorm = (targetGroup || '').trim().toLowerCase();
-    return trainingGroups.find(g => g.name.trim().toLowerCase() === tgNorm || g.id === targetGroup) || trainingGroups[0] || null;
-  }, [targetGroup, trainingGroups]);
+    return visibleTrainingGroups.find(g => g.name.trim().toLowerCase() === tgNorm || g.id === targetGroup) || visibleTrainingGroups[0] || null;
+  }, [targetGroup, visibleTrainingGroups]);
 
   const activeGroupWorkload = useMemo(() => {
-    return calculateGroupWorkload(currentPlannerGroup, trainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans);
-  }, [currentPlannerGroup, trainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans]);
+    return calculateGroupWorkload(currentPlannerGroup, visibleTrainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans);
+  }, [currentPlannerGroup, visibleTrainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans]);
 
   // Matching Periodization
   const matchedPeriodization = useMemo(() => {
     if (!planDate || mesoPlans.length === 0) return null;
-    const currentGroup = trainingGroups.find(g => g.name === targetGroup);
+    const currentGroup = visibleTrainingGroups.find(g => g.name === targetGroup);
     const currentGroupId = currentGroup?.id;
 
     // Filter by group first if currentGroupId exists
@@ -896,7 +930,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
       microTeamIntensity: microTeamIntensityVal,
       microTeamDuration: microTeamDurationVal
     };
-  }, [planDate, mesoPlans, targetGroup, trainingGroups]);
+  }, [planDate, mesoPlans, targetGroup, visibleTrainingGroups]);
 
   // Derived microplanning topic for active date and group
   const microTopic = useMemo(() => {
@@ -1329,7 +1363,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
               onChange={e => handleTargetGroupChange(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition font-medium truncate"
             >
-              {trainingGroups.map(g => (
+              {visibleTrainingGroups.map(g => (
                 <option key={g.id} value={g.name} className="bg-slate-900 text-white">
                   {g.name} ({g.players?.length || 0} TW)
                 </option>
@@ -1656,7 +1690,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
         savedPlans={savedPlans}
         exerciseMap={exerciseMap}
         structures={structures}
-        groups={trainingGroups}
+        groups={visibleTrainingGroups}
         onLoadPlan={handleLoadPlan}
         onPlanUpdated={(updated) => {
           setSavedPlans(prev => prev.map(p => p.id === updated.id ? updated : p));
@@ -1668,7 +1702,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           plan={liveSessionPlan}
           exerciseMap={exerciseMap}
           structures={structures}
-          groups={trainingGroups}
+          groups={visibleTrainingGroups}
           onClose={() => setLiveSessionPlan(null)}
           onPlanUpdated={(updated) => {
             setSavedPlans(prev => prev.map(p => p.id === updated.id ? updated : p));
@@ -1681,7 +1715,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
         onClose={() => setIsOrgaTalksModalOpen(false)}
         targetGroupName={targetGroup}
         players={currentGroupPlayers}
-        allGroups={trainingGroups}
+        allGroups={visibleTrainingGroups}
         savedPlans={savedPlans}
         feedbackTalks={feedbackTalks}
         userId={user?.uid}
@@ -1700,7 +1734,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
       <WorkloadManagementModal
         isOpen={isWorkloadModalOpen}
         onClose={() => setIsWorkloadModalOpen(false)}
-        groups={trainingGroups}
+        groups={visibleTrainingGroups}
         savedPlans={savedPlans}
         matchPlaytimes={matchPlaytimes}
         mesoPlans={mesoPlans}

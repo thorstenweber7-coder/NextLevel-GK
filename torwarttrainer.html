@@ -1021,12 +1021,41 @@
           <div>
             <span class="text-[10px] tracking-widest font-bold text-neonGreen uppercase bg-neonGreen/10 px-3 py-1 rounded-full border border-neonGreen/20 w-fit block mb-4">GESAMTLIZENZ</span>
             <h3 class="text-xl font-bold text-white uppercase mb-2">Coach Pro</h3>
-            <p class="text-xs text-slate-400 leading-relaxed mb-6">
+            <p class="text-xs text-slate-400 leading-relaxed mb-4">
               Die vollständige Profi-Suite für ambitionierte Vereinstrainer mit wissenschaftlicher Diagnostik.
             </p>
 
-            <div class="text-3xl font-black text-neonGreen mb-6">
-              6,99 € <span class="text-xs text-slate-400 font-semibold uppercase">/ Monat</span>
+            <!-- Laufzeit-Umschalter (Monatlich vs. Jahreslizenz 70 €) -->
+            <div class="bg-dark-light/90 p-1 rounded-xl border border-dark-border mb-4">
+              <div class="grid grid-cols-2 gap-1 text-xs">
+                <button type="button" id="proBillingYearlyBtn" onclick="setProBilling('yearly')" class="py-1.5 px-2 rounded-lg font-bold text-center transition-all bg-neonGreen text-dark shadow-sm flex items-center justify-center gap-1">
+                  12 Monate <span class="bg-dark/20 text-dark text-[9px] font-black px-1.5 py-0.5 rounded-full">70 €</span>
+                </button>
+                <button type="button" id="proBillingMonthlyBtn" onclick="setProBilling('monthly')" class="py-1.5 px-2 rounded-lg font-bold text-center transition-all text-slate-400 hover:text-white">
+                  Monatlich
+                </button>
+              </div>
+            </div>
+
+            <!-- Preis-Anzeige 12 Monate (Standard) -->
+            <div id="proPriceYearlyDisplay" class="mb-6">
+              <div class="flex items-baseline gap-2">
+                <div class="text-3xl font-black text-neonGreen">70,- €</div>
+                <span class="text-xs text-slate-400 font-semibold uppercase">/ 12 Monate</span>
+              </div>
+              <p class="text-[11px] text-neonGreen font-semibold mt-1">
+                Entspricht ca. 5,83 € / Monat · <span class="text-white font-bold">Spare ~14 €</span>
+              </p>
+            </div>
+
+            <!-- Preis-Anzeige Monatlich (Versteckt bei Init) -->
+            <div id="proPriceMonthlyDisplay" class="mb-6 hidden">
+              <div class="text-3xl font-black text-neonGreen">
+                6,99 € <span class="text-xs text-slate-400 font-semibold uppercase">/ Monat</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">
+                Flexibel monatlich kündbar
+              </p>
             </div>
 
             <ul class="space-y-2.5 text-xs text-slate-300 border-t border-dark-border/60 pt-4 mb-6">
@@ -1037,8 +1066,8 @@
               <li class="flex items-center gap-2"><span class="text-neonGreen">✓</span> Mobiler Live-Session-Modus auf dem Platz</li>
             </ul>
           </div>
-          <button onclick="openTrainerModal('pro')" class="w-full bg-neonGreen hover:bg-neonGreen-hover text-dark font-black py-3.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-neonGreen/20">
-            Coach Pro wählen
+          <button id="proCtaBtn" onclick="openTrainerModal('pro-yearly')" class="w-full bg-neonGreen hover:bg-neonGreen-hover text-dark font-black py-3.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-neonGreen/20">
+            Jahreslizenz wählen (70 €)
           </button>
         </div>
 
@@ -1218,7 +1247,8 @@
               <select id="trainer-license-type" name="Lizenz-Typ" class="w-full bg-dark-light border border-dark-border focus:border-accentCyan focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white">
                 <option value="free" selected>14-Tage Testversion (Kostenlos)</option>
                 <option value="standard">Coach Standard (3,99 € / Monat)</option>
-                <option value="pro">Coach Pro (6,99 € / Monat)</option>
+                <option value="pro-yearly">Coach Pro Jahreslizenz (70,- € / 12 Monate - Spartipp)</option>
+                <option value="pro">Coach Pro Monatslizenz (6,99 € / Monat)</option>
                 <option value="club">Club Lizenz für Vereine / NLZs</option>
               </select>
             </div>
@@ -1345,6 +1375,31 @@
       document.body.classList.remove('overflow-hidden');
     }
 
+    // Coach Pro Billing Toggle
+    function setProBilling(type) {
+      const yearlyBtn = document.getElementById('proBillingYearlyBtn');
+      const monthlyBtn = document.getElementById('proBillingMonthlyBtn');
+      const yearlyDisplay = document.getElementById('proPriceYearlyDisplay');
+      const monthlyDisplay = document.getElementById('proPriceMonthlyDisplay');
+      const ctaBtn = document.getElementById('proCtaBtn');
+
+      if (type === 'monthly') {
+        monthlyBtn.className = "py-1.5 px-2 rounded-lg font-bold text-center transition-all bg-neonGreen text-dark shadow-sm";
+        yearlyBtn.className = "py-1.5 px-2 rounded-lg font-bold text-center transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1";
+        monthlyDisplay.classList.remove('hidden');
+        yearlyDisplay.classList.add('hidden');
+        ctaBtn.setAttribute('onclick', "openTrainerModal('pro')");
+        ctaBtn.textContent = "Coach Pro wählen (6,99 € / Mo.)";
+      } else {
+        yearlyBtn.className = "py-1.5 px-2 rounded-lg font-bold text-center transition-all bg-neonGreen text-dark shadow-sm flex items-center justify-center gap-1";
+        monthlyBtn.className = "py-1.5 px-2 rounded-lg font-bold text-center transition-all text-slate-400 hover:text-white";
+        yearlyDisplay.classList.remove('hidden');
+        monthlyDisplay.classList.add('hidden');
+        ctaBtn.setAttribute('onclick', "openTrainerModal('pro-yearly')");
+        ctaBtn.textContent = "Jahreslizenz wählen (70 €)";
+      }
+    }
+
     // Modal Controls
     function openTrainerModal(type) {
       const modal = document.getElementById('trainerModal');
@@ -1360,6 +1415,15 @@
         } else if (type === 'free') {
           title.textContent = "14 Tage kostenlos testen";
           desc.textContent = "Starte direkt unverbindlich ohne Zahlungsdaten mit der Vollversion.";
+        } else if (type === 'pro-yearly') {
+          title.textContent = "Coach Pro Jahreslizenz anfragen";
+          desc.textContent = "Sichere dir 12 Monate vollen Zugriff auf die Coach Pro Suite für 70,- € (einmalig für ein ganzes Jahr).";
+        } else if (type === 'pro') {
+          title.textContent = "Coach Pro Monatslizenz anfragen";
+          desc.textContent = "Starte mit Coach Pro für 6,99 € monatlich – flexibel monatlich kündbar.";
+        } else if (type === 'standard') {
+          title.textContent = "Coach Standard anfragen";
+          desc.textContent = "Starte mit Coach Standard für 3,99 € monatlich – die Basis für deine Trainingsplanung.";
         } else {
           title.textContent = "Lizenz anfragen";
           desc.textContent = "Trage deine Daten ein, um deinen Zugang zu aktivieren.";
