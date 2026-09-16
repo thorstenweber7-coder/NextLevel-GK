@@ -309,6 +309,7 @@ export type MaterialType =
   | 'Hürden'
   | 'Hütchen'
   | 'Medizinball'
+  | 'Plyobox'
   | 'Quadrate'
   | 'Rebounder'
   | 'Shield'
@@ -324,6 +325,7 @@ export const ALL_MATERIALS: MaterialType[] = [
   'Hürden',
   'Hütchen',
   'Medizinball',
+  'Plyobox',
   'Quadrate',
   'Rebounder',
   'Shield',
@@ -570,6 +572,7 @@ export type ToolType =
   | 'board'
   | 'rebounder'
   | 'bench'
+  | 'plyobox'
   | 'medicine_ball'
   | 'square'
   | 'resistance_band'

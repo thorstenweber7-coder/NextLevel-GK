@@ -51,26 +51,28 @@ const TOOL_TO_MATERIAL_MAP: Partial<Record<ToolType, MaterialType>> = {
   board: 'Shield',
   rebounder: 'Rebounder',
   bench: 'Bank',
+  plyobox: 'Plyobox',
   medicine_ball: 'Medizinball',
   square: 'Quadrate',
   resistance_band: 'Widerstandsbänder',
   jumping_rope: 'Sprungseile'
 };
 
-const TRACKED_BOARD_MATERIALS: MaterialType[] = [
-  'Hütchen',
-  'Dummies',
-  'Hürden',
-  'Stangen',
-  'Blazepods',
-  'Shield',
-  'Rebounder',
-  'Bank',
-  'Medizinball',
-  'Quadrate',
-  'Widerstandsbänder',
-  'Sprungseile'
-];
+const MATERIAL_TO_TOOL_MAP: Partial<Record<MaterialType, ToolType>> = {
+  Hütchen: 'cone',
+  Dummies: 'dummy',
+  Hürden: 'hurdle',
+  Stangen: 'pole',
+  Blazepods: 'blazepod',
+  Shield: 'board',
+  Rebounder: 'rebounder',
+  Bank: 'bench',
+  Plyobox: 'plyobox',
+  Medizinball: 'medicine_ball',
+  Quadrate: 'square',
+  Widerstandsbänder: 'resistance_band',
+  Sprungseile: 'jumping_rope'
+};
 
 interface ExerciseEditorProps {
   initialExercise?: Exercise | null;
@@ -573,7 +575,24 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     }
   }, [initialExercise]);
 
-  // Synchronize Materials with Symbols on Canvas
+  // Material Toggle Handler: checks/unchecks material and places symbol on canvas if not present
+  const handleToggleMaterial = (mat: MaterialType) => {
+    setMaterials(prev => {
+      const isAlreadyIncluded = prev.includes(mat);
+      if (isAlreadyIncluded) {
+        return prev.filter(m => m !== mat);
+      } else {
+        // When checked: automatically add the symbol to top right area if mapped to a tool
+        const tool = MATERIAL_TO_TOOL_MAP[mat];
+        if (tool && canvasRef.current) {
+          canvasRef.current.addElement(tool);
+        }
+        return [...prev, mat];
+      }
+    });
+  };
+
+  // Synchronize Materials with Symbols on Canvas (unions canvas materials without deleting manually checked items)
   const handleCanvasChange = (data: TacticalCanvasData) => {
     const activeBoardMaterials = new Set<MaterialType>();
     (data.elements || []).forEach(el => {
@@ -584,8 +603,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     });
 
     setMaterials(prev => {
-      const nonBoardMaterials = prev.filter(m => !TRACKED_BOARD_MATERIALS.includes(m));
-      return Array.from(new Set([...nonBoardMaterials, ...Array.from(activeBoardMaterials)]));
+      return Array.from(new Set([...prev, ...Array.from(activeBoardMaterials)]));
     });
   };
 
@@ -1017,6 +1035,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
             setDurationMinutes={setDurationMinutes}
             materials={materials}
             setMaterials={setMaterials}
+            onToggleMaterial={handleToggleMaterial}
             videoUrl={videoUrl}
             setVideoUrl={setVideoUrl}
             ablauf={ablauf}

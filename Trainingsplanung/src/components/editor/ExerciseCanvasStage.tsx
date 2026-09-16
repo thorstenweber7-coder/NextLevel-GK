@@ -18,8 +18,8 @@ export const ExerciseCanvasStage: React.FC<ExerciseCanvasStageProps> = ({
   height = 560
 }) => {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl space-y-4">
-      <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 flex items-center justify-center">
+    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-3 sm:p-4 shadow-2xl">
+      <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
         <TacticalCanvas
           ref={canvasRef}
           initialData={initialData}

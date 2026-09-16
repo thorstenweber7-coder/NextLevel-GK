@@ -83,6 +83,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
   
   const [activeTab, setActiveTab] = useState<'users' | 'exercises' | 'clubs' | 'principles' | 'tactic_principles' | 'roles'>('users');
   const [searchUser, setSearchUser] = useState<string>('');
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
+  const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active_sub' | 'trial' | 'club' | 'expired' | 'expired_trial_21' | 'expired_single_23' | 'blocked'>('all');
   const [searchExercise, setSearchExercise] = useState<string>('');
   const [exerciseSubTab, setExerciseSubTab] = useState<'active' | 'archived'>('active');
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
@@ -180,7 +182,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
   const handleUnlock1Year = async (uid: string, email: string) => {
     try {
       setActionLoading(uid);
-      await unlockUserForOneYear(uid);
+      let targetUid = uid;
+      if (uid.startsWith('pending_')) {
+        const u = allCombinedUsers.find(x => x.email.toLowerCase().trim() === email.toLowerCase().trim());
+        targetUid = await createNewUserByAdmin({
+          email: email,
+          firstName: u?.firstName || '',
+          lastName: u?.lastName || '',
+          role: u?.role || 'club_coach',
+          clubId: u?.clubId,
+          clubName: u?.clubName,
+          licenseType: 'pro_1_year'
+        });
+      }
+      await unlockUserForOneYear(targetUid);
       showFeedbackToast(`Account ${email} erfolgreich für 1 Jahr freigeschaltet!`);
     } catch (err) {
       console.error('Error unlocking user:', err);
@@ -193,7 +208,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
   const handleExtendTrial = async (uid: string, email: string, days: number) => {
     try {
       setActionLoading(uid);
-      await extendUserTrial(uid, days);
+      let targetUid = uid;
+      if (uid.startsWith('pending_')) {
+        const u = allCombinedUsers.find(x => x.email.toLowerCase().trim() === email.toLowerCase().trim());
+        targetUid = await createNewUserByAdmin({
+          email: email,
+          firstName: u?.firstName || '',
+          lastName: u?.lastName || '',
+          role: u?.role || 'trial_user',
+          clubId: u?.clubId,
+          clubName: u?.clubName,
+          licenseType: 'trial_14'
+        });
+      }
+      await extendUserTrial(targetUid, days);
       showFeedbackToast(`Testzeitraum für ${email} um ${days} Tage verlängert!`);
     } catch (err) {
       console.error('Error extending trial:', err);
@@ -241,6 +269,38 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
     }
   };
 
+  const handleDirectRoleChange = async (u: UserProfile, newRole: UserRole) => {
+    if (u.role === newRole) return;
+    if (u.email.toLowerCase() === 'thorsten.weber7@gmail.com') {
+      alert('Die Rolle des Haupt-Master-Admins kann nicht geändert werden.');
+      return;
+    }
+    try {
+      setActionLoading(u.uid);
+      let targetUid = u.uid;
+      if (targetUid.startsWith('pending_')) {
+        const found = allCombinedUsers.find(x => x.email.toLowerCase().trim() === u.email.toLowerCase().trim());
+        targetUid = await createNewUserByAdmin({
+          email: u.email,
+          firstName: found?.firstName || u.firstName || '',
+          lastName: found?.lastName || u.lastName || '',
+          role: newRole,
+          clubId: found?.clubId || u.clubId,
+          clubName: found?.clubName || u.clubName,
+          licenseType: newRole === 'single_pro' ? 'pro_1_year' : (newRole === 'trial_user' ? 'trial_14' : 'standard')
+        });
+      } else {
+        await updateUserRole(targetUid, newRole);
+      }
+      showFeedbackToast(`Rolle für ${u.email} erfolgreich auf "${getRoleLabel(newRole)}" geändert!`);
+    } catch (err) {
+      console.error('Error changing user role:', err);
+      alert('Fehler beim Ändern der Rolle.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleOpenRoleModal = (u: UserProfile) => {
     setEditingRoleUser(u);
     setSelectedNewRole(u.role);
@@ -250,7 +310,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
     if (!editingRoleUser) return;
     try {
       setChangeRoleLoading(true);
-      await updateUserRole(editingRoleUser.uid, selectedNewRole);
+      let targetUid = editingRoleUser.uid;
+      if (targetUid.startsWith('pending_')) {
+        targetUid = await createNewUserByAdmin({
+          email: editingRoleUser.email,
+          firstName: editingRoleUser.firstName || '',
+          lastName: editingRoleUser.lastName || '',
+          role: selectedNewRole,
+          clubId: editingRoleUser.clubId,
+          clubName: editingRoleUser.clubName,
+          licenseType: selectedNewRole === 'single_pro' ? 'pro_1_year' : 'standard'
+        });
+      } else {
+        await updateUserRole(targetUid, selectedNewRole);
+      }
       showFeedbackToast(`Rolle für ${editingRoleUser.email} auf "${getRoleLabel(selectedNewRole)}" geändert!`);
       setEditingRoleUser(null);
     } catch (err) {
@@ -266,7 +339,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
     if (window.confirm(`Möchtest du den Account ${email} wirklich ${action}?`)) {
       try {
         setActionLoading(uid);
-        await toggleUserBlockStatus(uid, !currentBlocked);
+        let targetUid = uid;
+        if (uid.startsWith('pending_')) {
+          const u = allCombinedUsers.find(x => x.email.toLowerCase().trim() === email.toLowerCase().trim());
+          targetUid = await createNewUserByAdmin({
+            email: email,
+            firstName: u?.firstName || '',
+            lastName: u?.lastName || '',
+            role: u?.role || 'trial_user',
+            clubId: u?.clubId,
+            clubName: u?.clubName,
+            licenseType: 'standard'
+          });
+        }
+        await toggleUserBlockStatus(targetUid, !currentBlocked);
         showFeedbackToast(`Account ${email} wurde ${currentBlocked ? 'entsperrt' : 'gesperrt'}.`);
       } catch (err) {
         console.error('Error toggling block:', err);
@@ -503,16 +589,131 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
     }
   };
 
+  // Helper to extract a clean string for alphabetical sorting (Last name, First name, Display name, Email)
+  const getUserSortKey = (u: UserProfile): string => {
+    if (u.lastName && u.firstName) {
+      return `${u.lastName} ${u.firstName}`.toLowerCase().trim();
+    }
+    if (u.lastName) {
+      return u.lastName.toLowerCase().trim();
+    }
+    if (u.firstName) {
+      return u.firstName.toLowerCase().trim();
+    }
+    if (u.displayName) {
+      return u.displayName.toLowerCase().trim();
+    }
+    return (u.email || '').toLowerCase().trim();
+  };
+
+  const isSingleUser = (u: UserProfile): boolean => {
+    const isClub = u.role === 'club_admin' || u.role === 'club_coach' || Boolean(u.clubId);
+    const isMaster = u.role === 'master_admin' || u.role === 'admin';
+    return !isClub && !isMaster;
+  };
+
+  const isExpiredSingle23 = (u: UserProfile, currentTime: number): boolean => {
+    if (!isSingleUser(u)) return false;
+    if (u.isBlocked) return false;
+    const isSubActive = !!u.subscriptionExpiresAt && u.subscriptionExpiresAt > currentTime;
+    if (isSubActive) return false;
+    const isTrialActive = !!u.trialExpiresAt && u.trialExpiresAt > currentTime;
+    if (isTrialActive) return false;
+
+    const latestExpiry = Math.max(u.subscriptionExpiresAt || 0, u.trialExpiresAt || 0);
+    if (latestExpiry > 0) {
+      return (currentTime - latestExpiry) >= 23 * 24 * 60 * 60 * 1000;
+    }
+    if (u.createdAt) {
+      return (currentTime - u.createdAt) >= 23 * 24 * 60 * 60 * 1000;
+    }
+    return false;
+  };
+
+  // Combine registered users with any club admins/coaches from clubs that may not yet have a users document
+  const allCombinedUsers = useMemo<UserProfile[]>(() => {
+    const existingEmails = new Set(users.map(u => (u.email || '').toLowerCase().trim()).filter(Boolean));
+    const list = [...users];
+
+    clubs.forEach(c => {
+      // Check club admin email
+      if (c.adminEmail && !existingEmails.has(c.adminEmail.toLowerCase().trim())) {
+        const email = c.adminEmail.toLowerCase().trim();
+        existingEmails.add(email);
+        list.push({
+          uid: c.adminUid || `pending_${c.id}_admin`,
+          email: email,
+          firstName: '',
+          lastName: '',
+          displayName: `${c.name} (Club-Admin)`,
+          role: 'club_admin',
+          clubId: c.id,
+          clubName: c.name,
+          createdAt: c.createdAt || Date.now(),
+          subscriptionExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+          trialExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+          isBlocked: false,
+          favoriteExerciseIds: []
+        });
+      }
+
+      // Check coach emails
+      (c.coachEmails || []).forEach((cEmail, idx) => {
+        const normEmail = cEmail.toLowerCase().trim();
+        if (normEmail && !existingEmails.has(normEmail)) {
+          existingEmails.add(normEmail);
+          list.push({
+            uid: c.coachUids?.[idx] || `pending_${c.id}_coach_${idx}`,
+            email: normEmail,
+            firstName: '',
+            lastName: '',
+            displayName: `${c.name} (Trainer)`,
+            role: 'club_coach',
+            clubId: c.id,
+            clubName: c.name,
+            createdAt: c.createdAt || Date.now(),
+            subscriptionExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+            trialExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+            isBlocked: false,
+            favoriteExerciseIds: []
+          });
+        }
+      });
+    });
+
+    // Always sort all combined users alphabetically
+    list.sort((a, b) => getUserSortKey(a).localeCompare(getUserSortKey(b), 'de', { sensitivity: 'base' }));
+
+    return list;
+  }, [users, clubs]);
+
   // Stats calculation
   const now = Date.now();
   const stats = useMemo(() => {
-    const totalUsers = users.length;
+    const totalUsers = allCombinedUsers.length;
     let activeSubscribed = 0;
     let activeTrial = 0;
     let expired = 0;
     let blocked = 0;
+    let clubTrainers = 0;
+    let expiredTrial21 = 0;
+    let expiredSingle23 = 0;
 
-    users.forEach(u => {
+    const roleCounts: Record<string, number> = {
+      all: totalUsers,
+      master_admin: 0,
+      club_admin: 0,
+      club_coach: 0,
+      single_pro: 0,
+      single_standard: 0,
+      trial_user: 0
+    };
+
+    allCombinedUsers.forEach(u => {
+      const isClub = u.role === 'club_admin' || u.role === 'club_coach' || Boolean(u.clubId);
+      if (isClub) {
+        clubTrainers++;
+      }
       if (u.isBlocked) {
         blocked++;
       } else if (u.subscriptionExpiresAt && u.subscriptionExpiresAt > now) {
@@ -521,6 +722,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
         activeTrial++;
       } else {
         expired++;
+      }
+
+      // Check trial expired >= 21 days (and no active subscription)
+      const isSubActive = !!u.subscriptionExpiresAt && u.subscriptionExpiresAt > now;
+      if (!isSubActive && u.trialExpiresAt && (now - u.trialExpiresAt) >= 21 * 24 * 60 * 60 * 1000) {
+        expiredTrial21++;
+      }
+
+      // Check single user accounts expired >= 23 days
+      if (isExpiredSingle23(u, now)) {
+        expiredSingle23++;
+      }
+
+      // Role count tally
+      if (u.role === 'master_admin' || u.role === 'admin') {
+        roleCounts.master_admin++;
+      } else if (u.role === 'club_admin') {
+        roleCounts.club_admin++;
+      } else if (u.role === 'club_coach') {
+        roleCounts.club_coach++;
+      } else if (u.role === 'single_pro') {
+        roleCounts.single_pro++;
+      } else if (u.role === 'trial_user') {
+        roleCounts.trial_user++;
+      } else {
+        roleCounts.single_standard++;
       }
     });
 
@@ -534,22 +761,70 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
       activeTrial, 
       expired, 
       blocked, 
+      clubTrainers,
+      expiredTrial21,
+      expiredSingle23,
+      roleCounts,
       publishedExercises,
       activeExercisesCount,
       archivedExercisesCount 
     };
-  }, [users, exercises, now]);
+  }, [allCombinedUsers, exercises, now]);
 
   // Filtered lists
   const filteredUsers = useMemo(() => {
+    let list = allCombinedUsers;
+
+    // 1. Status / Expiry Filter
+    if (userStatusFilter === 'active_sub') {
+      list = list.filter(u => !u.isBlocked && u.subscriptionExpiresAt && u.subscriptionExpiresAt > now);
+    } else if (userStatusFilter === 'trial') {
+      list = list.filter(u => !u.isBlocked && (!u.subscriptionExpiresAt || u.subscriptionExpiresAt <= now) && u.trialExpiresAt && u.trialExpiresAt > now);
+    } else if (userStatusFilter === 'club') {
+      list = list.filter(u => u.role === 'club_admin' || u.role === 'club_coach' || Boolean(u.clubId));
+    } else if (userStatusFilter === 'expired') {
+      list = list.filter(u => !u.isBlocked && (!u.subscriptionExpiresAt || u.subscriptionExpiresAt <= now) && (!u.trialExpiresAt || u.trialExpiresAt <= now));
+    } else if (userStatusFilter === 'expired_trial_21') {
+      // Nur Testnutzer, deren 14-Tage-Testzeitraum schon mindestens 21 Tage abgelaufen ist (und kein aktives Abo haben)
+      list = list.filter(u => {
+        const isSubActive = !!u.subscriptionExpiresAt && u.subscriptionExpiresAt > now;
+        if (isSubActive) return false;
+        return Boolean(u.trialExpiresAt && (now - u.trialExpiresAt) >= 21 * 24 * 60 * 60 * 1000);
+      });
+    } else if (userStatusFilter === 'expired_single_23') {
+      // Nur Einzelnutzer-Accounts, die seit mehr als 23 Tagen abgelaufen sind
+      list = list.filter(u => isExpiredSingle23(u, now));
+    } else if (userStatusFilter === 'blocked') {
+      list = list.filter(u => u.isBlocked);
+    }
+
+    // 2. Role Filter
+    if (userRoleFilter !== 'all') {
+      if (userRoleFilter === 'master_admin') {
+        list = list.filter(u => u.role === 'master_admin' || u.role === 'admin');
+      } else if (userRoleFilter === 'single_standard') {
+        list = list.filter(u => u.role === 'single_standard' || u.role === 'user');
+      } else {
+        list = list.filter(u => u.role === userRoleFilter);
+      }
+    }
+
+    // 3. Search Query Filter
     const q = searchUser.toLowerCase().trim();
-    if (!q) return users;
-    return users.filter(u => 
-      u.email.toLowerCase().includes(q) || 
-      (u.displayName && u.displayName.toLowerCase().includes(q)) ||
-      u.role.toLowerCase().includes(q)
-    );
-  }, [users, searchUser]);
+    if (q) {
+      list = list.filter(u => 
+        (u.email && u.email.toLowerCase().includes(q)) || 
+        (u.firstName && u.firstName.toLowerCase().includes(q)) ||
+        (u.lastName && u.lastName.toLowerCase().includes(q)) ||
+        (u.displayName && u.displayName.toLowerCase().includes(q)) ||
+        (u.role && u.role.toLowerCase().includes(q)) ||
+        (u.clubName && u.clubName.toLowerCase().includes(q))
+      );
+    }
+
+    // Always sort filtered list alphabetically
+    return [...list].sort((a, b) => getUserSortKey(a).localeCompare(getUserSortKey(b), 'de', { sensitivity: 'base' }));
+  }, [allCombinedUsers, userStatusFilter, userRoleFilter, searchUser, now]);
 
   const filteredExercises = useMemo(() => {
     const q = searchExercise.toLowerCase().trim();
@@ -1075,7 +1350,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
             )}
           >
             <Users className="w-4 h-4" />
-            <span>Trainer & Lizenzen ({users.length})</span>
+            <span>Trainer & Lizenzen ({allCombinedUsers.length})</span>
           </button>
 
           <button
@@ -1150,7 +1425,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
         </div>
       </div>
 
-        {/* TAB 1: USERS & LICENSES TABLE */}
+      {/* TAB 1: USERS & LICENSES TABLE */}
       {activeTab === 'users' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1169,16 +1444,166 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
               </button>
             </div>
 
-            <div className="relative w-full sm:w-72">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchUser}
-                onChange={e => setSearchUser(e.target.value)}
-                placeholder="Trainer nach E-Mail suchen..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-500"
-              />
+            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+              {/* Role Filter Dropdown */}
+              <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 shadow-inner">
+                <ShieldCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                <span className="text-[11px] font-bold text-slate-400 whitespace-nowrap">Rolle:</span>
+                <select
+                  value={userRoleFilter}
+                  onChange={e => setUserRoleFilter(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-slate-200 focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="all" className="bg-slate-900 text-slate-200">Alle Rollen ({allCombinedUsers.length})</option>
+                  <option value="master_admin" className="bg-slate-900 text-slate-200">Master-Admin ({stats.roleCounts.master_admin})</option>
+                  <option value="club_admin" className="bg-slate-900 text-slate-200">Club-Admin ({stats.roleCounts.club_admin})</option>
+                  <option value="club_coach" className="bg-slate-900 text-slate-200">Vereinstrainer ({stats.roleCounts.club_coach})</option>
+                  <option value="single_pro" className="bg-slate-900 text-slate-200">Einzelnutzer Pro ({stats.roleCounts.single_pro})</option>
+                  <option value="single_standard" className="bg-slate-900 text-slate-200">Einzelnutzer Standard ({stats.roleCounts.single_standard})</option>
+                  <option value="trial_user" className="bg-slate-900 text-slate-200">Testnutzer ({stats.roleCounts.trial_user})</option>
+                </select>
+              </div>
+
+              {/* Search input */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchUser}
+                  onChange={e => setSearchUser(e.target.value)}
+                  placeholder="Trainer nach Name, E-Mail, Verein..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                />
+              </div>
             </div>
+          </div>
+
+          {/* Quick Filter Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar text-xs">
+            <button
+              type="button"
+              onClick={() => setUserStatusFilter('all')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap border cursor-pointer",
+                userStatusFilter === 'all'
+                  ? "bg-purple-600 border-purple-500 text-white shadow"
+                  : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+              )}
+            >
+              Alle ({allCombinedUsers.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setUserStatusFilter('active_sub')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap border cursor-pointer",
+                userStatusFilter === 'active_sub'
+                  ? "bg-emerald-600 border-emerald-500 text-white shadow"
+                  : "bg-slate-950 border-slate-800 text-slate-400 hover:text-emerald-300"
+              )}
+            >
+              Pro-Abo Aktiv ({stats.activeSubscribed})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setUserStatusFilter('trial')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap border cursor-pointer",
+                userStatusFilter === 'trial'
+                  ? "bg-amber-600 border-amber-500 text-white shadow"
+                  : "bg-slate-950 border-slate-800 text-slate-400 hover:text-amber-300"
+              )}
+            >
+              Testphase ({stats.activeTrial})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setUserStatusFilter('expired_trial_21')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap border cursor-pointer flex items-center gap-1.5",
+                userStatusFilter === 'expired_trial_21'
+                  ? "bg-amber-600 border-amber-400 text-slate-950 shadow-md shadow-amber-950/60 font-black"
+                  : "bg-slate-950 border-amber-900/60 text-amber-400 hover:text-amber-300 hover:border-amber-700"
+              )}
+              title="Testnutzer, deren 14-Tage-Testzeitraum schon 21 Tage abgelaufen ist"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Testphase &gt;21 T. abgelaufen ({stats.expiredTrial21})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setUserStatusFilter('expired_single_23')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap border cursor-pointer flex items-center gap-1.5",
+                userStatusFilter === 'expired_single_23'
+                  ? "bg-rose-700 border-rose-400 text-white shadow-md shadow-rose-950/60 font-black"
+                  : "bg-slate-950 border-rose-900/60 text-rose-300 hover:text-rose-200 hover:border-rose-700"
+              )}
+              title="Einzelnutzer-Accounts, die seit mehr als 23 Tagen abgelaufen sind"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+              <span>Einzelnutzer &gt;23 T. abgelaufen ({stats.expiredSingle23})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setUserStatusFilter('club')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap border cursor-pointer",
+                userStatusFilter === 'club'
+                  ? "bg-sky-600 border-sky-500 text-white shadow"
+                  : "bg-slate-950 border-slate-800 text-slate-400 hover:text-sky-300"
+              )}
+            >
+              Vereinstrainer ({stats.clubTrainers})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setUserStatusFilter('expired')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap border cursor-pointer",
+                userStatusFilter === 'expired'
+                  ? "bg-rose-900 border-rose-700 text-white shadow"
+                  : "bg-slate-950 border-slate-800 text-slate-400 hover:text-rose-400"
+              )}
+            >
+              Abgelaufen ({stats.expired})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setUserStatusFilter('blocked')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap border cursor-pointer",
+                userStatusFilter === 'blocked'
+                  ? "bg-rose-950 border-rose-800 text-rose-300 shadow"
+                  : "bg-slate-950 border-slate-800 text-slate-400 hover:text-rose-300"
+              )}
+            >
+              Gesperrt ({stats.blocked})
+            </button>
+
+            {/* Reset Filters button if any filter active */}
+            {(userStatusFilter !== 'all' || userRoleFilter !== 'all' || searchUser.trim()) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setUserStatusFilter('all');
+                  setUserRoleFilter('all');
+                  setSearchUser('');
+                }}
+                className="px-2.5 py-1.5 rounded-xl text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer ml-auto text-[11px] font-semibold"
+                title="Alle Filter und Suche zurücksetzen"
+              >
+                <RotateCcw className="w-3 h-3 text-purple-400" />
+                <span>Filter zurücksetzen</span>
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-800">
@@ -1194,141 +1619,213 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-850 bg-slate-900/60 text-slate-200">
-                {filteredUsers.map((u) => {
-                  const isSubActive = !!u.subscriptionExpiresAt && u.subscriptionExpiresAt > now;
-                  const isTrialActive = !isSubActive && u.trialExpiresAt > now;
-                  const trialDays = Math.max(0, Math.ceil((u.trialExpiresAt - now) / (24 * 60 * 60 * 1000)));
-                  const displayName = (u.firstName && u.lastName) ? `${u.firstName} ${u.lastName}` : (u.displayName || '');
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-500 italic">
+                      Keine Trainer für die aktuellen Filterkriterien gefunden.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => {
+                    const isSubActive = !!u.subscriptionExpiresAt && u.subscriptionExpiresAt > now;
+                    const isTrialActive = !isSubActive && (u.trialExpiresAt ? u.trialExpiresAt > now : false);
+                    const trialDays = Math.max(0, Math.ceil(((u.trialExpiresAt || 0) - now) / (24 * 60 * 60 * 1000)));
+                    
+                    const expiryTimestamp = Math.max(u.subscriptionExpiresAt || 0, u.trialExpiresAt || 0) || (u.createdAt || 0);
+                    const isExpired = !isSubActive && !isTrialActive;
+                    const daysSinceExpiry = (isExpired && expiryTimestamp > 0 && expiryTimestamp <= now)
+                      ? Math.floor((now - expiryTimestamp) / (24 * 60 * 60 * 1000))
+                      : null;
 
-                  return (
-                    <tr key={u.uid} className="hover:bg-slate-850/60 transition">
-                      <td className="py-3.5 px-4 font-semibold">
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <span className="text-white">{u.email}</span>
-                            {u.email.toLowerCase() === 'thorsten.weber7@gmail.com' && (
-                              <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold border border-purple-500/40">
-                                Master-Admin
+                    const isExpiredTrial21User = !isSubActive && Boolean(u.trialExpiresAt && (now - u.trialExpiresAt) >= 21 * 24 * 60 * 60 * 1000);
+                    const isExpiredSingle23User = isExpiredSingle23(u, now);
+                    const displayName = (u.firstName && u.lastName) ? `${u.firstName} ${u.lastName}` : (u.displayName || '');
+                    const isPending = u.uid.startsWith('pending_');
+
+                    return (
+                      <tr key={u.uid} className="hover:bg-slate-850/60 transition">
+                        <td className="py-3.5 px-4 font-semibold">
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white">{u.email}</span>
+                              {u.email.toLowerCase() === 'thorsten.weber7@gmail.com' && (
+                                <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold border border-purple-500/40">
+                                  Master-Admin
+                                </span>
+                              )}
+                              {isPending && (
+                                <span className="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded font-bold border border-sky-500/40">
+                                  Über Club vorgemerkt
+                                </span>
+                              )}
+                            </div>
+                            {displayName && displayName !== u.email && (
+                              <span className="text-[11px] text-slate-400 font-normal">
+                                {displayName}
                               </span>
                             )}
                           </div>
-                          {displayName && displayName !== u.email && (
-                            <span className="text-[11px] text-slate-400 font-normal">
-                              {displayName}
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col gap-1">
-                          <span className={cn(
-                            "px-2.5 py-0.5 rounded-full text-[11px] font-bold border w-fit",
-                            getRoleBadgeClass(u.role)
-                          )}>
-                            {getRoleLabel(u.role)}
-                          </span>
-                          {u.clubName && (
-                            <span className="text-[10px] text-sky-400 font-semibold flex items-center gap-1">
-                              <Building2 className="w-2.5 h-2.5" />
-                              <span>{u.clubName}</span>
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        {u.isBlocked ? (
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-950 text-rose-300 border border-rose-800 flex items-center gap-1 w-fit">
-                            <Ban className="w-3 h-3" />
-                            <span>Gesperrt</span>
-                          </span>
-                        ) : isSubActive ? (
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1 w-fit">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                            <span>Pro-Abo Aktiv</span>
-                          </span>
-                        ) : isTrialActive ? (
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1 w-fit">
-                            <Clock className="w-3 h-3 text-amber-400" />
-                            <span>Testphase ({trialDays} T. übrig)</span>
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-950 text-rose-400 border border-rose-900/60 flex items-center gap-1 w-fit">
-                            <AlertTriangle className="w-3 h-3" />
-                            <span>Abgelaufen</span>
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-slate-400 text-[11px]">
-                        {new Date(u.createdAt).toLocaleDateString('de-DE')}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-[11px] font-medium">
-                        {isSubActive && u.subscriptionExpiresAt ? (
-                          <span className="text-emerald-300">{new Date(u.subscriptionExpiresAt).toLocaleDateString('de-DE')}</span>
-                        ) : u.trialExpiresAt ? (
-                          <span className="text-slate-400">{new Date(u.trialExpiresAt).toLocaleDateString('de-DE')}</span>
-                        ) : (
-                          <span className="text-slate-600">-</span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleUnlock1Year(u.uid, u.email)}
-                            disabled={actionLoading === u.uid}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition flex items-center gap-1 shadow disabled:opacity-50 cursor-pointer"
-                            title="Setzt subscriptionExpiresAt auf +365 Tage (Pro-Abo)"
-                          >
-                            <Unlock className="w-3 h-3" />
-                            <span>1 Jahr frei</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleExtendTrial(u.uid, u.email, 14)}
-                            disabled={actionLoading === u.uid}
-                            className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 hover:bg-slate-800 text-amber-300 text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer"
-                            title="+14 Tage Testphase verlängern"
-                          >
-                            <Clock className="w-3 h-3 text-amber-400" />
-                            <span>+14 Tage</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleOpenRoleModal(u)}
-                            disabled={actionLoading === u.uid || u.email.toLowerCase() === 'thorsten.weber7@gmail.com'}
-                            className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 hover:bg-purple-950/60 hover:text-purple-300 text-slate-300 text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer"
-                            title="Rolle gezielt auswählen"
-                          >
-                            <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-                            <span>Rolle</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleToggleBlock(u.uid, !!u.isBlocked, u.email)}
-                            disabled={actionLoading === u.uid || u.email.toLowerCase() === 'thorsten.weber7@gmail.com'}
-                            className={cn(
-                              "p-1 rounded-lg border transition cursor-pointer",
-                              u.isBlocked 
-                                ? "bg-rose-950 border-rose-800 text-rose-300 hover:bg-rose-900" 
-                                : "bg-slate-950 border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-800"
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col gap-1.5">
+                            {u.email.toLowerCase() === 'thorsten.weber7@gmail.com' ? (
+                              <span className={cn(
+                                "px-2.5 py-0.5 rounded-full text-[11px] font-bold border w-fit",
+                                getRoleBadgeClass(u.role)
+                              )}>
+                                {getRoleLabel(u.role)}
+                              </span>
+                            ) : (
+                              <div className="relative inline-block w-fit">
+                                <select
+                                  value={u.role || 'single_standard'}
+                                  disabled={actionLoading === u.uid}
+                                  onChange={(e) => handleDirectRoleChange(u, e.target.value as UserRole)}
+                                  className={cn(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer focus:outline-none focus:ring-1 focus:ring-purple-400 appearance-none pr-6 bg-slate-950 transition",
+                                    getRoleBadgeClass(u.role)
+                                  )}
+                                  title="Rolle direkt ändern"
+                                >
+                                  <option value="trial_user" className="bg-slate-900 text-emerald-300">Testnutzer (14 Tage)</option>
+                                  <option value="single_standard" className="bg-slate-900 text-blue-300">Einzelnutzer Standard</option>
+                                  <option value="single_pro" className="bg-slate-900 text-purple-300">Einzelnutzer Pro</option>
+                                  <option value="club_coach" className="bg-slate-900 text-cyan-300">Vereinstrainer (Club-Coach)</option>
+                                  <option value="club_admin" className="bg-slate-900 text-amber-300">Vereins-Admin (Club-Admin)</option>
+                                  <option value="master_admin" className="bg-slate-900 text-rose-300">Master-Admin</option>
+                                </select>
+                                <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-70 text-slate-300" />
+                              </div>
                             )}
-                            title={u.isBlocked ? "Entsperren" : "Sperren"}
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                            {u.clubName && (
+                              <span className="text-[10px] text-sky-400 font-semibold flex items-center gap-1">
+                                <Building2 className="w-2.5 h-2.5" />
+                                <span>{u.clubName}</span>
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          {u.isBlocked ? (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-950 text-rose-300 border border-rose-800 flex items-center gap-1 w-fit">
+                              <Ban className="w-3 h-3" />
+                              <span>Gesperrt</span>
+                            </span>
+                          ) : isPending ? (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-sky-950 text-sky-300 border border-sky-800 flex items-center gap-1 w-fit">
+                              <Building2 className="w-3 h-3 text-sky-400" />
+                              <span>Club-Lizenz (Vorgemerkt)</span>
+                            </span>
+                          ) : isSubActive ? (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1 w-fit">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                              <span>Pro-Abo Aktiv</span>
+                            </span>
+                          ) : isTrialActive ? (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1 w-fit">
+                              <Clock className="w-3 h-3 text-amber-400" />
+                              <span>Testphase ({trialDays} T. übrig)</span>
+                            </span>
+                          ) : isExpiredSingle23User ? (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-950/90 text-rose-300 border border-rose-700 flex items-center gap-1 w-fit" title={`Einzelnutzer-Account ist seit ${daysSinceExpiry} Tagen abgelaufen (> 23 Tage)`}>
+                              <AlertTriangle className="w-3 h-3 text-rose-400" />
+                              <span>Einzel &gt;23 T. abgelaufen ({daysSinceExpiry} T.)</span>
+                            </span>
+                          ) : isExpiredTrial21User ? (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-950/90 text-amber-300 border border-amber-700 flex items-center gap-1 w-fit" title={`Testphase ist seit ${daysSinceExpiry} Tagen abgelaufen (> 21 Tage)`}>
+                              <Clock className="w-3 h-3 text-amber-400" />
+                              <span>Test &gt;21 T. abgelaufen ({daysSinceExpiry} T.)</span>
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-950 text-rose-400 border border-rose-900/60 flex items-center gap-1 w-fit">
+                              <AlertTriangle className="w-3 h-3" />
+                              <span>Abgelaufen {daysSinceExpiry !== null ? `(vor ${daysSinceExpiry} T.)` : ''}</span>
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-slate-400 text-[11px]">
+                          {isPending ? 'Über Verein' : new Date(u.createdAt).toLocaleDateString('de-DE')}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-[11px] font-medium">
+                          {isSubActive && u.subscriptionExpiresAt ? (
+                            <span className="text-emerald-300">{new Date(u.subscriptionExpiresAt).toLocaleDateString('de-DE')}</span>
+                          ) : (u.subscriptionExpiresAt || u.trialExpiresAt) ? (
+                            <div className="flex flex-col">
+                              <span className={cn(
+                                isExpiredSingle23User ? "text-rose-400 font-semibold" : isExpiredTrial21User ? "text-amber-400 font-semibold" : "text-slate-400"
+                              )}>
+                                {new Date(Math.max(u.subscriptionExpiresAt || 0, u.trialExpiresAt || 0)).toLocaleDateString('de-DE')}
+                              </span>
+                              {daysSinceExpiry !== null && (
+                                <span className="text-[10px] text-slate-500">
+                                  vor {daysSinceExpiry} {daysSinceExpiry === 1 ? 'Tag' : 'Tagen'}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-600">-</span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleUnlock1Year(u.uid, u.email)}
+                              disabled={actionLoading === u.uid}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition flex items-center gap-1 shadow disabled:opacity-50 cursor-pointer"
+                              title="Setzt subscriptionExpiresAt auf +365 Tage (Pro-Abo)"
+                            >
+                              <Unlock className="w-3 h-3" />
+                              <span>1 Jahr frei</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleExtendTrial(u.uid, u.email, 14)}
+                              disabled={actionLoading === u.uid}
+                              className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 hover:bg-slate-800 text-amber-300 text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer"
+                              title="+14 Tage Testphase verlängern"
+                            >
+                              <Clock className="w-3 h-3 text-amber-400" />
+                              <span>+14 Tage</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenRoleModal(u)}
+                              disabled={actionLoading === u.uid || u.email.toLowerCase() === 'thorsten.weber7@gmail.com'}
+                              className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 hover:bg-purple-950/60 hover:text-purple-300 text-slate-300 text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer"
+                              title="Rolle gezielt auswählen"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                              <span>Rolle</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleBlock(u.uid, !!u.isBlocked, u.email)}
+                              disabled={actionLoading === u.uid || u.email.toLowerCase() === 'thorsten.weber7@gmail.com'}
+                              className={cn(
+                                "p-1 rounded-lg border transition cursor-pointer",
+                                u.isBlocked 
+                                  ? "bg-rose-950 border-rose-800 text-rose-300 hover:bg-rose-900" 
+                                  : "bg-slate-950 border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-800"
+                              )}
+                              title={u.isBlocked ? "Entsperren" : "Sperren"}
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

@@ -9,7 +9,9 @@ import {
   Package, 
   Trophy,
   Maximize2,
-  Info
+  Info,
+  Layers,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { LiveTimerHud } from './live/LiveTimerHud';
@@ -56,7 +58,7 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
   onClose,
   onPlanUpdated: _onPlanUpdated
 }) => {
-  // Active View Tab: 'timer' (Exercise timer & details) or 'competition' (Scoreboard)
+  // Active View Tab: 'timer' (Exercise timer & details + Competition) or 'competition' (Scoreboard full width)
   const [activeViewTab, setActiveViewTab] = useState<'timer' | 'competition'>('timer');
   const [sunMode, setSunMode] = useState<boolean>(false);
   const [showTacticZoom, setShowTacticZoom] = useState<boolean>(false);
@@ -111,7 +113,7 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
     return Array.from(set);
   }, [flattenedExercises]);
 
-  // Important info / notes (same as top of PDF export: video analysis & importantNotes/notes)
+  // Important info / notes (video analysis & importantNotes/notes)
   const importantInfoParts = useMemo(() => {
     const parts: string[] = [];
     if (plan.hasVideoAnalysis) {
@@ -128,11 +130,14 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
     return parts;
   }, [plan]);
 
-  // Current Exercise Index & Timer State
+  // Step 0 = Vorbereitung, Step 1..N = Exercises
   const [currentIndex, setCurrentIndex] = useState<number>(0);
-  const currentItem = flattenedExercises[currentIndex] || null;
+  const currentItem = currentIndex === 0 ? null : (flattenedExercises[currentIndex - 1] || null);
 
-  const initialDurationSeconds = (currentItem?.exercise.durationMinutes || currentItem?.phaseDuration || 15) * 60;
+  const initialDurationSeconds = currentIndex === 0
+    ? (5 * 60)
+    : ((flattenedExercises[currentIndex - 1]?.exercise.durationMinutes || flattenedExercises[currentIndex - 1]?.phaseDuration || 15) * 60);
+
   const [timeLeft, setTimeLeft] = useState<number>(initialDurationSeconds);
   const [timerRunning, setTimerRunning] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -198,15 +203,22 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
   // Target end time ref for accurate delta timer without drift
   const targetEndTimeRef = useRef<number | null>(null);
 
-  // Update timer duration when changing active exercise
+  // Update timer duration when changing active exercise or step 0
   useEffect(() => {
-    if (currentItem) {
-      const secs = (currentItem.exercise.durationMinutes || currentItem.phaseDuration || 15) * 60;
-      setTimeLeft(secs);
+    if (currentIndex === 0) {
+      setTimeLeft(5 * 60);
       setTimerRunning(false);
       targetEndTimeRef.current = null;
+    } else {
+      const item = flattenedExercises[currentIndex - 1];
+      if (item) {
+        const secs = (item.exercise.durationMinutes || item.phaseDuration || 15) * 60;
+        setTimeLeft(secs);
+        setTimerRunning(false);
+        targetEndTimeRef.current = null;
+      }
     }
-  }, [currentIndex]);
+  }, [currentIndex, flattenedExercises]);
 
   // Competition & Debrief State
   const [competitionRounds, setCompetitionRounds] = useState<CompetitionRound[]>(() => {
@@ -240,7 +252,8 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
 
   const handleRestoreDraft = () => {
     if (!existingDraft) return;
-    setCurrentIndex(existingDraft.currentIndex ?? 0);
+    const restoredIndex = Math.min(existingDraft.currentIndex ?? 0, flattenedExercises.length);
+    setCurrentIndex(restoredIndex);
     setTimeLeft(existingDraft.timeLeft ?? initialDurationSeconds);
     if (existingDraft.competitionRounds?.length) {
       setCompetitionRounds(existingDraft.competitionRounds);
@@ -272,7 +285,7 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
     return matchedGroup?.players || [];
   }, [matchedGroup]);
 
-  // Timer Tick Interval (Timestamp-Delta avoids throttling drift)
+  // Timer Tick Interval
   useEffect(() => {
     let interval: any = null;
     if (timerRunning) {
@@ -368,7 +381,7 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
   };
 
   const handleNext = () => {
-    if (currentIndex < flattenedExercises.length - 1) {
+    if (currentIndex < flattenedExercises.length) {
       setCurrentIndex(prev => prev + 1);
     }
   };
@@ -411,11 +424,12 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
     }));
   };
 
+  // Score adjustments: negative points are allowed (e.g. for conceded goals)
   const handleAdjustScore = (roundId: string, keeperId: string, delta: number) => {
     setCompetitionRounds(prev => prev.map(r => {
       if (r.id === roundId) {
         const currentScore = r.scores?.[keeperId] || 0;
-        const nextScore = Math.max(0, currentScore + delta);
+        const nextScore = currentScore + delta; // Allows negative values
         return {
           ...r,
           scores: {
@@ -427,8 +441,6 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
       return r;
     }));
   };
-
-
 
   return (
     <div className={cn(
@@ -451,34 +463,36 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
           </div>
         </div>
 
-        {/* Center Tabs: Timer vs. Wettkampf */}
+        {/* Center Tabs: Live Training (Timer + Wettkampf) vs. Nur Wettkampf */}
         <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-2xl border border-slate-800">
           <button
             type="button"
             onClick={() => setActiveViewTab('timer')}
             className={cn(
-              "px-4 py-2 min-h-[44px] rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2",
+              "px-3.5 py-2 min-h-[44px] rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2",
               activeViewTab === 'timer'
                 ? "bg-emerald-600 text-white shadow-md shadow-emerald-950"
                 : "text-slate-400 hover:text-white"
             )}
           >
             <Clock className="w-4 h-4" />
-            <span>Übungs-Timer</span>
+            <span className="hidden sm:inline">Live-Training</span>
+            <span className="sm:hidden">Live</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveViewTab('competition')}
             className={cn(
-              "px-4 py-2 min-h-[44px] rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2",
+              "px-3.5 py-2 min-h-[44px] rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2",
               activeViewTab === 'competition'
                 ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-950"
                 : "text-slate-400 hover:text-white"
             )}
           >
             <Trophy className="w-4 h-4" />
-            <span>Wettkampf</span>
+            <span className="hidden sm:inline">Wettkampf-Tafel</span>
+            <span className="sm:hidden">Wettkampf</span>
           </button>
         </div>
 
@@ -501,7 +515,7 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
             <div>
               <span className="font-extrabold text-white block">Laufende Trainingseinheit fortsetzen?</span>
               <span className="text-indigo-200/80">
-                Es wurde ein Sitzungsstand für Form {existingDraft.currentIndex + 1} ({Math.round(existingDraft.timeLeft / 60)} Min.) gefunden.
+                Es wurde ein Sitzungsstand für {existingDraft.currentIndex === 0 ? 'Vorbereitung' : `Übung ${existingDraft.currentIndex}`} ({Math.round(existingDraft.timeLeft / 60)} Min.) gefunden.
               </span>
             </div>
           </div>
@@ -529,269 +543,354 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
       <div className="flex-1 p-4 sm:p-6 max-w-6xl mx-auto w-full space-y-6">
         {activeViewTab === 'timer' ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left: Timer HUD, Gesamtmaterial & Wichtige Infos (col-span-5) */}
+            {/* Left Column: Compact Timer HUD & Wettkampf-Modus (col-span-5) */}
             <div className="lg:col-span-5 space-y-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl">
-                <LiveTimerHud
-                  currentItem={currentItem}
-                  currentIndex={currentIndex}
-                  totalExercises={flattenedExercises.length}
-                  timeLeft={timeLeft}
-                  initialDurationSeconds={initialDurationSeconds}
-                  timerRunning={timerRunning}
-                  soundEnabled={soundEnabled}
-                  sunMode={sunMode}
-                  watchNotificationEnabled={watchNotificationEnabled}
-                  isWetScreenLocked={isWetScreenLocked}
-                  unlockProgress={unlockProgress}
-                  onToggleTimer={handleToggleTimer}
-                  onAdjustTimerSeconds={handleAdjustTimerSeconds}
-                  onResetTimer={handleResetTimer}
-                  onPrev={handlePrev}
-                  onNext={handleNext}
-                  onToggleSound={() => setSoundEnabled(prev => !prev)}
-                  onToggleSunMode={() => setSunMode(prev => !prev)}
-                  onToggleWatchNotification={() => setWatchNotificationEnabled(prev => !prev)}
-                  onToggleWetScreenLock={() => setIsWetScreenLocked(prev => !prev)}
-                  onStartUnlockHold={startUnlockHold}
-                  onCancelUnlockHold={cancelUnlockHold}
-                />
-              </div>
+              {/* Compact Digital Timer HUD */}
+              <LiveTimerHud
+                currentItem={currentItem}
+                currentIndex={currentIndex}
+                totalExercises={flattenedExercises.length}
+                timeLeft={timeLeft}
+                initialDurationSeconds={initialDurationSeconds}
+                timerRunning={timerRunning}
+                soundEnabled={soundEnabled}
+                sunMode={sunMode}
+                watchNotificationEnabled={watchNotificationEnabled}
+                isWetScreenLocked={isWetScreenLocked}
+                unlockProgress={unlockProgress}
+                onToggleTimer={handleToggleTimer}
+                onAdjustTimerSeconds={handleAdjustTimerSeconds}
+                onResetTimer={handleResetTimer}
+                onPrev={handlePrev}
+                onNext={handleNext}
+                onToggleSound={() => setSoundEnabled(prev => !prev)}
+                onToggleSunMode={() => setSunMode(prev => !prev)}
+                onToggleWatchNotification={() => setWatchNotificationEnabled(prev => !prev)}
+                onToggleWetScreenLock={() => setIsWetScreenLocked(prev => !prev)}
+                onStartUnlockHold={startUnlockHold}
+                onCancelUnlockHold={cancelUnlockHold}
+              />
 
-              {/* Benötigtes Gesamtmaterial */}
-              <div className={cn(
-                "rounded-3xl p-5 shadow-xl border transition-colors",
-                sunMode ? "bg-amber-50 border-amber-200 text-slate-900" : "bg-slate-900 border-slate-800 text-slate-100"
-              )}>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={cn(
-                    "p-1.5 rounded-xl flex items-center justify-center",
-                    sunMode ? "bg-amber-200 text-amber-900" : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                  )}>
-                    <Package className="w-4 h-4" />
-                  </div>
-                  <h4 className={cn("text-xs sm:text-sm font-extrabold uppercase tracking-wider", sunMode ? "text-slate-900" : "text-white")}>
-                    Benötigtes Gesamtmaterial ({allUniqueMaterials.length})
-                  </h4>
-                </div>
-
-                {allUniqueMaterials.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {allUniqueMaterials.map(mat => (
-                      <span
-                        key={mat}
-                        className={cn(
-                          "px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition",
-                          sunMode 
-                            ? "bg-white border-amber-300 text-slate-900 shadow-sm" 
-                            : "bg-slate-950 border-slate-800 text-slate-200 shadow-inner"
-                        )}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                        <span>{mat}</span>
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className={cn("text-xs italic", sunMode ? "text-slate-600" : "text-slate-500")}>
-                    Keine spezifischen Trainingsmaterialien erforderlich.
-                  </p>
-                )}
-              </div>
-
-              {/* Wichtiges zum Training (Wichtige Infos) */}
-              <div className={cn(
-                "rounded-3xl p-5 shadow-xl border transition-colors",
-                sunMode ? "bg-emerald-50 border-emerald-200 text-slate-900" : "bg-slate-900 border-slate-800 text-slate-100"
-              )}>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={cn(
-                    "p-1.5 rounded-xl flex items-center justify-center",
-                    sunMode ? "bg-emerald-200 text-emerald-900" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                  )}>
-                    <Info className="w-4 h-4" />
-                  </div>
-                  <h4 className={cn("text-xs sm:text-sm font-extrabold uppercase tracking-wider", sunMode ? "text-slate-900" : "text-white")}>
-                    Wichtiges zum Training
-                  </h4>
-                </div>
-
-                {importantInfoParts.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {importantInfoParts.map((info, idx) => (
-                      <div
-                        key={idx}
-                        className={cn(
-                          "p-3 rounded-2xl border text-xs leading-relaxed whitespace-pre-line font-medium",
-                          sunMode
-                            ? "bg-white border-emerald-200 text-slate-900 shadow-sm"
-                            : "bg-slate-950/80 border-slate-800 text-slate-200 shadow-inner"
-                        )}
-                      >
-                        {info}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className={cn("text-xs italic", sunMode ? "text-slate-600" : "text-slate-500")}>
-                    Keine besonderen organisatorischen Hinweise hinterlegt.
-                  </p>
-                )}
-              </div>
+              {/* Wettkampf-Modus Board positioned under Timer */}
+              <LiveCompetitionBoard
+                competitionRounds={competitionRounds}
+                selectedRoundId={selectedRoundId}
+                setSelectedRoundId={setSelectedRoundId}
+                onAddRound={handleAddRound}
+                onDeleteRound={handleDeleteRound}
+                onResetRoundScores={handleResetRoundScores}
+                onAdjustScore={handleAdjustScore}
+                groupKeepers={groupKeepers}
+                competitionPresets={COMPETITION_PRESETS}
+              />
             </div>
 
-            {/* Right: Exercise Details, Taktik-Visuals, Quick Debrief (col-span-7) */}
+            {/* Right Column: Step 0 (Vorbereitung) OR Step 1..N (Exercise Details) (col-span-7) */}
             <div className="lg:col-span-7 space-y-6">
-              {currentItem ? (
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
-                  {/* Exercise Header */}
-                  <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-4">
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block mb-1">
-                        {currentItem.phaseName} • {currentItem.exercise.category}
-                      </span>
-                      <h3 className="text-lg sm:text-xl font-extrabold text-white truncate">
-                        {currentItem.exercise.title}
-                      </h3>
-                    </div>
+              {currentIndex === 0 ? (
+                /* STARTSEITE: Übung 0 - Vorbereitung */
+                <div className="space-y-6">
+                  {/* Banner Card */}
+                  <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/50 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 flex-shrink-0">
+                          <Layers className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-base sm:text-lg font-black text-white">Vorbereitung & Trainingsstart</h3>
+                          <p className="text-xs text-slate-400">
+                            {matchedGroup?.name || plan.targetGroup} • {flattenedExercises.length} Übungen geplant
+                          </p>
+                        </div>
+                      </div>
 
-                    {(currentItem.exercise.imageUrl || currentItem.exercise.imageBase64) && (
                       <button
                         type="button"
-                        onClick={() => setShowTacticZoom(true)}
-                        className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-emerald-500 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold flex-shrink-0"
-                        title="Taktikbild im Vollbild öffnen"
+                        onClick={handleNext}
+                        className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/60 active:scale-95 transition cursor-pointer flex-shrink-0"
                       >
-                        <Maximize2 className="w-4 h-4 text-emerald-400" />
-                        <span>Vollbild</span>
+                        <span>1. Übung starten</span>
+                        <ChevronRight className="w-4 h-4" />
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Benötigtes Gesamtmaterial */}
+                  <div className={cn(
+                    "rounded-3xl p-5 sm:p-6 shadow-xl border transition-colors",
+                    sunMode ? "bg-amber-50 border-amber-200 text-slate-900" : "bg-slate-900 border-slate-800 text-slate-100"
+                  )}>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className={cn(
+                        "p-2 rounded-xl flex items-center justify-center",
+                        sunMode ? "bg-amber-200 text-amber-900" : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                      )}>
+                        <Package className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className={cn("text-xs sm:text-sm font-extrabold uppercase tracking-wider", sunMode ? "text-slate-900" : "text-white")}>
+                          Benötigtes Gesamtmaterial ({allUniqueMaterials.length})
+                        </h4>
+                        <p className="text-xs text-slate-400">
+                          Alle Materialien für den gesamten Trainingsaufbau im Überblick
+                        </p>
+                      </div>
+                    </div>
+
+                    {allUniqueMaterials.length > 0 ? (
+                      <div className="flex flex-wrap gap-2.5">
+                        {allUniqueMaterials.map(mat => (
+                          <span
+                            key={mat}
+                            className={cn(
+                              "px-3 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 border transition shadow-sm",
+                              sunMode 
+                                ? "bg-white border-amber-300 text-slate-900" 
+                                : "bg-slate-950 border-slate-800 text-slate-200"
+                            )}
+                          >
+                            <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+                            <span>{mat}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className={cn("text-xs italic", sunMode ? "text-slate-600" : "text-slate-500")}>
+                        Keine spezifischen Trainingsmaterialien hinterlegt.
+                      </p>
                     )}
                   </div>
 
-                  {/* Prominent Large Tactic Graphic (Min. 4x larger for clear pitch recognition) */}
-                  {(currentItem.exercise.imageUrl || currentItem.exercise.imageBase64) && (
-                    <div 
-                      onClick={() => setShowTacticZoom(true)}
-                      className="relative w-full h-64 sm:h-80 md:h-96 rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden group cursor-pointer flex items-center justify-center p-2 shadow-inner"
-                      title="Klicken für Vollbild-Ansicht"
-                    >
-                      <img
-                        src={currentItem.exercise.imageUrl || currentItem.exercise.imageBase64}
-                        alt={currentItem.exercise.title}
-                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute top-3 right-3 bg-slate-900/85 backdrop-blur border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 shadow-lg group-hover:bg-emerald-600 transition">
-                        <Maximize2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white" />
-                        <span>Vollbild</span>
+                  {/* Wichtiges zum Training */}
+                  <div className={cn(
+                    "rounded-3xl p-5 sm:p-6 shadow-xl border transition-colors",
+                    sunMode ? "bg-emerald-50 border-emerald-200 text-slate-900" : "bg-slate-900 border-slate-800 text-slate-100"
+                  )}>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className={cn(
+                        "p-2 rounded-xl flex items-center justify-center",
+                        sunMode ? "bg-emerald-200 text-emerald-900" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                      )}>
+                        <Info className="w-5 h-5" />
                       </div>
-                    </div>
-                  )}
-
-                  {/* Video Embed Player */}
-                  {currentItem.exercise.videoUrl && (
-                    <div className="rounded-2xl overflow-hidden border border-slate-800">
-                      <VideoEmbedPlayer url={currentItem.exercise.videoUrl} title={currentItem.exercise.title} />
-                    </div>
-                  )}
-
-                  {/* Übungs-Details: Ablauf, Technikprinzipien, Taktikprinzipien, Coachingpunkte, Siegbedingung */}
-                  <div className="space-y-4 text-xs">
-                    {/* Ablauf */}
-                    {currentItem.exercise.ablauf && currentItem.exercise.ablauf.trim() && (
-                      <div className="space-y-1 bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
-                        <span className="font-extrabold text-slate-300 uppercase tracking-wider text-[11px] block">
-                          Ablauf:
-                        </span>
-                        <p className="text-slate-300 whitespace-pre-line leading-relaxed">
-                          {currentItem.exercise.ablauf}
+                      <div>
+                        <h4 className={cn("text-xs sm:text-sm font-extrabold uppercase tracking-wider", sunMode ? "text-slate-900" : "text-white")}>
+                          Wichtiges zum Training
+                        </h4>
+                        <p className="text-xs text-slate-400">
+                          Organisatorische Hinweise & Videoanalyse
                         </p>
                       </div>
-                    )}
+                    </div>
 
-                    {/* Technikprinzipien */}
-                    {((currentItem.exercise.technikprinzipien && currentItem.exercise.technikprinzipien.trim()) || (currentItem.exercise.technik && currentItem.exercise.technik.trim())) && (
-                      <div className="space-y-1.5 bg-slate-950 p-4 rounded-2xl border border-purple-900/40">
-                        <span className="font-extrabold text-purple-400 uppercase tracking-wider text-[11px] block">
-                          Technikprinzipien:
-                        </span>
-                        {currentItem.exercise.technik && currentItem.exercise.technikprinzipien && !currentItem.exercise.technikprinzipien.toLowerCase().includes(currentItem.exercise.technik.toLowerCase()) && (
-                          <div className="text-xs font-semibold text-purple-300 mb-1">
-                            Schwerpunkt: {currentItem.exercise.technik}
+                    {importantInfoParts.length > 0 ? (
+                      <div className="space-y-3">
+                        {importantInfoParts.map((info, idx) => (
+                          <div
+                            key={idx}
+                            className={cn(
+                              "p-3.5 rounded-2xl border text-xs leading-relaxed whitespace-pre-line font-medium",
+                              sunMode
+                                ? "bg-white border-emerald-200 text-slate-900 shadow-sm"
+                                : "bg-slate-950/80 border-slate-800 text-slate-200 shadow-inner"
+                            )}
+                          >
+                            {info}
                           </div>
-                        )}
-                        {currentItem.exercise.technikprinzipien ? (
-                          <p className="text-slate-300 whitespace-pre-line leading-relaxed">
-                            {currentItem.exercise.technikprinzipien}
-                          </p>
-                        ) : (
-                          <p className="text-purple-300 font-semibold text-xs leading-relaxed">
-                            {currentItem.exercise.technik}
-                          </p>
-                        )}
+                        ))}
                       </div>
+                    ) : (
+                      <p className={cn("text-xs italic", sunMode ? "text-slate-600" : "text-slate-500")}>
+                        Keine besonderen organisatorischen Hinweise hinterlegt.
+                      </p>
                     )}
+                  </div>
 
-                    {/* Taktikprinzipien */}
-                    {currentItem.exercise.taktikprinzipien && currentItem.exercise.taktikprinzipien.trim() && (
-                      <div className="space-y-1.5 bg-slate-950 p-4 rounded-2xl border border-sky-900/40">
-                        <span className="font-extrabold text-sky-400 uppercase tracking-wider text-[11px] block">
-                          Taktikprinzipien:
-                        </span>
-                        <p className="text-slate-300 whitespace-pre-line leading-relaxed">
-                          {currentItem.exercise.taktikprinzipien}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Coaching-Punkte */}
-                    {currentItem.exercise.coachingPoints && currentItem.exercise.coachingPoints.trim() && (
-                      <div className="space-y-1.5 bg-slate-950 p-4 rounded-2xl border border-emerald-900/40">
-                        <span className="font-extrabold text-emerald-400 uppercase tracking-wider text-[11px] block">
-                          Coaching-Punkte:
-                        </span>
-                        <p className="text-slate-300 whitespace-pre-line leading-relaxed">
-                          {currentItem.exercise.coachingPoints}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Siegbedingung (für Wettkämpfe) */}
-                    {currentItem.exercise.siegbedingung && currentItem.exercise.siegbedingung.trim() && (
-                      <div className="space-y-1.5 bg-slate-950 p-4 rounded-2xl border border-rose-900/40">
-                        <span className="font-extrabold text-rose-400 uppercase tracking-wider text-[11px] block flex items-center gap-1.5">
-                          <Trophy className="w-3.5 h-3.5 text-rose-400" />
-                          <span>Siegbedingung / Wettkampf-Regel:</span>
-                        </span>
-                        <p className="text-rose-200 font-semibold text-xs leading-relaxed">
-                          {currentItem.exercise.siegbedingung}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Materials & Keepers */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      {currentItem.exercise.materials && currentItem.exercise.materials.map(mat => (
-                        <span key={mat} className="px-2.5 py-1 rounded-xl bg-slate-950 text-slate-400 border border-slate-800 text-[11px] font-bold flex items-center gap-1">
-                          <Package className="w-3 h-3 text-amber-400" />
-                          <span>{mat}</span>
-                        </span>
+                  {/* Geplanter Trainingsablauf (Übersicht) */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-3">
+                    <h4 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">
+                      Geplanter Trainingsablauf ({flattenedExercises.length} Übungen)
+                    </h4>
+                    <div className="space-y-2">
+                      {flattenedExercises.map((item, idx) => (
+                        <div
+                          key={item.exercise.id || idx}
+                          onClick={() => setCurrentIndex(idx + 1)}
+                          className="p-3 rounded-2xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 flex items-center justify-between gap-3 cursor-pointer transition"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="w-7 h-7 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-black flex items-center justify-center flex-shrink-0">
+                              {idx + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="text-xs font-extrabold text-white block truncate">
+                                {item.exercise.title}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {item.phaseName} • {item.exercise.durationMinutes || item.phaseDuration} Min.
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                        </div>
                       ))}
-                      <span className="px-2.5 py-1 rounded-xl bg-slate-950 text-sky-400 border border-slate-800 text-[11px] font-bold flex items-center gap-1">
-                        <Users className="w-3 h-3 text-sky-400" />
-                        <span>{currentItem.exercise.minKeepers || 1}-{currentItem.exercise.maxKeepers || 4} TW</span>
-                      </span>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl text-slate-400 text-xs">
-                  Keine Übung zugewiesen.
-                </div>
+                /* EXERCISE DETAILS (Übung 1..N) */
+                currentItem ? (
+                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
+                    {/* Exercise Header */}
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block mb-1">
+                          {currentItem.phaseName} • {currentItem.exercise.category}
+                        </span>
+                        <h3 className="text-lg sm:text-xl font-extrabold text-white truncate">
+                          {currentItem.exercise.title}
+                        </h3>
+                      </div>
+
+                      {(currentItem.exercise.imageUrl || currentItem.exercise.imageBase64) && (
+                        <button
+                          type="button"
+                          onClick={() => setShowTacticZoom(true)}
+                          className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-emerald-500 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold flex-shrink-0"
+                          title="Taktikbild im Vollbild öffnen"
+                        >
+                          <Maximize2 className="w-4 h-4 text-emerald-400" />
+                          <span>Vollbild</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Prominent Large Tactic Graphic */}
+                    {(currentItem.exercise.imageUrl || currentItem.exercise.imageBase64) && (
+                      <div 
+                        onClick={() => setShowTacticZoom(true)}
+                        className="relative w-full h-64 sm:h-80 md:h-96 rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden group cursor-pointer flex items-center justify-center p-2 shadow-inner"
+                        title="Klicken für Vollbild-Ansicht"
+                      >
+                        <img
+                          src={currentItem.exercise.imageUrl || currentItem.exercise.imageBase64}
+                          alt={currentItem.exercise.title}
+                          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute top-3 right-3 bg-slate-900/85 backdrop-blur border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 shadow-lg group-hover:bg-emerald-600 transition">
+                          <Maximize2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white" />
+                          <span>Vollbild</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Video Embed Player */}
+                    {currentItem.exercise.videoUrl && (
+                      <div className="rounded-2xl overflow-hidden border border-slate-800">
+                        <VideoEmbedPlayer url={currentItem.exercise.videoUrl} title={currentItem.exercise.title} />
+                      </div>
+                    )}
+
+                    {/* Übungs-Details: Ablauf, Technikprinzipien, Taktikprinzipien, Coachingpunkte, Siegbedingung */}
+                    <div className="space-y-4 text-xs">
+                      {/* Ablauf */}
+                      {currentItem.exercise.ablauf && currentItem.exercise.ablauf.trim() && (
+                        <div className="space-y-1 bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
+                          <span className="font-extrabold text-slate-300 uppercase tracking-wider text-[11px] block">
+                            Ablauf:
+                          </span>
+                          <p className="text-slate-300 whitespace-pre-line leading-relaxed">
+                            {currentItem.exercise.ablauf}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Technikprinzipien */}
+                      {((currentItem.exercise.technikprinzipien && currentItem.exercise.technikprinzipien.trim()) || (currentItem.exercise.technik && currentItem.exercise.technik.trim())) && (
+                        <div className="space-y-1.5 bg-slate-950 p-4 rounded-2xl border border-purple-900/40">
+                          <span className="font-extrabold text-purple-400 uppercase tracking-wider text-[11px] block">
+                            Technikprinzipien:
+                          </span>
+                          {currentItem.exercise.technik && currentItem.exercise.technikprinzipien && !currentItem.exercise.technikprinzipien.toLowerCase().includes(currentItem.exercise.technik.toLowerCase()) && (
+                            <div className="text-xs font-semibold text-purple-300 mb-1">
+                              Schwerpunkt: {currentItem.exercise.technik}
+                            </div>
+                          )}
+                          {currentItem.exercise.technikprinzipien ? (
+                            <p className="text-slate-300 whitespace-pre-line leading-relaxed">
+                              {currentItem.exercise.technikprinzipien}
+                            </p>
+                          ) : (
+                            <p className="text-purple-300 font-semibold text-xs leading-relaxed">
+                              {currentItem.exercise.technik}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Taktikprinzipien */}
+                      {currentItem.exercise.taktikprinzipien && currentItem.exercise.taktikprinzipien.trim() && (
+                        <div className="space-y-1.5 bg-slate-950 p-4 rounded-2xl border border-sky-900/40">
+                          <span className="font-extrabold text-sky-400 uppercase tracking-wider text-[11px] block">
+                            Taktikprinzipien:
+                          </span>
+                          <p className="text-slate-300 whitespace-pre-line leading-relaxed">
+                            {currentItem.exercise.taktikprinzipien}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Coaching-Punkte */}
+                      {currentItem.exercise.coachingPoints && currentItem.exercise.coachingPoints.trim() && (
+                        <div className="space-y-1.5 bg-slate-950 p-4 rounded-2xl border border-emerald-900/40">
+                          <span className="font-extrabold text-emerald-400 uppercase tracking-wider text-[11px] block">
+                            Coaching-Punkte:
+                          </span>
+                          <p className="text-slate-300 whitespace-pre-line leading-relaxed">
+                            {currentItem.exercise.coachingPoints}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Siegbedingung (für Wettkämpfe) */}
+                      {currentItem.exercise.siegbedingung && currentItem.exercise.siegbedingung.trim() && (
+                        <div className="space-y-1.5 bg-slate-950 p-4 rounded-2xl border border-rose-900/40">
+                          <span className="font-extrabold text-rose-400 uppercase tracking-wider text-[11px] block flex items-center gap-1.5">
+                            <Trophy className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Siegbedingung / Wettkampf-Regel:</span>
+                          </span>
+                          <p className="text-rose-200 font-semibold text-xs leading-relaxed">
+                            {currentItem.exercise.siegbedingung}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Materials & Keepers specific to this exercise */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {currentItem.exercise.materials && currentItem.exercise.materials.map(mat => (
+                          <span key={mat} className="px-2.5 py-1 rounded-xl bg-slate-950 text-slate-400 border border-slate-800 text-[11px] font-bold flex items-center gap-1">
+                            <Package className="w-3 h-3 text-amber-400" />
+                            <span>{mat}</span>
+                          </span>
+                        ))}
+                        <span className="px-2.5 py-1 rounded-xl bg-slate-950 text-sky-400 border border-slate-800 text-[11px] font-bold flex items-center gap-1">
+                          <Users className="w-3 h-3 text-sky-400" />
+                          <span>{currentItem.exercise.minKeepers || 1}-{currentItem.exercise.maxKeepers || 4} TW</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl text-slate-400 text-xs">
+                    Keine Übung zugewiesen.
+                  </div>
+                )
               )}
             </div>
           </div>
         ) : (
-          /* Competition Board Tab */
+          /* Full Width Competition Board Tab */
           <LiveCompetitionBoard
             competitionRounds={competitionRounds}
             selectedRoundId={selectedRoundId}

@@ -830,15 +830,26 @@ export function subscribeAllUsers(
   onData: (users: UserProfile[]) => void,
   onError?: (error: Error) => void
 ): () => void {
-  const q = query(collection(firestoreDb, USERS_COLLECTION), orderBy('createdAt', 'desc'));
+  const colRef = collection(firestoreDb, USERS_COLLECTION);
   
   return onSnapshot(
-    q,
+    colRef,
     (snapshot) => {
       const items: UserProfile[] = [];
       snapshot.forEach((docSnap) => {
-        items.push(docSnap.data() as UserProfile);
+        const d = docSnap.data() as UserProfile;
+        items.push({
+          ...d,
+          uid: d.uid || docSnap.id,
+          email: d.email || '',
+          firstName: d.firstName || '',
+          lastName: d.lastName || '',
+          displayName: d.displayName || '',
+          role: d.role || 'single_standard',
+          createdAt: d.createdAt || 0
+        });
       });
+      items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       onData(items);
     },
     (err) => {

@@ -233,6 +233,33 @@ export const MATERIAL_CONFIG: Record<string, { label: string; hex: string; bg: s
     border: 'border-indigo-500/40',
     badge: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
     gradient: 'from-indigo-500 to-indigo-600'
+  },
+  'Plyobox': {
+    label: 'Plyobox',
+    hex: '#0284c7',
+    bg: 'bg-sky-500/15',
+    text: 'text-sky-400',
+    border: 'border-sky-500/40',
+    badge: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+    gradient: 'from-sky-500 to-sky-600'
+  },
+  'Bank': {
+    label: 'Bank',
+    hex: '#b45309',
+    bg: 'bg-amber-800/15',
+    text: 'text-amber-500',
+    border: 'border-amber-800/40',
+    badge: 'bg-amber-800/20 text-amber-400 border-amber-800/40',
+    gradient: 'from-amber-700 to-amber-800'
+  },
+  'Medizinball': {
+    label: 'Medizinball',
+    hex: '#78350f',
+    bg: 'bg-amber-900/15',
+    text: 'text-amber-600',
+    border: 'border-amber-900/40',
+    badge: 'bg-amber-900/20 text-amber-500 border-amber-900/40',
+    gradient: 'from-amber-800 to-amber-900'
   }
 };
 

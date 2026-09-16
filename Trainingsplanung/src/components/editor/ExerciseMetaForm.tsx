@@ -124,6 +124,7 @@ export interface ExerciseMetaFormProps {
   setDurationMinutes: (val: number) => void;
   materials: MaterialType[];
   setMaterials: React.Dispatch<React.SetStateAction<MaterialType[]>>;
+  onToggleMaterial?: (mat: MaterialType) => void;
   videoUrl: string;
   setVideoUrl: (val: string) => void;
   ablauf: string;
@@ -196,6 +197,7 @@ export const ExerciseMetaForm: React.FC<ExerciseMetaFormProps> = ({
   setDurationMinutes,
   materials,
   setMaterials,
+  onToggleMaterial,
   videoUrl,
   setVideoUrl,
   ablauf,
@@ -240,9 +242,13 @@ export const ExerciseMetaForm: React.FC<ExerciseMetaFormProps> = ({
   const [isVideoOpen, setIsVideoOpen] = useState<boolean>(false);
 
   const toggleMaterial = (mat: MaterialType) => {
-    setMaterials(prev => 
-      prev.includes(mat) ? prev.filter(m => m !== mat) : [...prev, mat]
-    );
+    if (onToggleMaterial) {
+      onToggleMaterial(mat);
+    } else {
+      setMaterials(prev => 
+        prev.includes(mat) ? prev.filter(m => m !== mat) : [...prev, mat]
+      );
+    }
   };
 
   const techDefs = (SKILL_DEFINITIONS as any)?.Technik || [];
@@ -286,10 +292,13 @@ export const ExerciseMetaForm: React.FC<ExerciseMetaFormProps> = ({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 p-1.5 bg-slate-950/90 border border-slate-800/90 rounded-2xl">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 p-2 bg-slate-950/90 border border-slate-800/90 rounded-2xl">
             {EXERCISE_CATEGORIES.map(cat => {
               const isSelected = category === cat;
               const colStyle = CATEGORY_COLORS[cat] || {
+                bg: 'bg-emerald-500/10',
+                text: 'text-emerald-400',
+                border: 'border-emerald-500/30',
                 badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
               };
 
@@ -299,13 +308,15 @@ export const ExerciseMetaForm: React.FC<ExerciseMetaFormProps> = ({
                   type="button"
                   onClick={() => setCategory(cat)}
                   className={cn(
-                    "min-h-[46px] px-2 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center justify-center text-center cursor-pointer border select-none leading-tight",
+                    "min-h-[46px] px-2 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center text-center cursor-pointer border select-none leading-tight relative overflow-hidden",
                     isSelected
-                      ? cn(colStyle.badge, "shadow-md scale-[1.02] ring-1 ring-white/20")
-                      : "bg-slate-900/40 border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                      ? cn(colStyle.badge, "shadow-lg shadow-black/40 scale-[1.02] ring-2 ring-white/30 font-black")
+                      : cn("bg-slate-900/90 hover:bg-slate-850", colStyle.border, "border text-slate-300 hover:text-white shadow-sm")
                   )}
                 >
-                  <span className="leading-snug text-center break-words">{cat}</span>
+                  <span className={cn("leading-snug text-center break-words", isSelected ? "" : colStyle.text)}>
+                    {cat}
+                  </span>
                 </button>
               );
             })}
@@ -502,10 +513,10 @@ export const ExerciseMetaForm: React.FC<ExerciseMetaFormProps> = ({
                 type="button"
                 onClick={() => setMinKeepers(Math.max(1, minKeepers - 1))}
                 disabled={minKeepers <= 1}
-                className="w-7 h-7 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center font-bold transition cursor-pointer flex-shrink-0"
+                className="w-6 h-6 rounded-lg bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center font-bold transition cursor-pointer flex-shrink-0"
                 title="Min. Torhüter verringern"
               >
-                <Minus className="w-3.5 h-3.5" />
+                <Minus className="w-3 h-3" />
               </button>
               <div className="text-center px-1 flex flex-col items-center justify-center">
                 <span className="text-[9px] text-slate-500 uppercase font-bold block leading-none">Min</span>
@@ -519,14 +530,12 @@ export const ExerciseMetaForm: React.FC<ExerciseMetaFormProps> = ({
                   if (next > maxKeepers) setMaxKeepers(next);
                 }}
                 disabled={minKeepers >= 10}
-                className="w-7 h-7 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center font-bold transition cursor-pointer flex-shrink-0"
+                className="w-6 h-6 rounded-lg bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center font-bold transition cursor-pointer flex-shrink-0"
                 title="Min. Torhüter erhöhen"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3 h-3" />
               </button>
             </div>
-
-            <span className="text-slate-500 font-bold text-xs self-center">–</span>
 
             {/* Max Stepper */}
             <div className="flex-1 h-full bg-slate-950 border border-slate-800 rounded-2xl px-1.5 flex items-center justify-between">
@@ -538,10 +547,10 @@ export const ExerciseMetaForm: React.FC<ExerciseMetaFormProps> = ({
                   if (next < minKeepers) setMinKeepers(next);
                 }}
                 disabled={maxKeepers <= 1}
-                className="w-7 h-7 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center font-bold transition cursor-pointer flex-shrink-0"
+                className="w-6 h-6 rounded-lg bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center font-bold transition cursor-pointer flex-shrink-0"
                 title="Max. Torhüter verringern"
               >
-                <Minus className="w-3.5 h-3.5" />
+                <Minus className="w-3 h-3" />
               </button>
               <div className="text-center px-1 flex flex-col items-center justify-center">
                 <span className="text-[9px] text-slate-500 uppercase font-bold block leading-none">Max</span>
@@ -551,10 +560,10 @@ export const ExerciseMetaForm: React.FC<ExerciseMetaFormProps> = ({
                 type="button"
                 onClick={() => setMaxKeepers(Math.min(10, maxKeepers + 1))}
                 disabled={maxKeepers >= 10}
-                className="w-7 h-7 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center font-bold transition cursor-pointer flex-shrink-0"
+                className="w-6 h-6 rounded-lg bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center font-bold transition cursor-pointer flex-shrink-0"
                 title="Max. Torhüter erhöhen"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3 h-3" />
               </button>
             </div>
           </div>

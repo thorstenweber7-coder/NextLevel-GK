@@ -26,6 +26,7 @@ export interface TacticalCanvasRef {
   getCanvasData: () => TacticalCanvasData;
   loadCanvasData: (data: TacticalCanvasData) => void;
   clearCanvas: () => void;
+  addElement: (type: ToolType, customProps?: Partial<CanvasElement>) => void;
 }
 
 interface TacticalCanvasProps {
@@ -268,6 +269,7 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isRotatingId, setIsRotatingId] = useState<string | null>(null);
   const dragStartElementsRef = useRef<CanvasElement[] | null>(null);
+  const pendingDragRef = useRef<{ elem: CanvasElement; startX: number; startY: number; moved: boolean } | null>(null);
 
   // Update history state (caps at MAX_HISTORY_STEPS = 10 actions)
   const pushToHistory = useCallback((newElements: CanvasElement[]) => {
@@ -284,6 +286,66 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       return next > MAX_HISTORY_STEPS ? MAX_HISTORY_STEPS : next;
     });
   }, [historyIndex]);
+
+  // Factory helper for new canvas elements
+  const createNewElement = useCallback((type: ToolType, x: number, y: number, customProps?: Partial<CanvasElement>): CanvasElement => {
+    const newId = Date.now().toString() + Math.random().toString(36).substring(2, 5);
+    const newElem: CanvasElement = {
+      id: newId,
+      type,
+      x,
+      y,
+      rotation: 0,
+      ...customProps
+    };
+
+    if (type === 'cone') {
+      newElem.color = activeColor;
+    } else if (type === 'blazepod') {
+      newElem.color = activeColor === '#f97316' ? '#06b6d4' : activeColor;
+    } else if (type === 'pole') {
+      newElem.color = activeColor === '#f97316' ? '#eab308' : activeColor;
+    } else if (type === 'board') {
+      newElem.color = '#d4a373';
+    } else if (type === 'rebounder') {
+      newElem.color = '#6366f1';
+    } else if (type === 'bench') {
+      newElem.color = '#b45309';
+    } else if (type === 'plyobox') {
+      newElem.color = '#0284c7';
+    } else if (type === 'medicine_ball') {
+      newElem.color = '#451a03';
+    } else if (type === 'square') {
+      newElem.color = activeColor === '#f97316' ? '#eab308' : activeColor;
+    } else if (type === 'resistance_band') {
+      newElem.color = activeColor === '#f97316' ? '#a855f7' : activeColor;
+    } else if (type === 'jumping_rope') {
+      newElem.color = activeColor === '#f97316' ? '#10b981' : activeColor;
+    } else if (type === 'gk') {
+      const currentGkCount = elements.filter(el => el.type === 'gk').length;
+      newElem.label = `TW${currentGkCount + 1}`;
+    } else if (type === 'player') {
+      newElem.label = 'TR';
+      newElem.color = activeColor === '#f97316' ? '#3b82f6' : activeColor;
+    }
+
+    return newElem;
+  }, [activeColor, elements]);
+
+  // Programmatic element insertion (e.g. from material checkbox click)
+  const addElement = useCallback((type: ToolType, customProps?: Partial<CanvasElement>) => {
+    const existingSameType = elements.filter(el => el.type === type).length;
+    const x = width - 50 - (existingSameType % 3) * 32;
+    const y = 38 + Math.floor(existingSameType / 3) * 32;
+    const newElem = createNewElement(type, x, y, customProps);
+    
+    setElements(prev => {
+      const next = [...prev, newElem];
+      pushToHistory(next);
+      return next;
+    });
+    setSelectedId(newElem.id);
+  }, [elements, width, createNewElement, pushToHistory]);
 
   // Undo / Redo handlers
   const handleUndo = useCallback(() => {
@@ -337,8 +399,9 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
     exportImage,
     getCanvasData,
     loadCanvasData,
-    clearCanvas: handleClear
-  }), [exportImage, getCanvasData, loadCanvasData]);
+    clearCanvas: handleClear,
+    addElement
+  }), [exportImage, getCanvasData, loadCanvasData, addElement]);
 
   useEffect(() => {
     if (initialData?.elements && elements.length === 0) {
@@ -705,6 +768,39 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
           ctx.textBaseline = 'middle';
           ctx.fillText('BANK', 0, 0);
           ctx.restore();
+        } else if (elem.type === 'plyobox') {
+          // PLYOBOX: 3D Sprungkasten / Plyo Box
+          ctx.save();
+          const boxW = 26;
+          const boxH = 18;
+          const halfW = boxW / 2;
+          const halfH = boxH / 2;
+
+          // Box body (3D shaded bevel)
+          ctx.fillStyle = elem.color || '#0284c7';
+          ctx.fillRect(-halfW, -halfH, boxW, boxH);
+          ctx.strokeStyle = '#0369a1';
+          ctx.lineWidth = 1.8;
+          ctx.strokeRect(-halfW, -halfH, boxW, boxH);
+
+          // Top anti-slip surface grid / bevel lines
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(-halfW + 2, -halfH + 2, boxW - 4, boxH - 4);
+
+          // Corner grip markers
+          ctx.fillStyle = elem.color || '#38bdf8';
+          ctx.fillRect(-halfW + 3, -halfH + 3, 3, 3);
+          ctx.fillRect(halfW - 6, -halfH + 3, 3, 3);
+          ctx.fillRect(-halfW + 3, halfH - 6, 3, 3);
+          ctx.fillRect(halfW - 6, halfH - 6, 3, 3);
+
+          // Label
+          ctx.fillStyle = '#f0f9ff';
+          ctx.font = 'bold 7px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('PLYO', 0, 0);
+          ctx.restore();
         } else if (elem.type === 'medicine_ball') {
           // MEDIZINBALL: Schwerer Trainingsball
           ctx.save();
@@ -925,7 +1021,7 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
           if (d < 12) return elem;
         }
       } else {
-        const radius = elem.type === 'goal_large' ? 38 : (elem.type === 'goal_mini' || elem.type === 'bench' || elem.type === 'square') ? 22 : 18;
+        const radius = elem.type === 'goal_large' ? 38 : (elem.type === 'goal_mini' || elem.type === 'bench' || elem.type === 'square' || elem.type === 'plyobox') ? 22 : 18;
         const dx = elem.x - x;
         const dy = elem.y - y;
         if (Math.hypot(dx, dy) <= radius) {
@@ -970,7 +1066,7 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       return;
     }
 
-    // 3. Selection & Dragging
+    // 3. Selection & Dragging in 'select' mode
     if (activeTool === 'select') {
       const clicked = findElementAt(x, y);
       if (clicked) {
@@ -983,48 +1079,24 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       return;
     }
 
-    // 4. Placing New Object with Automatic Numbering for GK (TW1, TW2, ...)
-    const newId = Date.now().toString() + Math.random().toString(36).substring(2, 5);
-    let newElement: CanvasElement = {
-      id: newId,
-      type: activeTool,
-      x: snap.x,
-      y: snap.y,
-      rotation: 0
-    };
-
-    if (activeTool === 'cone') {
-      newElement.color = activeColor;
-    } else if (activeTool === 'blazepod') {
-      newElement.color = activeColor === '#f97316' ? '#06b6d4' : activeColor;
-    } else if (activeTool === 'pole') {
-      newElement.color = activeColor === '#f97316' ? '#eab308' : activeColor;
-    } else if (activeTool === 'board') {
-      newElement.color = '#d4a373';
-    } else if (activeTool === 'rebounder') {
-      newElement.color = '#6366f1';
-    } else if (activeTool === 'bench') {
-      newElement.color = '#b45309';
-    } else if (activeTool === 'medicine_ball') {
-      newElement.color = '#451a03';
-    } else if (activeTool === 'square') {
-      newElement.color = activeColor === '#f97316' ? '#eab308' : activeColor;
-    } else if (activeTool === 'resistance_band') {
-      newElement.color = activeColor === '#f97316' ? '#a855f7' : activeColor;
-    } else if (activeTool === 'jumping_rope') {
-      newElement.color = activeColor === '#f97316' ? '#10b981' : activeColor;
-    } else if (activeTool === 'gk') {
-      const currentGkCount = elements.filter(el => el.type === 'gk').length;
-      newElement.label = `TW${currentGkCount + 1}`;
-    } else if (activeTool === 'player') {
-      newElement.label = 'TR';
-      newElement.color = activeColor === '#f97316' ? '#3b82f6' : activeColor;
+    // 4. In Placement Mode (Tool != select):
+    // Check if user clicked on an existing element first:
+    const clicked = findElementAt(x, y);
+    if (clicked) {
+      // Record pending drag: if the user holds and moves > 4px, we drag the existing symbol.
+      // If the user quickly releases without moving, we place the next new symbol!
+      pendingDragRef.current = { elem: clicked, startX: x, startY: y, moved: false };
+      return;
     }
 
+    // 5. Placing New Object on empty space (and allow immediate drag positioning)
+    const newElement = createNewElement(activeTool, snap.x, snap.y);
     const updated = [...elements, newElement];
     setElements(updated);
     pushToHistory(updated);
-    setSelectedId(newId);
+    setSelectedId(newElement.id);
+    setDraggingId(newElement.id);
+    setDragOffset({ x: 0, y: 0 });
   };
 
   const handlePointerMove = (x: number, y: number) => {
@@ -1047,6 +1119,18 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       const snap = getPitchSnapPoint(x, y, width, height, snapToGrid);
       setCurrentMousePos({ x: snap.x, y: snap.y });
       return;
+    }
+
+    // Check if user is holding & moving over an existing symbol in placement mode
+    if (pendingDragRef.current && !pendingDragRef.current.moved) {
+      const dist = Math.hypot(x - pendingDragRef.current.startX, y - pendingDragRef.current.startY);
+      if (dist > 4) {
+        pendingDragRef.current.moved = true;
+        const elem = pendingDragRef.current.elem;
+        setSelectedId(elem.id);
+        setDraggingId(elem.id);
+        setDragOffset({ x: x - elem.x, y: y - elem.y });
+      }
     }
 
     if (draggingId) {
@@ -1117,6 +1201,19 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       return;
     }
 
+    // If user clicked and quickly released without moving over an existing symbol -> place new element!
+    if (pendingDragRef.current) {
+      if (!pendingDragRef.current.moved) {
+        const snap = getPitchSnapPoint(x, y, width, height, snapToGrid);
+        const newElement = createNewElement(activeTool, snap.x, snap.y);
+        const updated = [...elements, newElement];
+        setElements(updated);
+        pushToHistory(updated);
+        setSelectedId(newElement.id);
+      }
+      pendingDragRef.current = null;
+    }
+
     if (draggingId) {
       setDraggingId(null);
       setElements(current => {
@@ -1131,22 +1228,26 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
 
   // Mouse Event Handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     const { x, y } = getCanvasCoords(e);
     handlePointerDown(x, y);
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     const { x, y } = getCanvasCoords(e);
     handlePointerMove(x, y);
   };
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     const { x, y } = getCanvasCoords(e);
     handlePointerUp(x, y);
   };
 
   // Touch Event Handlers for Tablets / Smartphones
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     if (e.touches && e.touches.length > 0) {
       const { x, y } = getCanvasCoords(e.touches[0]);
       handlePointerDown(x, y);
@@ -1154,6 +1255,7 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     if (e.touches && e.touches.length > 0) {
       const { x, y } = getCanvasCoords(e.touches[0]);
       handlePointerMove(x, y);
@@ -1161,6 +1263,7 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
   };
 
   const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     if (e.changedTouches && e.changedTouches.length > 0) {
       const { x, y } = getCanvasCoords(e.changedTouches[0]);
       handlePointerUp(x, y);
@@ -1422,10 +1525,10 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       )}
 
       {/* Main Canvas Area: Narrow Left Toolbar (NO 'Symbole' text) + Canvas Pitch */}
-      <div className="flex items-stretch gap-2.5">
+      <div className="flex items-start gap-2.5">
         {/* Narrow Vertical Toolbar (Left Side: Materials & Equipment) */}
         {!readOnly && (
-          <div className="flex flex-col gap-1 bg-slate-950 p-1.5 rounded-xl border border-slate-800 w-12 sm:w-14 flex-shrink-0 justify-between max-h-[625px] overflow-y-auto">
+          <div className="flex flex-col gap-1 bg-slate-950 p-1.5 rounded-xl border border-slate-800 w-12 sm:w-14 flex-shrink-0 max-h-[min(540px,70vh)] overflow-y-auto scrollbar-thin">
             <div className="flex flex-col gap-1">
               {/* Ball */}
               <button
@@ -1457,6 +1560,22 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
               >
                 <div className="w-3 h-3 rounded-full bg-amber-900 border border-amber-500 flex items-center justify-center text-[6px] text-amber-200 font-bold">M</div>
                 <span>MB</span>
+              </button>
+
+              {/* Plyobox */}
+              <button
+                type="button"
+                onClick={() => setActiveTool('plyobox')}
+                title="Plyobox (Sprungkasten)"
+                className={cn(
+                  "py-1 rounded-lg transition flex flex-col items-center gap-0.5 font-extrabold text-[9px]",
+                  activeTool === 'plyobox'
+                    ? "bg-sky-600 text-white shadow"
+                    : "text-sky-400 hover:bg-sky-950/30 bg-slate-900 border border-slate-800"
+                )}
+              >
+                <div className="w-3.5 h-2 bg-sky-600 border border-sky-300 rounded-[2px] flex items-center justify-center text-[5px] text-white font-black">P</div>
+                <span>Plyo</span>
               </button>
 
               {/* Großes Tor */}
@@ -1673,7 +1792,7 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
             </div>
 
             {/* Quick Color Picker */}
-            {(activeTool === 'cone' || activeTool === 'blazepod' || activeTool === 'pole' || activeTool === 'square' || activeTool === 'resistance_band' || activeTool === 'jumping_rope') && (
+            {(activeTool === 'cone' || activeTool === 'blazepod' || activeTool === 'pole' || activeTool === 'square' || activeTool === 'resistance_band' || activeTool === 'jumping_rope' || activeTool === 'plyobox') && (
               <div className="pt-1.5 border-t border-slate-800 flex flex-col items-center gap-1">
                 {[
                   { name: 'Orange', color: '#f97316' },
@@ -1701,7 +1820,7 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
         )}
 
         {/* Large Focused Canvas Pitch */}
-        <div className="flex-1 relative overflow-hidden rounded-xl border border-slate-800 flex justify-center items-center bg-slate-950">
+        <div className="flex-1 relative overflow-hidden rounded-xl border border-slate-800 flex justify-center items-center bg-slate-950 select-none">
           <canvas
             ref={canvasRef}
             width={width}
@@ -1709,13 +1828,21 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
+            onDoubleClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
-            style={{ touchAction: 'none' }}
+            style={{ 
+              touchAction: 'none',
+              userSelect: 'none',
+              WebkitUserSelect: 'none'
+            }}
             className={cn(
-              "w-full h-auto max-w-full aspect-[720/500] shadow-inner select-none touch-none",
+              "w-full h-auto max-w-full block aspect-[864/560] shadow-inner select-none touch-none",
               readOnly ? "cursor-default" : isRotatingId ? "cursor-grabbing" : activeTool === 'select' ? "cursor-pointer" : "cursor-crosshair"
             )}
           />
