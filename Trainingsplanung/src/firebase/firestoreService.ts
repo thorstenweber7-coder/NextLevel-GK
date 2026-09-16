@@ -2076,7 +2076,9 @@ export function getLocalTrainingGroups(userId?: string): TrainingGroup[] {
     if (raw !== null) {
       try {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        }
       } catch {}
     }
 
@@ -2086,7 +2088,9 @@ export function getLocalTrainingGroups(userId?: string): TrainingGroup[] {
       if (guestRaw !== null) {
         try {
           const parsed = JSON.parse(guestRaw);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          }
         } catch {}
       }
     }
@@ -2121,6 +2125,7 @@ export function getLocalTrainingGroups(userId?: string): TrainingGroup[] {
     }
 
     if (allFound.length > 0) {
+      allFound.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       saveLocalTrainingGroups(uid, allFound);
       return allFound;
     }
@@ -2183,7 +2188,7 @@ export function subscribeUserTrainingGroups(
     });
 
     const mergedList = Array.from(mergedMap.values());
-    mergedList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    mergedList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
     saveLocalTrainingGroups(user.uid, mergedList);
     onData(mergedList);
@@ -4204,7 +4209,8 @@ export function saveLocalMicroPlans(uid: string = 'guest', plans: MicroPlan[]): 
 export function subscribeUserMicroPlans(
   user: { uid: string; email?: string | null } | null,
   onData: (plans: MicroPlan[]) => void,
-  onError?: (error: Error) => void
+  onError?: (error: Error) => void,
+  clubId?: string
 ): () => void {
   const uid = user?.uid || 'guest';
   const initialLocal = getLocalMicroPlans(uid);
@@ -4214,34 +4220,65 @@ export function subscribeUserMicroPlans(
     return () => {};
   }
 
-  let unsub: (() => void) | null = null;
-  try {
-    const q = query(
-      collection(firestoreDb, PERIODIZATION_MICRO_PLANS_COLLECTION),
-      where('ownerId', '==', user.uid)
-    );
+  const querySnapshots = new Map<string, Map<string, MicroPlan>>();
+  const unsubs: (() => void)[] = [];
 
-    unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const list: MicroPlan[] = [];
-        snapshot.forEach(docSnap => {
-          list.push({ ...docSnap.data(), id: docSnap.id } as MicroPlan);
-        });
-        saveLocalMicroPlans(user.uid, list);
-        onData(list);
-      },
-      (err) => {
-        console.warn('Firestore micro plans subscription error:', err);
-        if (onError) onError(err);
+  const emitMerged = () => {
+    const mergedMap = new Map<string, MicroPlan>();
+    querySnapshots.forEach(snapMap => {
+      snapMap.forEach((plan, id) => {
+        mergedMap.set(id, plan);
+      });
+    });
+
+    const currentLocal = getLocalMicroPlans(user.uid);
+    currentLocal.forEach(p => {
+      if (!mergedMap.has(p.id)) {
+        mergedMap.set(p.id, p);
       }
-    );
-  } catch (err: any) {
-    console.warn('Failed to attach micro plans listener:', err);
+    });
+
+    const mergedList = Array.from(mergedMap.values());
+    mergedList.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+
+    saveLocalMicroPlans(user.uid, mergedList);
+    onData(mergedList);
+  };
+
+  const queries: { key: string; q: Query }[] = [];
+  if (clubId) {
+    queries.push({ key: 'club', q: query(collection(firestoreDb, PERIODIZATION_MICRO_PLANS_COLLECTION), where('clubId', '==', clubId)) });
   }
+  queries.push({ key: 'owner', q: query(collection(firestoreDb, PERIODIZATION_MICRO_PLANS_COLLECTION), where('ownerId', '==', user.uid)) });
+
+  queries.forEach(({ key, q }) => {
+    try {
+      const unsub = onSnapshot(
+        q,
+        (snapshot: QuerySnapshot) => {
+          const snapMap = new Map<string, MicroPlan>();
+          snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
+            snapMap.set(docSnap.id, {
+              ...docSnap.data(),
+              id: docSnap.id
+            } as MicroPlan);
+          });
+          querySnapshots.set(key, snapMap);
+          emitMerged();
+        },
+        (err: any) => {
+          console.warn(`Firestore micro plans subscription error (${key}):`, err);
+          if (onError) onError(err);
+        }
+      );
+      unsubs.push(unsub);
+    } catch (err: any) {
+      console.warn(`Failed to attach micro plans listener (${key}):`, err);
+    }
+  });
 
   return () => {
-    if (unsub) unsub();
+    unsubs.forEach(u => u());
   };
 }
 

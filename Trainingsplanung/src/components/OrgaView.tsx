@@ -347,9 +347,11 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     return canEditGroupData(group);
   };
 
-  // Filtered groups visible to current user (taking observer permissions into account)
+  // Filtered groups visible to current user (taking observer permissions into account, sorted oldest first)
   const visibleGroups = useMemo(() => {
-    return groups.filter(g => canViewGroup(g));
+    return [...groups]
+      .filter(g => canViewGroup(g))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [groups, user, isMasterAdmin, isClubAdmin, isClubCoach]);
 
   const [selectedGroupForPlayer, setSelectedGroupForPlayer] = useState<TrainingGroup | null>(null);
@@ -569,6 +571,16 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       }
     }
   }, [visibleGroups, absenceFormData.groupId, absenceFormData.playerId]);
+
+  // Sync selected group for Spielzeiten (match form)
+  useEffect(() => {
+    if (visibleGroups.length > 0 && (!matchFormData.groupId || !visibleGroups.some(g => g.id === matchFormData.groupId))) {
+      setMatchFormData(prev => ({
+        ...prev,
+        groupId: visibleGroups[0].id
+      }));
+    }
+  }, [visibleGroups, matchFormData.groupId]);
 
   // Helper for player initials
   const getPlayerInitials = (firstName: string, lastName: string): string => {

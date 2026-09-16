@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type {
   TrainingGroup,
   PlayerAbsence,
@@ -111,9 +111,36 @@ export const PlayerDiagnosticsCard: React.FC<PlayerDiagnosticsCardProps> = ({
     setOpenPlayerCards(prev => ({ ...prev, [card]: !prev[card] }));
   };
 
+  const sortedGroups = useMemo(() => {
+    return [...groups].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }, [groups]);
+
+  // Sync selected group when groups load/update (oldest created group first)
+  useEffect(() => {
+    if (sortedGroups.length > 0) {
+      if (!selectedGroupId || !sortedGroups.some(g => g.id === selectedGroupId)) {
+        setSelectedGroupId(sortedGroups[0].id);
+      }
+    }
+  }, [sortedGroups, selectedGroupId]);
+
   const selectedGroup = useMemo(() => {
-    return groups.find(g => g.id === selectedGroupId) || groups[0];
-  }, [groups, selectedGroupId]);
+    return sortedGroups.find(g => g.id === selectedGroupId) || sortedGroups[0];
+  }, [sortedGroups, selectedGroupId]);
+
+  // Sync selected player when selected group changes
+  useEffect(() => {
+    if (selectedGroup) {
+      const activePlayers = (selectedGroup.players || []).filter(p => !p.archived);
+      if (activePlayers.length > 0) {
+        if (!selectedPlayerId || !activePlayers.some(p => p.id === selectedPlayerId)) {
+          setSelectedPlayerId(activePlayers[0].id);
+        }
+      } else {
+        setSelectedPlayerId('');
+      }
+    }
+  }, [selectedGroup, selectedPlayerId]);
 
   const groupPlayers = useMemo(() => {
     if (!selectedGroup) return [];

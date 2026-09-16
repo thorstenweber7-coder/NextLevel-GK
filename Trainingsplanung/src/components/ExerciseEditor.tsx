@@ -1006,8 +1006,8 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
 
       {/* 2-Column Responsive Layout: 60% Taktikboard (Sticky) & 40% Übungs-Details */}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 items-start">
-        {/* Left Column: Tactical Canvas Board (60% / 6 Cols on LG) */}
-        <div className="lg:col-span-6 space-y-4 lg:sticky lg:top-4">
+        {/* Left Column: Tactical Canvas Board (60% / 6 Cols on LG) - Sticky below top navbar (80px + 16px gap = top-24) */}
+        <div className="lg:col-span-6 space-y-4 lg:sticky lg:top-24 z-20">
           <ExerciseCanvasStage
             canvasRef={canvasRef}
             initialData={initialExercise?.canvasData}

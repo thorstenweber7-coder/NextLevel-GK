@@ -187,162 +187,178 @@ export const PlannerCatalogSidebar: React.FC<PlannerCatalogSidebarProps> = ({
         })}
       </div>
 
-      {/* 1. DYNAMISCHE FILTERZEILE */}
+      {/* 1. DYNAMISCHE FILTERZEILE (Kompakt / Schmal, standardmäßig zugeklappt) */}
       <div className="bg-slate-950/80 rounded-xl border border-slate-800 overflow-hidden transition-all shadow-sm">
-        <div className="px-2.5 sm:px-3 py-1.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="px-3 py-2 flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => setIsFilterExpanded(prev => !prev)}
-            className="flex items-center gap-2 text-left group hover:opacity-90 transition flex-1 min-w-[150px] cursor-pointer"
+            className="flex items-center gap-2 text-left group hover:opacity-90 transition cursor-pointer"
           >
             <div className={cn(
-              "p-1 rounded-md border transition flex items-center justify-center",
+              "p-1.5 rounded-lg border transition flex items-center justify-center",
               isFilterExpanded || activeSpecificFilterCount > 0
                 ? "bg-emerald-600/20 text-emerald-400 border-emerald-500/40"
                 : "bg-slate-900 text-slate-400 border-slate-800 group-hover:border-slate-700"
             )}>
-              <Filter className="w-3 h-3" />
+              <Filter className="w-3.5 h-3.5" />
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider group-hover:text-emerald-400 transition">
-                  Filter
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-slate-200 uppercase tracking-wider group-hover:text-emerald-400 transition">
+                Filter
+              </span>
+              {activeSpecificFilterCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {activeSpecificFilterCount} aktiv
                 </span>
-                {activeSpecificFilterCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    {activeSpecificFilterCount} aktiv
-                  </span>
-                )}
-                {isFilterExpanded ? (
-                  <ChevronUp className="w-3.5 h-3.5 text-emerald-400 transition" />
-                ) : (
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 transition" />
-                )}
-              </div>
+              )}
+              {isFilterExpanded ? (
+                <ChevronUp className="w-4 h-4 text-emerald-400 transition" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition" />
+              )}
             </div>
           </button>
 
-          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap justify-end">
-            {isFilterActive && (
-              <button
-                type="button"
-                onClick={onResetCatalogFilters}
-                className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold underline flex items-center gap-1 mr-1 cursor-pointer"
-              >
-                <span>Filter zurücksetzen</span>
-              </button>
-            )}
+          {isFilterActive && (
+            <button
+              type="button"
+              onClick={onResetCatalogFilters}
+              className="text-xs text-amber-400 hover:text-amber-300 font-semibold underline flex items-center gap-1 cursor-pointer"
+            >
+              <span>Filter zurücksetzen</span>
+            </button>
+          )}
+        </div>
 
-            {/* Altersstufen-Filter Inline */}
-            <div className="w-full sm:w-36">
-              <select
-                value={filterAgeGroup}
-                onChange={e => setFilterAgeGroup(e.target.value as AgeGroup | 'ALL')}
-                className={cn(
-                  "w-full bg-slate-900 border rounded-lg px-2 py-1 text-[11px] focus:outline-none transition font-semibold h-7",
-                  filterAgeGroup !== 'ALL'
-                    ? "border-purple-500 text-purple-200 bg-purple-950/40 font-bold"
-                    : "border-slate-800 text-slate-300 focus:border-emerald-500"
-                )}
-                title="Nach Altersstufe filtern"
-              >
-                <option value="ALL">Alle Altersstufen</option>
-                {AGE_GROUPS.map(ag => (
-                  <option key={ag} value={ag}>
-                    {ag === 'immer' ? 'immer (ab jedem Alter)' : `ab ${ag}`}
-                  </option>
-                ))}
-              </select>
-            </div>
+        {/* AUFGEKLAPPTE FILTER (Freitext, Altersstufe, Thema, Material & Phasendetails) */}
+        {isFilterExpanded && (
+          <div className="p-3.5 pt-3 border-t border-slate-800/80 bg-slate-950/40 space-y-3">
+            {/* 1. Allgemeine Filterleiste (Suche, Altersstufe, Thema/Technik, Material) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {/* Freitext-Suche */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400">Freitext-Suche</label>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={catalogSearch}
+                    onChange={e => setCatalogSearch(e.target.value)}
+                    placeholder="Übung suchen..."
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-medium"
+                  />
+                </div>
+              </div>
 
-            {/* Torwarttechnik (Analytisch) bzw. Thema (alle anderen Trainingsphasen) Inline */}
-            <div className="w-full sm:w-44">
-              {activeCatalogTab === 'Analytisch' ? (
+              {/* Altersstufen-Filter */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400">Altersstufe</label>
                 <select
-                  value={filterAnalytischTechnik}
-                  onChange={e => setFilterAnalytischTechnik(e.target.value)}
+                  value={filterAgeGroup}
+                  onChange={e => setFilterAgeGroup(e.target.value as AgeGroup | 'ALL')}
                   className={cn(
-                    "w-full bg-slate-900 border rounded-lg px-2 py-1 text-[11px] focus:outline-none transition font-semibold h-7 truncate",
-                    filterAnalytischTechnik.trim()
+                    "w-full bg-slate-900 border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none transition font-semibold",
+                    filterAgeGroup !== 'ALL'
                       ? "border-purple-500 text-purple-200 bg-purple-950/40 font-bold"
-                      : "border-slate-800 text-slate-300 focus:border-purple-500"
-                  )}
-                  title="Nach Torwarttechnik filtern"
-                >
-                  <option value="">Alle Torwarttechniken</option>
-                  {Array.from(new Set(SKILL_DEFINITIONS.Technik.map(t => t.group || 'Allgemein'))).map(groupName => (
-                    <optgroup key={groupName} label={groupName} className="bg-slate-900 text-purple-300 font-bold">
-                      {SKILL_DEFINITIONS.Technik.filter(t => (t.group || 'Allgemein') === groupName).map(t => (
-                        <option key={t.id} value={t.name} className="bg-slate-950 text-slate-100 font-normal">
-                          {t.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              ) : (
-                <select
-                  value={subFocusFilter}
-                  onChange={e => setSubFocusFilter(e.target.value)}
-                  className={cn(
-                    "w-full bg-slate-900 border rounded-lg px-2 py-1 text-[11px] focus:outline-none transition font-semibold h-7 truncate",
-                    subFocusFilter !== 'ALL' && subFocusFilter !== ''
-                      ? "border-sky-500 text-sky-200 bg-sky-950/40 font-bold"
                       : "border-slate-800 text-slate-300 focus:border-emerald-500"
                   )}
-                  title="Nach Thema filtern"
                 >
-                  <option value="ALL">Alle Themen</option>
-                  {PERIODIZATION_TOPICS.map(topic => (
-                    <option key={topic.id} value={topic.label} className="bg-slate-950 text-slate-100">
-                      {topic.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            {/* Athletischer Entwicklungsreiz (Torwart-Athletik) Inline ganz rechts */}
-            {activeCatalogTab === 'Torwart-Athletik' && setFilterAthletischerEntwicklungsreiz && (
-              <div className="w-full sm:w-48">
-                <select
-                  value={filterAthletischerEntwicklungsreiz}
-                  onChange={e => setFilterAthletischerEntwicklungsreiz(e.target.value)}
-                  className={cn(
-                    "w-full bg-slate-900 border rounded-lg px-2 py-1 text-[11px] focus:outline-none transition font-semibold h-7 truncate",
-                    filterAthletischerEntwicklungsreiz !== 'ALL' && filterAthletischerEntwicklungsreiz !== ''
-                      ? "border-blue-500 text-blue-200 bg-blue-950/40 font-bold"
-                      : "border-slate-800 text-slate-300 focus:border-blue-500"
-                  )}
-                  title="Nach Athletischem Entwicklungsreiz filtern"
-                >
-                  <option value="ALL">Alle Entwicklungsreize</option>
-                  {ATHLETISCHER_ENTWICKLUNGSREIZ_OPTIONS.map(reiz => (
-                    <option key={reiz} value={reiz} className="bg-slate-950 text-slate-100">
-                      {reiz}
+                  <option value="ALL">Alle Altersstufen</option>
+                  {AGE_GROUPS.map(ag => (
+                    <option key={ag} value={ag}>
+                      {ag === 'immer' ? 'immer (ab jedem Alter)' : `ab ${ag}`}
                     </option>
                   ))}
                 </select>
               </div>
-            )}
 
-            {/* Search Bar Inline */}
-            <div className="relative w-full sm:w-44">
-              <Search className="w-3 h-3 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={catalogSearch}
-                onChange={e => setCatalogSearch(e.target.value)}
-                placeholder="Freitext-Suche..."
-                className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-6 pr-2 py-1 text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 h-7"
-              />
+              {/* Thema / Torwarttechnik / Entwicklungsreiz */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400">
+                  {activeCatalogTab === 'Analytisch' ? 'Torwarttechnik' : activeCatalogTab === 'Torwart-Athletik' ? 'Thema / Reiz' : 'Thema'}
+                </label>
+                {activeCatalogTab === 'Analytisch' ? (
+                  <select
+                    value={filterAnalytischTechnik}
+                    onChange={e => setFilterAnalytischTechnik(e.target.value)}
+                    className={cn(
+                      "w-full bg-slate-900 border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none transition font-semibold truncate",
+                      filterAnalytischTechnik.trim()
+                        ? "border-purple-500 text-purple-200 bg-purple-950/40 font-bold"
+                        : "border-slate-800 text-slate-300 focus:border-purple-500"
+                    )}
+                  >
+                    <option value="">Alle Torwarttechniken</option>
+                    {Array.from(new Set(SKILL_DEFINITIONS.Technik.map(t => t.group || 'Allgemein'))).map(groupName => (
+                      <optgroup key={groupName} label={groupName} className="bg-slate-900 text-purple-300 font-bold">
+                        {SKILL_DEFINITIONS.Technik.filter(t => (t.group || 'Allgemein') === groupName).map(t => (
+                          <option key={t.id} value={t.name} className="bg-slate-950 text-slate-100 font-normal">
+                            {t.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                ) : activeCatalogTab === 'Torwart-Athletik' && setFilterAthletischerEntwicklungsreiz ? (
+                  <select
+                    value={filterAthletischerEntwicklungsreiz}
+                    onChange={e => setFilterAthletischerEntwicklungsreiz(e.target.value)}
+                    className={cn(
+                      "w-full bg-slate-900 border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none transition font-semibold truncate",
+                      filterAthletischerEntwicklungsreiz !== 'ALL' && filterAthletischerEntwicklungsreiz !== ''
+                        ? "border-blue-500 text-blue-200 bg-blue-950/40 font-bold"
+                        : "border-slate-800 text-slate-300 focus:border-blue-500"
+                    )}
+                  >
+                    <option value="ALL">Alle Entwicklungsreize</option>
+                    {ATHLETISCHER_ENTWICKLUNGSREIZ_OPTIONS.map(reiz => (
+                      <option key={reiz} value={reiz} className="bg-slate-950 text-slate-100">
+                        {reiz}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    value={subFocusFilter}
+                    onChange={e => setSubFocusFilter(e.target.value)}
+                    className={cn(
+                      "w-full bg-slate-900 border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none transition font-semibold truncate",
+                      subFocusFilter !== 'ALL' && subFocusFilter !== ''
+                        ? "border-sky-500 text-sky-200 bg-sky-950/40 font-bold"
+                        : "border-slate-800 text-slate-300 focus:border-emerald-500"
+                    )}
+                  >
+                    <option value="ALL">Alle Themen</option>
+                    {PERIODIZATION_TOPICS.map(topic => (
+                      <option key={topic.id} value={topic.label} className="bg-slate-950 text-slate-100">
+                        {topic.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Material-Filter */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400">Material</label>
+                <select
+                  value={filterMaterial}
+                  onChange={e => setFilterMaterial(e.target.value)}
+                  className={cn(
+                    "w-full bg-slate-900 border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none transition font-medium",
+                    filterMaterial !== 'ALL'
+                      ? "border-emerald-500 text-emerald-300 bg-emerald-950/30 font-bold"
+                      : "border-slate-800 text-slate-300 focus:border-emerald-500"
+                  )}
+                >
+                  <option value="ALL">Alle Materialien</option>
+                  {ALL_MATERIALS.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* EXPANDED FILTER CONTENT */}
-        {isFilterExpanded && (
-          <div className="p-3 pt-2.5 border-t border-slate-800/80 bg-slate-950/40 space-y-2.5">
             {/* WarmUp Filters */}
             {activeCatalogTab === 'WarmUp' && (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">

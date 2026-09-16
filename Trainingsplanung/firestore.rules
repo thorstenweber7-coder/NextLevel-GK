@@ -65,18 +65,31 @@ service cloud.firestore {
       // Users can only view their own profile; Admins can view all users
       allow read: if isOwner(userId) || isAdmin();
 
-      // Profile creation upon initial registration
-      allow create: if isOwner(userId) && (
-        (isBootstrapAdmin() && (request.resource.data.role == 'admin' || request.resource.data.role == 'master_admin')) ||
-        (!isBootstrapAdmin() && request.resource.data.role == 'user')
+      // Profile creation upon initial registration or Admin user creation
+      allow create: if isAdmin() || (
+        isOwner(userId) && (
+          (isBootstrapAdmin() && (request.resource.data.role == 'admin' || request.resource.data.role == 'master_admin')) ||
+          (!isBootstrapAdmin() && (
+            request.resource.data.role == 'user' ||
+            request.resource.data.role == 'trial_user' ||
+            request.resource.data.role == 'single_standard' ||
+            request.resource.data.role == 'single_pro' ||
+            request.resource.data.role == 'club_coach' ||
+            request.resource.data.role == 'club_admin'
+          ))
+        )
       );
 
-      // Normal users can only update cosmetic fields; role/license/block are Admin-only
+      // Normal users can update cosmetic fields; Admins can update all fields
       allow update: if isAdmin() || (
-        isOwner(userId) && 
-        request.resource.data.role == resource.data.role &&
-        request.resource.data.subscriptionExpiresAt == resource.data.subscriptionExpiresAt &&
-        request.resource.data.isBlocked == resource.data.isBlocked
+        isOwner(userId) && (
+          !exists(/databases/$(database)/documents/users/$(userId)) ||
+          (
+            request.resource.data.role == resource.data.role &&
+            request.resource.data.subscriptionExpiresAt == resource.data.subscriptionExpiresAt &&
+            request.resource.data.isBlocked == resource.data.isBlocked
+          )
+        )
       );
 
       // Only Admins can delete user profiles

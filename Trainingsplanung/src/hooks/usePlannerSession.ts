@@ -73,14 +73,8 @@ export function usePlannerSession({
     }
   }, [phaseExercises, storageKey]);
 
-  // 2. Initialize Open / Collapsed Phase states
-  const [openPhases, setOpenPhases] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    (initialStructure?.phases || []).forEach(p => {
-      init[p.id] = true;
-    });
-    return init;
-  });
+  // 2. Initialize Open / Collapsed Phase states (collapsed by default)
+  const [openPhases, setOpenPhases] = useState<Record<string, boolean>>({});
 
   // Toggle single phase open/collapse
   const togglePhaseOpen = useCallback((phaseId: string) => {
@@ -107,7 +101,7 @@ export function usePlannerSession({
     });
   }, []);
 
-  // Immutable Add Exercise to Phase
+  // Immutable Add Exercise to Phase (and auto-open phase)
   const addExerciseToPhase = useCallback((exerciseId: string, phaseId: string) => {
     setPhaseExercises(prev => {
       const currentList = prev[phaseId] || [];
@@ -119,6 +113,10 @@ export function usePlannerSession({
       onPlanChanged?.({ phaseExercises: nextState });
       return nextState;
     });
+    setOpenPhases(prev => ({
+      ...prev,
+      [phaseId]: true
+    }));
   }, [onPlanChanged]);
 
   // Immutable Remove Exercise from Phase
@@ -209,13 +207,11 @@ export function usePlannerSession({
   const resetSession = useCallback((structure?: TrainingStructure) => {
     const struct = structure || initialStructure;
     const initPhases: Record<string, string[]> = {};
-    const initOpen: Record<string, boolean> = {};
     (struct?.phases || []).forEach(p => {
       initPhases[p.id] = [];
-      initOpen[p.id] = true;
     });
     setPhaseExercises(initPhases);
-    setOpenPhases(initOpen);
+    setOpenPhases({});
   }, [initialStructure]);
 
   return {

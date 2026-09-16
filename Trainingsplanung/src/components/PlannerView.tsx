@@ -8,6 +8,8 @@ import {
   getLocalTrainingGroups,
   subscribeUserMesoPlans,
   getLocalMesoPlans,
+  subscribeUserMicroPlans,
+  getLocalMicroPlans,
   subscribeUserMatchPlaytimes,
   getLocalMatchPlaytimes,
   subscribeUserFeedbackTalks,
@@ -31,6 +33,7 @@ import type {
   TrainingGroup, 
   Player, 
   MesoPlan, 
+  MicroPlan,
   PlayerMatchPlaytime, 
   PlayerFeedbackTalk,
   PlayerAbsence,
@@ -48,6 +51,7 @@ import { PeriodizationContextCard } from './planner/PeriodizationContextCard';
 import { PlannerPhaseCard } from './planner/PlannerPhaseCard';
 import { PlannerCatalogSidebar } from './planner/PlannerCatalogSidebar';
 import { PlannerExportModal } from './planner/PlannerExportModal';
+import { CalendarTrainingOverviewModal } from './planner/CalendarTrainingOverviewModal';
 import { CustomDatePicker } from './common/CustomDatePicker';
 import { calculateGroupWorkload } from '../utils/workloadCalculator';
 import { generateTrainingPlanPDF, generateCompactTrainingPlanPDF, getTrainingPlanPDFBlob } from '../utils/pdfExport';
@@ -237,9 +241,11 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   const [savedPlans, setSavedPlans] = useState<TrainingPlan[]>([]);
   const [trainingGroups, setTrainingGroups] = useState<TrainingGroup[]>(() => getLocalTrainingGroups(user?.uid));
   const [mesoPlans, setMesoPlans] = useState<MesoPlan[]>(() => getLocalMesoPlans(user?.uid));
+  const [microPlans, setMicroPlans] = useState<MicroPlan[]>(() => getLocalMicroPlans(user?.uid));
   const [matchPlaytimes, setMatchPlaytimes] = useState<PlayerMatchPlaytime[]>(() => getLocalMatchPlaytimes(user?.uid));
   const [feedbackTalks, setFeedbackTalks] = useState<PlayerFeedbackTalk[]>(() => getLocalFeedbackTalks(user?.uid));
   const [absences, setAbsences] = useState<PlayerAbsence[]>(() => getLocalPlayerAbsences(user?.uid));
+  const [isCalendarOverviewOpen, setIsCalendarOverviewOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const unsub1 = subscribeExercises(user, isAdmin, (data: Exercise[]) => setAllExercises(data), undefined, isClubAdmin, clubId);
@@ -249,6 +255,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     const unsub5 = subscribeUserMatchPlaytimes(user, (data) => setMatchPlaytimes(data));
     const unsub6 = subscribeUserFeedbackTalks(user, (data) => setFeedbackTalks(data), undefined, clubId);
     const unsub7 = subscribeUserAbsences(user, (data: PlayerAbsence[]) => setAbsences(data), undefined, clubId);
+    const unsub8 = subscribeUserMicroPlans(user, (data) => setMicroPlans(data), undefined, clubId);
 
     return () => {
       unsub1();
@@ -258,6 +265,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
       unsub5();
       unsub6();
       unsub7();
+      unsub8();
     };
   }, [user, isAdmin, clubId, isClubAdmin]);
 
@@ -1247,24 +1255,35 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
 
         {/* Form Inputs Grid (5 Spalten: Datum ganz links, Thema Dropdown, Trainingsgruppe, Anzahl TW 1-8 + Anwesenheit, Platzbelag) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-          {/* 1. Datum (ganz links mit Kalenderpicker & Periodisierungs-Button) */}
+          {/* 1. Datum (ganz links mit Kalenderpicker, Übersicht-Button & Periodisierungs-Button) */}
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-1">
               <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Datum</span>
               </label>
-              {onNavigateToOrga && (
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => onNavigateToOrga('macro')}
-                  className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-1.5 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
-                  title="Zu Orga > Periodisierung > Makroplanung wechseln"
+                  onClick={() => setIsCalendarOverviewOpen(true)}
+                  className="text-[10px] font-black text-slate-950 bg-amber-500 hover:bg-amber-400 px-2 py-0.5 rounded border border-amber-400/60 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  title="Monatsübersicht (Kalender & Mikroplanung) öffnen"
                 >
-                  <ExternalLink className="w-3 h-3 text-emerald-400" />
-                  <span>Periodisierung</span>
+                  <Calendar className="w-3 h-3 text-slate-950" />
+                  <span>Übersicht</span>
                 </button>
-              )}
+                {onNavigateToOrga && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToOrga('macro')}
+                    className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-1.5 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                    title="Zu Orga > Periodisierung > Makroplanung wechseln"
+                  >
+                    <ExternalLink className="w-3 h-3 text-emerald-400" />
+                    <span>Periodisierung</span>
+                  </button>
+                )}
+              </div>
             </div>
             <CustomDatePicker
               value={planDate}
@@ -1778,6 +1797,23 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           setDuplicateConflictPlan(null);
           setPendingActionType(null);
         }}
+      />
+
+      <CalendarTrainingOverviewModal
+        isOpen={isCalendarOverviewOpen}
+        onClose={() => setIsCalendarOverviewOpen(false)}
+        savedPlans={savedPlans}
+        trainingGroups={visibleTrainingGroups}
+        mesoPlans={mesoPlans}
+        microPlans={microPlans}
+        currentPlannerDate={planDate}
+        currentPlannerGroupId={selectedGroupObj?.id}
+        onSelectDate={(newDate) => setPlanDate(newDate)}
+        onSelectPlan={(planId) => {
+          const plan = savedPlans.find(p => p.id === planId);
+          if (plan) handleLoadPlan(plan);
+        }}
+        onNavigateToOrga={onNavigateToOrga}
       />
     </div>
   );
