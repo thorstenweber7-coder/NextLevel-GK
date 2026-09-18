@@ -9,7 +9,8 @@ import {
   Trophy, 
   Activity, 
   PieChart, 
-  Calendar 
+  Calendar,
+  Shield
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -35,20 +36,75 @@ export const MatchAnalysisSection: React.FC<MatchAnalysisSectionProps> = ({
   matchPlaytimes
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isAdditionalOpen, setIsAdditionalOpen] = useState(false);
   const [matchStatsTypeFilter, setMatchStatsTypeFilter] = useState<'ALL' | MatchType>('ALL');
   const [hoveredMatchIdx, setHoveredMatchIdx] = useState<number | null>(null);
   const [hoveredSlice, setHoveredSlice] = useState<string | null>(null);
 
-  // Relevant matches: matches belonging to this training group OR where this player has playtime/bench/grade data
+  const mainTeam = player.mainTeam?.trim();
+
+  // Relevant matches: If player has a mainTeam, filter strictly by m.team === mainTeam.
+  // If not assigned to a mainTeam, fallback to matches belonging to this training group OR where player has data.
   const relevantMatches = useMemo(() => {
     return matchPlaytimes.filter(m => {
+      if (mainTeam) {
+        return m.team === mainTeam;
+      }
       const isGroupMatch = m.groupId === group.id || (m as any).trainingGroupId === group.id;
       const hasMinutes = (m.playerMinutes?.[player.id] ?? 0) > 0;
       const onBench = Boolean(m.playerBenchStatus?.[player.id]);
       const hasGrade = m.playerGrades?.[player.id] !== undefined;
       return isGroupMatch || hasMinutes || onBench || hasGrade;
     });
-  }, [matchPlaytimes, group.id, player.id]);
+  }, [matchPlaytimes, group.id, player.id, mainTeam]);
+
+  // Additional playtime in other teams (only teams/matches where playedMins >= 1)
+  const additionalTeamsBreakdown = useMemo(() => {
+    const map: Record<string, {
+      team: string;
+      totalMinutes: number;
+      matches: Array<{
+        match: PlayerMatchPlaytime;
+        playedMins: number;
+        grade?: number;
+      }>;
+    }> = {};
+
+    matchPlaytimes.forEach(m => {
+      const playedMins = Math.max(0, m.playerMinutes?.[player.id] ?? 0);
+      if (playedMins < 1) return;
+
+      // Exclude mainTeam if defined
+      if (mainTeam && m.team === mainTeam) return;
+
+      const teamKey = m.team || 'Anderes Team';
+      if (!map[teamKey]) {
+        map[teamKey] = {
+          team: teamKey,
+          totalMinutes: 0,
+          matches: []
+        };
+      }
+      map[teamKey].totalMinutes += playedMins;
+      map[teamKey].matches.push({
+        match: m,
+        playedMins,
+        grade: m.playerGrades?.[player.id]
+      });
+    });
+
+    Object.values(map).forEach(t => {
+      t.matches.sort((a, b) => new Date(b.match.date).getTime() - new Date(a.match.date).getTime());
+    });
+
+    return Object.values(map)
+      .filter(t => t.totalMinutes >= 1)
+      .sort((a, b) => b.totalMinutes - a.totalMinutes);
+  }, [matchPlaytimes, player.id, mainTeam]);
+
+  const totalAdditionalMinutes = useMemo(() => {
+    return additionalTeamsBreakdown.reduce((sum, t) => sum + t.totalMinutes, 0);
+  }, [additionalTeamsBreakdown]);
 
   // Filtered by selected match type (Meisterschaft, Pokal, etc.)
   const filteredMatches = useMemo(() => {
@@ -65,32 +121,44 @@ export const MatchAnalysisSection: React.FC<MatchAnalysisSectionProps> = ({
     return filteredMatches.map(m => {
       const playedMins = Math.max(0, m.playerMinutes?.[player.id] ?? 0);
       const isExplicitBench = Boolean(m.playerBenchStatus?.[player.id]);
-      const matchDuration = Math.max(90, playedMins);
+
+      // Calculate actual match duration as the sum of all filled-in player minutes for this match,
+      // because in youth matches the total duration is e.g. 60, 70, 80 mins rather than a fixed 90 mins.
+      const matchTotalFilledMins = Object.values(m.playerMinutes || {}).reduce((sum, v) => sum + Math.max(0, Number(v) || 0), 0);
+      const matchDuration = matchTotalFilledMins > 0 ? matchTotalFilledMins : playedMins;
       const grade = m.playerGrades?.[player.id];
 
       let benchMins = 0;
       let outOfSquadMins = 0;
       let statusType: MatchPlayerBreakdown['statusType'] = 'OUT_OF_SQUAD';
 
-      if (playedMins >= matchDuration) {
-        benchMins = 0;
-        outOfSquadMins = 0;
-        statusType = 'FULL_PLAY';
-      } else if (playedMins > 0) {
-        // Player played part of the match -> the rest of this match is spent on the bench!
-        benchMins = Math.max(0, matchDuration - playedMins);
-        outOfSquadMins = 0;
-        statusType = 'PARTIAL_PLAY_AND_BENCH';
-      } else if (isExplicitBench) {
-        // Player was Ersatz-Torwart (bench standby) for the entire match
-        benchMins = matchDuration;
-        outOfSquadMins = 0;
-        statusType = 'FULL_BENCH';
+      if (matchDuration > 0) {
+        if (playedMins >= matchDuration) {
+          benchMins = 0;
+          outOfSquadMins = 0;
+          statusType = 'FULL_PLAY';
+        } else if (playedMins > 0) {
+          // Player played part of the match -> the rest of this match is spent on the bench!
+          benchMins = Math.max(0, matchDuration - playedMins);
+          outOfSquadMins = 0;
+          statusType = 'PARTIAL_PLAY_AND_BENCH';
+        } else if (isExplicitBench) {
+          // Player was Ersatz-Torwart (bench standby) for the entire match
+          benchMins = matchDuration;
+          outOfSquadMins = 0;
+          statusType = 'FULL_BENCH';
+        } else {
+          // 0 minutes and not on bench -> not in matchday squad
+          benchMins = 0;
+          outOfSquadMins = matchDuration;
+          statusType = 'OUT_OF_SQUAD';
+        }
       } else {
-        // 0 minutes and not on bench -> not in matchday squad
-        benchMins = 0;
-        outOfSquadMins = matchDuration;
-        statusType = 'OUT_OF_SQUAD';
+        if (isExplicitBench) {
+          statusType = 'FULL_BENCH';
+        } else {
+          statusType = 'OUT_OF_SQUAD';
+        }
       }
 
       return {
@@ -120,7 +188,7 @@ export const MatchAnalysisSection: React.FC<MatchAnalysisSectionProps> = ({
     return matchBreakdowns.reduce((sum, b) => sum + b.outOfSquadMins, 0);
   }, [matchBreakdowns]);
 
-  // Total potential match playtime across all documented matches (90 mins per match)
+  // Total potential match playtime across all documented matches (Sum of match minutes)
   const totalPossibleMins = useMemo(() => {
     return matchBreakdowns.reduce((sum, b) => sum + b.matchDuration, 0);
   }, [matchBreakdowns]);
@@ -246,9 +314,16 @@ export const MatchAnalysisSection: React.FC<MatchAnalysisSectionProps> = ({
           <div>
             <h4 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
               <span>Spielzeiten</span>
+              {player.mainTeam && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-emerald-950/90 text-emerald-300 border border-emerald-800/80 font-mono">
+                  ⚽ {player.mainTeam}
+                </span>
+              )}
             </h4>
             <p className="text-xs text-slate-400">
-              Einsatzminuten, Bankspielzeiten, Kreisdiagramm & Notenverlauf (1–6)
+              {player.mainTeam
+                ? `Standardauswertung für Hauptmannschaft (${player.mainTeam})`
+                : 'Einsatzminuten, Bankspielzeiten, Kreisdiagramm & Notenverlauf (1–6)'}
             </p>
           </div>
         </div>
@@ -294,7 +369,9 @@ export const MatchAnalysisSection: React.FC<MatchAnalysisSectionProps> = ({
           {filteredMatches.length === 0 ? (
             <div className="p-8 text-center bg-slate-950 rounded-2xl border border-dashed border-slate-800 text-slate-400 space-y-2">
               <Timer className="w-8 h-8 mx-auto text-slate-600" />
-              <div className="text-sm font-bold text-slate-300">Keine Spiele für diesen Torhüter gefunden</div>
+              <div className="text-sm font-bold text-slate-300">
+                {player.mainTeam ? `Keine Spiele für die Hauptmannschaft (${player.mainTeam}) gefunden` : 'Keine Spiele für diesen Torhüter gefunden'}
+              </div>
               <p className="text-xs text-slate-500">Erfasse Spielzeiten im Orga-Bereich unter „Spielzeiten / Einsätze“.</p>
             </div>
           ) : (
@@ -604,7 +681,7 @@ export const MatchAnalysisSection: React.FC<MatchAnalysisSectionProps> = ({
               <div className="space-y-2.5 pt-2">
                 <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-teal-400" />
-                  <span>Spielberichte & Einsätze ({matchBreakdowns.length})</span>
+                  <span>Spielberichte & Einsätze {player.mainTeam ? `(${player.mainTeam})` : ''} ({matchBreakdowns.length})</span>
                 </span>
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                   {matchBreakdowns.map(b => {
@@ -666,6 +743,116 @@ export const MatchAnalysisSection: React.FC<MatchAnalysisSectionProps> = ({
               </div>
             </div>
           )}
+
+          {/* ZUSATZSPIELZEIT KARTE (standardmäßig zugeklappt) */}
+          <div className="bg-slate-950 border border-slate-800/90 rounded-2xl overflow-hidden shadow-md transition-all">
+            <button
+              type="button"
+              onClick={() => setIsAdditionalOpen(prev => !prev)}
+              className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-slate-900/60 transition cursor-pointer select-none"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2.5 rounded-xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 flex-shrink-0">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h5 className="text-xs sm:text-sm font-bold text-white">Zusatzspielzeit</h5>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-indigo-950 text-indigo-300 border border-indigo-800/80">
+                      Andere Mannschaften
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Einsatzminuten in weiteren Teams (z. B. U19, Herren 2)
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-shrink-0">
+                {totalAdditionalMinutes > 0 ? (
+                  <span className="text-xs px-2.5 py-1 rounded-xl font-mono font-bold bg-indigo-950/90 text-indigo-300 border border-indigo-800 shadow-sm">
+                    {totalAdditionalMinutes}' Min. Gesamt ({additionalTeamsBreakdown.length} {additionalTeamsBreakdown.length === 1 ? 'Team' : 'Teams'})
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-500 px-2.5 py-0.5 rounded-lg bg-slate-900 border border-slate-800">
+                    0 Min.
+                  </span>
+                )}
+                <div className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center">
+                  {isAdditionalOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </div>
+              </div>
+            </button>
+
+            {isAdditionalOpen && (
+              <div className="p-4 pt-2 border-t border-slate-800/80 space-y-3.5 bg-slate-950/40 animate-in fade-in duration-150">
+                {additionalTeamsBreakdown.length === 0 ? (
+                  <div className="py-6 text-center text-slate-500 text-xs">
+                    Keine Einsatzzeiten in anderen Mannschaften erfasst (ab 1 Min.).
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {additionalTeamsBreakdown.map(teamItem => (
+                      <div
+                        key={teamItem.team}
+                        className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5"
+                      >
+                        {/* Team Header */}
+                        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-white text-xs tracking-wide flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-indigo-400 inline-block"></span>
+                              {teamItem.team}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              ({teamItem.matches.length} {teamItem.matches.length === 1 ? 'Spiel' : 'Spiele'})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-black text-indigo-300 bg-indigo-950/90 border border-indigo-800/80 px-2.5 py-0.5 rounded-lg">
+                              Summe: {teamItem.totalMinutes}' Min.
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Matches List for this team */}
+                        <div className="space-y-1.5">
+                          {teamItem.matches.map(mItem => {
+                            const gradeBadge = mItem.grade !== undefined ? getMatchGradeBadge(mItem.grade) : null;
+                            return (
+                              <div
+                                key={mItem.match.id}
+                                className="bg-slate-950/80 border border-slate-800/70 rounded-lg p-2.5 text-xs flex items-center justify-between flex-wrap gap-2 hover:border-slate-700 transition"
+                              >
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-mono font-bold text-slate-200">{mItem.match.date}</span>
+                                  <span className="text-slate-400">vs. <strong className="text-slate-200">{mItem.match.opponent || 'Gegner'}</strong></span>
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-900 border border-slate-800 text-slate-400">
+                                    {mItem.match.matchType || 'Meisterschaft'}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  {gradeBadge && (
+                                    <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold border", gradeBadge.style)}>
+                                      {gradeBadge.label}
+                                    </span>
+                                  )}
+                                  <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-indigo-950 text-indigo-300 border border-indigo-800/90">
+                                    {mItem.playedMins}' Min.
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

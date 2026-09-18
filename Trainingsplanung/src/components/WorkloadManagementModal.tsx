@@ -15,7 +15,7 @@ import {
   HeartPulse
 } from 'lucide-react';
 import { cn } from '../utils/cn';
-import type { TrainingPlan, TrainingGroup, Player, PlayerMatchPlaytime, MesoPlan } from '../types';
+import type { TrainingPlan, TrainingGroup, Player, PlayerMatchPlaytime, MesoPlan, PlayerAbsence } from '../types';
 import { 
   calculateGroupWorkload, 
   calculatePlayerWorkload,
@@ -32,6 +32,7 @@ export interface WorkloadManagementModalProps {
   savedPlans: TrainingPlan[];
   matchPlaytimes?: PlayerMatchPlaytime[];
   mesoPlans?: MesoPlan[];
+  absences?: PlayerAbsence[];
   initialGroupId?: string;
   initialPlayerId?: string;
   referenceDate?: Date | string;
@@ -44,6 +45,7 @@ export const WorkloadManagementModal: React.FC<WorkloadManagementModalProps> = (
   savedPlans,
   matchPlaytimes,
   mesoPlans,
+  absences = [],
   initialGroupId,
   initialPlayerId,
   referenceDate
@@ -52,12 +54,31 @@ export const WorkloadManagementModal: React.FC<WorkloadManagementModalProps> = (
 
   // 1. Group Selection
   const [selectedGroupId, setSelectedGroupId] = useState<string>(() => {
-    if (initialGroupId && groups.some(g => g.id === initialGroupId)) return initialGroupId;
+    if (initialGroupId) {
+      const match = groups.find(g => g.id === initialGroupId || g.name.trim().toLowerCase() === initialGroupId.trim().toLowerCase());
+      if (match) return match.id;
+    }
     return groups[0]?.id || 'all';
   });
 
+  // Sync selectedGroupId if initialGroupId changes
+  React.useEffect(() => {
+    if (initialGroupId) {
+      const match = groups.find(g => g.id === initialGroupId || g.name.trim().toLowerCase() === initialGroupId.trim().toLowerCase());
+      if (match) {
+        setSelectedGroupId(match.id);
+      }
+    }
+  }, [initialGroupId, groups]);
+
   // 2. Player selection: null = Entire Group average, string = specific player ID
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(initialPlayerId || null);
+
+  React.useEffect(() => {
+    if (initialPlayerId !== undefined) {
+      setSelectedPlayerId(initialPlayerId);
+    }
+  }, [initialPlayerId]);
 
   // 3. Time window for chart: 4, 6, or 8 weeks
   const [weeksCount, setWeeksCount] = useState<number>(8);
@@ -75,8 +96,8 @@ export const WorkloadManagementModal: React.FC<WorkloadManagementModalProps> = (
 
   // Compute Group Workload Data
   const groupWorkload = useMemo(() => {
-    return calculateGroupWorkload(currentGroup, groups, savedPlans, referenceDate || new Date(), matchPlaytimes, mesoPlans);
-  }, [currentGroup, groups, savedPlans, matchPlaytimes, mesoPlans, referenceDate]);
+    return calculateGroupWorkload(currentGroup, groups, savedPlans, referenceDate || new Date(), matchPlaytimes, mesoPlans, absences);
+  }, [currentGroup, groups, savedPlans, matchPlaytimes, mesoPlans, referenceDate, absences]);
 
   // Active Player Data or Team Average Data
   const activePlayerData = useMemo<PlayerWorkload | null>(() => {
@@ -87,8 +108,8 @@ export const WorkloadManagementModal: React.FC<WorkloadManagementModalProps> = (
     const allPlayers: Player[] = [];
     groups.forEach(g => (g.players || []).forEach(p => allPlayers.push(p)));
     const found = allPlayers.find(p => p.id === selectedPlayerId);
-    return found ? calculatePlayerWorkload(found, savedPlans, referenceDate || new Date(), weeksCount, matchPlaytimes, mesoPlans) : null;
-  }, [selectedPlayerId, groupWorkload.players, groups, savedPlans, weeksCount, matchPlaytimes, mesoPlans, referenceDate]);
+    return found ? calculatePlayerWorkload(found, savedPlans, referenceDate || new Date(), weeksCount, matchPlaytimes, mesoPlans, absences) : null;
+  }, [selectedPlayerId, groupWorkload.players, groups, savedPlans, weeksCount, matchPlaytimes, mesoPlans, referenceDate, absences]);
 
   // Data to display in chart and metric cards
   const currentHistory: WeeklyLoadData[] = useMemo(() => {

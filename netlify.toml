@@ -8,6 +8,47 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# Dedicated Direct Link Routes for Keeper & Coach Login
+[[redirects]]
+  from = "/login"
+  to = "/login.html"
+  status = 200
+
+[[redirects]]
+  from = "/login-torhueter"
+  to = "/login-torhueter.html"
+  status = 200
+
+[[redirects]]
+  from = "/login-keeper"
+  to = "/login-torhueter.html"
+  status = 200
+
+[[redirects]]
+  from = "/keeper-login"
+  to = "/login-torhueter.html"
+  status = 200
+
+[[redirects]]
+  from = "/login-torwarttrainer"
+  to = "/login-torwarttrainer.html"
+  status = 200
+
+[[redirects]]
+  from = "/login-trainer"
+  to = "/login-torwarttrainer.html"
+  status = 200
+
+[[redirects]]
+  from = "/coach-login"
+  to = "/login-torwarttrainer.html"
+  status = 200
+
+[[redirects]]
+  from = "/trainer-login"
+  to = "/login-torwarttrainer.html"
+  status = 200
+
 # SPA client-side routing for the Keepersoftware (/app)
 [[redirects]]
   from = "/app/*"

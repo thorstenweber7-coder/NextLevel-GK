@@ -91,14 +91,56 @@ function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, spikes:
   ctx.closePath();
 }
 
-// Helper to draw tactical vector arrows (Pass = solid, Run = dashed, Dribble = wavy/sine wave, Shot = solid red)
+// Helper to identify tactical arrow types
+export const isArrowType = (type?: string): boolean => {
+  return type === 'pass_arrow' || type === 'run_arrow' || type === 'dribble_arrow' || type === 'shot_arrow' || type === 'cross_arrow';
+};
+
+// Helper to calculate badge position for tactical arrows
+export function getArrowBadgePosition(elem: CanvasElement): { x: number; y: number } {
+  if (elem.endX === undefined || elem.endY === undefined) {
+    return { x: elem.x, y: elem.y };
+  }
+  const dx = elem.endX - elem.x;
+  const dy = elem.endY - elem.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 5) return { x: elem.x, y: elem.y };
+
+  const angle = Math.atan2(dy, dx);
+  const ux = Math.cos(angle);
+  const uy = Math.sin(angle);
+  const nx = -uy;
+  const ny = ux;
+
+  if (elem.type === 'cross_arrow') {
+    // Convex quadratic curve with P0=(0,0), P1=(len/2, h), P2=(len, 0)
+    // h > 0 (curved downward / open upward)
+    const h = Math.min(50, Math.max(18, len * 0.25));
+    const apexX = elem.x + ux * (len / 2) + nx * (h / 2);
+    const apexY = elem.y + uy * (len / 2) + ny * (h / 2);
+    return {
+      x: apexX + nx * 14,
+      y: apexY + ny * 14
+    };
+  }
+
+  // Straight arrows: midpoint + normal offset
+  const midX = (elem.x + elem.endX) / 2;
+  const midY = (elem.y + elem.endY) / 2;
+  return {
+    x: midX + nx * 14,
+    y: midY + ny * 14
+  };
+}
+
+// Helper to draw tactical vector arrows (Pass = solid yellow, Run = dashed white, Dribble = wavy cyan, Shot = solid red, Flanke = convex curved purple)
 function drawTacticalArrow(
   ctx: CanvasRenderingContext2D,
   startX: number,
   startY: number,
   endX: number,
   endY: number,
-  type: 'pass_arrow' | 'run_arrow' | 'dribble_arrow' | 'shot_arrow',
+  type: 'pass_arrow' | 'run_arrow' | 'dribble_arrow' | 'shot_arrow' | 'cross_arrow',
   isSelected: boolean = false
 ) {
   const dx = endX - startX;
@@ -170,17 +212,47 @@ function drawTacticalArrow(
     ctx.moveTo(0, 0);
     ctx.lineTo(len - 4, 0);
     ctx.stroke();
+  } else if (type === 'cross_arrow') {
+    // 5. Flanke: Konvexe Bogenlinie (nach unten gewölbt / nach oben geöffnet), Violett
+    color = '#c084fc';
+    lineWidth = isSelected ? 4.8 : 3.2;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.setLineDash([]);
+
+    const h = Math.min(50, Math.max(18, len * 0.25));
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(len / 2, h, len - 3, 0);
+    ctx.stroke();
   }
 
   // Arrowhead
   ctx.setLineDash([]);
   ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(len, 0);
-  ctx.lineTo(len - headLength, -headLength * 0.55);
-  ctx.lineTo(len - headLength, headLength * 0.55);
-  ctx.closePath();
-  ctx.fill();
+
+  if (type === 'cross_arrow') {
+    // Tangent angle for incoming quadratic bezier curve at endpoint (len, 0)
+    const h = Math.min(50, Math.max(18, len * 0.25));
+    const tangentPhi = Math.atan2(-h, len / 2);
+    ctx.save();
+    ctx.translate(len, 0);
+    ctx.rotate(tangentPhi);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-headLength, -headLength * 0.55);
+    ctx.lineTo(-headLength, headLength * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(len, 0);
+    ctx.lineTo(len - headLength, -headLength * 0.55);
+    ctx.lineTo(len - headLength, headLength * 0.55);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   if (isSelected) {
     ctx.strokeStyle = '#38bdf8';
@@ -286,6 +358,30 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       return next > MAX_HISTORY_STEPS ? MAX_HISTORY_STEPS : next;
     });
   }, [historyIndex]);
+
+  // Helper to reorder arrows sequentially
+  const moveArrowOrder = useCallback((arrowId: string, direction: -1 | 1) => {
+    setElements(prev => {
+      const arrowElements = prev.filter(el => isArrowType(el.type));
+      const currIdx = arrowElements.findIndex(el => el.id === arrowId);
+      if (currIdx === -1) return prev;
+      const targetIdx = currIdx + direction;
+      if (targetIdx < 0 || targetIdx >= arrowElements.length) return prev;
+
+      const targetArrow = arrowElements[targetIdx];
+      const currElemIndex = prev.findIndex(el => el.id === arrowId);
+      const targetElemIndex = prev.findIndex(el => el.id === targetArrow.id);
+      if (currElemIndex === -1 || targetElemIndex === -1) return prev;
+
+      const updated = [...prev];
+      const temp = updated[currElemIndex];
+      updated[currElemIndex] = updated[targetElemIndex];
+      updated[targetElemIndex] = temp;
+
+      pushToHistory(updated);
+      return updated;
+    });
+  }, [pushToHistory]);
 
   // Factory helper for new canvas elements
   const createNewElement = useCallback((type: ToolType, x: number, y: number, customProps?: Partial<CanvasElement>): CanvasElement => {
@@ -527,9 +623,9 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       ctx.save();
       const isSelected = elem.id === selectedId;
 
-      if (elem.type === 'pass_arrow' || elem.type === 'run_arrow' || elem.type === 'dribble_arrow' || elem.type === 'shot_arrow') {
+      if (isArrowType(elem.type)) {
         if (elem.endX !== undefined && elem.endY !== undefined) {
-          drawTacticalArrow(ctx, elem.x, elem.y, elem.endX, elem.endY, elem.type, isSelected);
+          drawTacticalArrow(ctx, elem.x, elem.y, elem.endX, elem.endY, elem.type as any, isSelected);
         }
       } else {
         ctx.translate(elem.x, elem.y);
@@ -955,10 +1051,98 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       ctx.restore();
     });
 
-    // 3. Draw live arrow preview if dragging
+    // 3. Draw Sequential Number Badges & Reorder Controls for all Tactical Arrows
+    const arrowElements = elements.filter(el => isArrowType(el.type));
+    arrowElements.forEach((arrowElem, arrowIndex) => {
+      const orderNum = arrowIndex + 1;
+      const isSelected = arrowElem.id === selectedId;
+      const { x: bx, y: by } = getArrowBadgePosition(arrowElem);
+
+      ctx.save();
+
+      // Border color according to arrow type
+      let badgeBorderColor = '#facc15';
+      if (arrowElem.type === 'run_arrow') badgeBorderColor = '#ffffff';
+      else if (arrowElem.type === 'dribble_arrow') badgeBorderColor = '#06b6d4';
+      else if (arrowElem.type === 'shot_arrow') badgeBorderColor = '#ef4444';
+      else if (arrowElem.type === 'cross_arrow') badgeBorderColor = '#c084fc';
+
+      if (isSelected) {
+        badgeBorderColor = '#38bdf8';
+      }
+
+      // Badge background circle with shadow
+      const badgeRadius = isSelected ? 10.5 : 9.5;
+      ctx.beginPath();
+      ctx.arc(bx, by, badgeRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#020617';
+      ctx.fill();
+      ctx.lineWidth = isSelected ? 2.5 : 1.8;
+      ctx.strokeStyle = badgeBorderColor;
+      ctx.stroke();
+
+      // Number text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${isSelected ? 10.5 : 9.5}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(orderNum.toString(), bx, by + 0.5);
+
+      // If selected and not readOnly: render on-canvas ▲ and ▼ reorder buttons
+      if (isSelected && !readOnly && arrowElements.length > 1) {
+        const canIncrease = arrowIndex < arrowElements.length - 1;
+        const canDecrease = arrowIndex > 0;
+
+        // Up button (▲) above the badge: increases the number (e.g. 2 -> 3)
+        if (canIncrease) {
+          const upY = by - 16;
+          ctx.beginPath();
+          ctx.arc(bx, upY, 6.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#0f172a';
+          ctx.fill();
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = '#38bdf8';
+          ctx.stroke();
+
+          // Little triangle up
+          ctx.fillStyle = '#38bdf8';
+          ctx.beginPath();
+          ctx.moveTo(bx, upY - 3);
+          ctx.lineTo(bx - 3, upY + 2);
+          ctx.lineTo(bx + 3, upY + 2);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // Down button (▼) below the badge: decreases the number (e.g. 3 -> 2)
+        if (canDecrease) {
+          const downY = by + 16;
+          ctx.beginPath();
+          ctx.arc(bx, downY, 6.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#0f172a';
+          ctx.fill();
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = '#38bdf8';
+          ctx.stroke();
+
+          // Little triangle down
+          ctx.fillStyle = '#38bdf8';
+          ctx.beginPath();
+          ctx.moveTo(bx, downY + 3);
+          ctx.lineTo(bx - 3, downY - 2);
+          ctx.lineTo(bx + 3, downY - 2);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+
+      ctx.restore();
+    });
+
+    // 4. Draw live arrow preview if dragging
     if (isDrawingArrow && arrowStart && currentMousePos) {
-      if (activeTool === 'pass_arrow' || activeTool === 'run_arrow' || activeTool === 'dribble_arrow' || activeTool === 'shot_arrow') {
-        drawTacticalArrow(ctx, arrowStart.x, arrowStart.y, currentMousePos.x, currentMousePos.y, activeTool, false);
+      if (isArrowType(activeTool)) {
+        drawTacticalArrow(ctx, arrowStart.x, arrowStart.y, currentMousePos.x, currentMousePos.y, activeTool as any, false);
       }
     }
   }, [elements, width, height, selectedId, isDrawingArrow, arrowStart, currentMousePos, activeTool, readOnly]);
@@ -1015,10 +1199,48 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
   const findElementAt = (x: number, y: number): CanvasElement | null => {
     for (let i = elements.length - 1; i >= 0; i--) {
       const elem = elements[i];
-      if (elem.type === 'pass_arrow' || elem.type === 'run_arrow' || elem.type === 'dribble_arrow' || elem.type === 'shot_arrow') {
+      if (isArrowType(elem.type)) {
         if (elem.endX !== undefined && elem.endY !== undefined) {
-          const d = distToSegment({ x, y }, { x: elem.x, y: elem.y }, { x: elem.endX, y: elem.endY });
-          if (d < 12) return elem;
+          // 1. Check if clicked on arrow number badge
+          const { x: bx, y: by } = getArrowBadgePosition(elem);
+          if (Math.hypot(x - bx, y - by) <= 12) {
+            return elem;
+          }
+
+          // 2. Check if clicked on arrow line
+          if (elem.type === 'cross_arrow') {
+            const dx = elem.endX - elem.x;
+            const dy = elem.endY - elem.y;
+            const len = Math.hypot(dx, dy);
+            if (len > 5) {
+              const angle = Math.atan2(dy, dx);
+              const ux = Math.cos(angle);
+              const uy = Math.sin(angle);
+              const nx = -uy;
+              const ny = ux;
+              const h = Math.min(50, Math.max(18, len * 0.25));
+              const p1x = (elem.x + elem.endX) / 2 + nx * h;
+              const p1y = (elem.y + elem.endY) / 2 + ny * h;
+
+              const steps = 16;
+              let minD = Infinity;
+              let prevPt = { x: elem.x, y: elem.y };
+              for (let s = 1; s <= steps; s++) {
+                const t = s / steps;
+                const curPt = {
+                  x: (1 - t) * (1 - t) * elem.x + 2 * (1 - t) * t * p1x + t * t * elem.endX,
+                  y: (1 - t) * (1 - t) * elem.y + 2 * (1 - t) * t * p1y + t * t * elem.endY
+                };
+                const d = distToSegment({ x, y }, prevPt, curPt);
+                if (d < minD) minD = d;
+                prevPt = curPt;
+              }
+              if (minD < 12) return elem;
+            }
+          } else {
+            const d = distToSegment({ x, y }, { x: elem.x, y: elem.y }, { x: elem.endX, y: elem.endY });
+            if (d < 12) return elem;
+          }
         }
       } else {
         const radius = elem.type === 'goal_large' ? 38 : (elem.type === 'goal_mini' || elem.type === 'bench' || elem.type === 'square' || elem.type === 'plyobox') ? 22 : 18;
@@ -1058,15 +1280,40 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       }
     }
 
-    // 2. Drawing arrows
-    if (activeTool === 'pass_arrow' || activeTool === 'run_arrow' || activeTool === 'dribble_arrow' || activeTool === 'shot_arrow') {
+    // 2. Check if user clicked on on-canvas ▲ / ▼ reorder buttons of selected arrow
+    if (selectedId) {
+      const selectedElem = elements.find(el => el.id === selectedId);
+      if (selectedElem && isArrowType(selectedElem.type)) {
+        const arrowElements = elements.filter(el => isArrowType(el.type));
+        const arrowIndex = arrowElements.findIndex(el => el.id === selectedId);
+        if (arrowIndex !== -1 && arrowElements.length > 1) {
+          const { x: bx, y: by } = getArrowBadgePosition(selectedElem);
+          const canIncrease = arrowIndex < arrowElements.length - 1;
+          const canDecrease = arrowIndex > 0;
+
+          // Click on button above the badge: increases number (+1)
+          if (canIncrease && Math.hypot(x - bx, y - (by - 16)) <= 10) {
+            moveArrowOrder(selectedId, 1);
+            return;
+          }
+          // Click on button below the badge: decreases number (-1)
+          if (canDecrease && Math.hypot(x - bx, y - (by + 16)) <= 10) {
+            moveArrowOrder(selectedId, -1);
+            return;
+          }
+        }
+      }
+    }
+
+    // 3. Drawing arrows
+    if (isArrowType(activeTool)) {
       setIsDrawingArrow(true);
       setArrowStart({ x: snap.x, y: snap.y });
       setCurrentMousePos({ x: snap.x, y: snap.y });
       return;
     }
 
-    // 3. Selection & Dragging in 'select' mode
+    // 4. Selection & Dragging in 'select' mode
     if (activeTool === 'select') {
       const clicked = findElementAt(x, y);
       if (clicked) {
@@ -1079,7 +1326,7 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       return;
     }
 
-    // 4. In Placement Mode (Tool != select):
+    // 5. In Placement Mode (Tool != select):
     // Check if user clicked on an existing element first:
     const clicked = findElementAt(x, y);
     if (clicked) {
@@ -1089,7 +1336,7 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       return;
     }
 
-    // 5. Placing New Object on empty space (and allow immediate drag positioning)
+    // 6. Placing New Object on empty space (and allow immediate drag positioning)
     const newElement = createNewElement(activeTool, snap.x, snap.y);
     const updated = [...elements, newElement];
     setElements(updated);
@@ -1138,7 +1385,7 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       setElements(prev =>
         prev.map(elem => {
           if (elem.id !== draggingId) return elem;
-          if (elem.type === 'pass_arrow' || elem.type === 'run_arrow' || elem.type === 'dribble_arrow' || elem.type === 'shot_arrow') {
+          if (isArrowType(elem.type)) {
             if (elem.endX !== undefined && elem.endY !== undefined) {
               const dx = elem.endX - elem.x;
               const dy = elem.endY - elem.y;
@@ -1440,6 +1687,25 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
             >
               <ArrowRight className="w-3.5 h-3.5 stroke-[3]" />
               <span>Schuss</span>
+            </button>
+
+            {/* 5. Flanke: Violetter Bogenpfeil (Konvexe Bogenlinie) */}
+            <button
+              type="button"
+              onClick={() => setActiveTool('cross_arrow')}
+              title="Flanke (Violetter Bogen / konvexe Kurve)"
+              className={cn(
+                "px-2 py-1 rounded text-xs font-bold transition flex items-center gap-1",
+                activeTool === 'cross_arrow'
+                  ? "bg-purple-600 text-white shadow font-black"
+                  : "text-purple-400 hover:bg-purple-950/40"
+              )}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 8c4 10 13 10 17 0" />
+                <polyline points="16 7 20 8 19 12" />
+              </svg>
+              <span>Flanke</span>
             </button>
           </div>
 

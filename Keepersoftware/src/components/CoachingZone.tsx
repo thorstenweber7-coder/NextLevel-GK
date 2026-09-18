@@ -7,7 +7,7 @@ import { syncUserLevelTodos, syncAllUsersLevelTodos, fetchLevelTodos, saveLevelT
 import { getGoalEvaluationStatus, calculateThreeWeeksFromNow } from '../utils/goalUtils';
 import { LEVEL_QUIZZES } from '../utils/levelQuizzes';
 import { UserProfile, Exercise, Workout, VideoScene, Competition, Goal, WorkoutLog, ChatMessage } from '../types';
-import { Settings, UserPlus, FileText, Dumbbell, Video, Swords, BookOpen, Target, Trash2, Check, Plus, Save, Edit2, AlertCircle, ChevronDown, ChevronUp, Trophy, Calendar, TrendingUp, Activity, History, Award, Lock, Brain, Shield, MessageSquare, Send, ChevronLeft, ListTodo, RefreshCw, X, CheckSquare, Sparkles, CalendarPlus, Clock } from 'lucide-react';
+import { Settings, UserPlus, FileText, Dumbbell, Video, Swords, BookOpen, Target, Trash2, Check, Plus, Save, Edit2, AlertCircle, ChevronDown, ChevronUp, Trophy, Calendar, TrendingUp, Activity, History, Award, Lock, Brain, Shield, MessageSquare, Send, ChevronLeft, ListTodo, RefreshCw, X, CheckSquare, Sparkles, CalendarPlus, Clock, KeyRound, CheckCircle2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export const LEVELS_STRUCTURE = [
@@ -541,6 +541,9 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
   const [editUserArchived, setEditUserArchived] = useState(false);
   const [editUserEmail, setEditUserEmail] = useState('');
   const [editUserResetMsg, setEditUserResetMsg] = useState('');
+  const [directPassword, setDirectPassword] = useState('');
+  const [directPasswordLoading, setDirectPasswordLoading] = useState(false);
+  const [directPasswordMsg, setDirectPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [tempPermissions, setTempPermissions] = useState<Record<string, boolean>>({});
 
@@ -563,6 +566,8 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
     setEditUserArchived(user.archived || false);
     setEditUserEmail(user.email || '');
     setEditUserResetMsg('');
+    setDirectPassword('');
+    setDirectPasswordMsg(null);
     setExpandedAdminLogId(null);
     setSelectedChartExerciseId(null);
   };
@@ -584,6 +589,49 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
       setEditUserResetMsg(`Erfolgreich! Passwort-Zurücksetzen-E-Mail wurde an "${email}" gesendet.`);
     } catch (err: any) {
       setEditUserResetMsg(`Fehler: ${err.message || 'Unbekannter Fehler'}`);
+    }
+  };
+
+  const handleAdminSetDirectPassword = async () => {
+    if (!selectedUser) return;
+    const pwd = directPassword.trim();
+    if (!pwd || pwd.length < 6) {
+      setDirectPasswordMsg({ type: 'error', text: 'Das neue Passwort muss mindestens 6 Zeichen lang sein.' });
+      return;
+    }
+
+    setDirectPasswordLoading(true);
+    setDirectPasswordMsg(null);
+
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin-set-user-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({ uid: selectedUser.uid, newPassword: pwd })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Fehler beim Setzen des Passworts.');
+      }
+
+      setDirectPasswordMsg({
+        type: 'success',
+        text: `Erfolg! Das Passwort für "${selectedUser.name || selectedUser.username}" wurde direkt in Firebase Authentication geändert.`
+      });
+      setDirectPassword('');
+    } catch (err: any) {
+      console.error('Error setting direct password:', err);
+      setDirectPasswordMsg({
+        type: 'error',
+        text: `Fehler: ${err.message || 'Passwort konnte nicht geändert werden.'}`
+      });
+    } finally {
+      setDirectPasswordLoading(false);
     }
   };
 
@@ -609,6 +657,7 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
       });
 
       // Synchronize with Firebase Auth if changed
+      let authSynced = false;
       if (newEmail && newEmail !== oldEmail) {
         try {
           const idToken = await auth.currentUser?.getIdToken();
@@ -624,13 +673,18 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
             const errData = await syncRes.json();
             throw new Error(errData.error || 'Authentifizierungssynchronisierung fehlgeschlagen.');
           }
+          authSynced = true;
         } catch (authErr: any) {
           console.error('Failed to sync email to Firebase Auth:', authErr);
-          alert(`Hinweis: Profil wurde gespeichert, aber E-Mail konnte nicht im Login-System aktualisiert werden: ${authErr.message}`);
+          alert(`Hinweis: Profil wurde in Firestore gespeichert, aber E-Mail konnte nicht im Login-System aktualisiert werden: ${authErr.message}\n\n(Tipp: Prüfe, ob service-account.json im Projektordner liegt).`);
         }
       }
 
-      alert('Benutzerprofil erfolgreich gespeichert!');
+      if (authSynced) {
+        alert('Benutzerprofil und Login-E-Mail (Firebase Authentication) erfolgreich aktualisiert!');
+      } else {
+        alert('Benutzerprofil erfolgreich gespeichert!');
+      }
       setSelectedUser(null);
       loadAllData();
     } catch (err) {
@@ -2579,6 +2633,59 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
                     <p className="text-[10px] font-mono text-amber-500 bg-slate-950 p-1.5 rounded border border-slate-850">
                       {editUserResetMsg}
                     </p>
+                  )}
+                </div>
+
+                {/* Direct Admin Password Override */}
+                <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <KeyRound className="w-3.5 h-3.5 text-brand-neon" />
+                        <h4 className="text-[11px] font-bold text-white font-mono uppercase tracking-wider">
+                          Passwort direkt festlegen (Admin)
+                        </h4>
+                      </div>
+                      <p className="text-[9px] text-slate-400 font-sans max-w-sm mt-0.5">
+                        Überschreibt das Passwort sofort in Firebase Authentication – kein E-Mail-Reset erforderlich.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={directPassword}
+                      onChange={(e) => setDirectPassword(e.target.value)}
+                      placeholder="Neues Passwort (mind. 6 Zeichen)"
+                      disabled={directPasswordLoading}
+                      className="flex-1 bg-slate-950 border border-slate-750 focus:border-brand-neon rounded-lg px-3 py-1.5 text-xs text-white font-mono placeholder-slate-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAdminSetDirectPassword}
+                      disabled={directPasswordLoading || !directPassword.trim()}
+                      className="px-3 py-1.5 bg-brand-neon hover:bg-brand-neon-hover disabled:bg-slate-800 disabled:text-slate-650 text-slate-950 font-mono font-bold rounded-lg text-[10px] transition-all cursor-pointer whitespace-nowrap"
+                    >
+                      {directPasswordLoading ? 'Wird gesetzt...' : 'Passwort setzen'}
+                    </button>
+                  </div>
+
+                  {directPasswordMsg && (
+                    <div
+                      className={`p-2 rounded-lg text-[10px] font-mono flex items-start gap-1.5 ${
+                        directPasswordMsg.type === 'success'
+                          ? 'bg-emerald-950/40 border border-emerald-500/30 text-emerald-300'
+                          : 'bg-red-950/40 border border-red-500/30 text-red-300'
+                      }`}
+                    >
+                      {directPasswordMsg.type === 'success' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                      )}
+                      <span>{directPasswordMsg.text}</span>
+                    </div>
                   )}
                 </div>
 

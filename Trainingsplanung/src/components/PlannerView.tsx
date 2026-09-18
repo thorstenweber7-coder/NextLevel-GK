@@ -842,8 +842,8 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   }, [targetGroup, visibleTrainingGroups]);
 
   const activeGroupWorkload = useMemo(() => {
-    return calculateGroupWorkload(currentPlannerGroup, visibleTrainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans);
-  }, [currentPlannerGroup, visibleTrainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans]);
+    return calculateGroupWorkload(currentPlannerGroup, visibleTrainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans, absences);
+  }, [currentPlannerGroup, visibleTrainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans, absences]);
 
   // Matching Periodization (strictly for selected target group & planDate)
   const matchedPeriodization = useMemo(() => {
@@ -1778,6 +1778,9 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
         savedPlans={savedPlans}
         matchPlaytimes={matchPlaytimes}
         mesoPlans={mesoPlans}
+        absences={absences}
+        initialGroupId={currentPlannerGroup?.id || selectedGroupObj?.id}
+        referenceDate={planDate}
       />
 
       <PlannerExportModal

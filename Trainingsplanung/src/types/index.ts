@@ -583,7 +583,8 @@ export type ToolType =
   | 'pass_arrow' 
   | 'run_arrow' 
   | 'dribble_arrow' 
-  | 'shot_arrow';
+  | 'shot_arrow'
+  | 'cross_arrow';
 
 export interface CanvasElement {
   id: string;
@@ -791,6 +792,7 @@ export interface Player {
   lastName: string;
   birthYear?: number | string;
   jerseyNumber?: number | string;
+  mainTeam?: string; // e.g. "U17", "Herren 1", etc.
   notes?: string;
   archived?: boolean;
   archivedAt?: number;
@@ -1378,7 +1380,7 @@ export interface PlayerEvaluation {
 // SPIELZEITEN (MATCH PLAYTIMES)
 // ----------------------------------------------------------------------------
 export const MATCH_TEAMS = [
-  'U11', 'U12', 'U13', 'U14', 'U15', 'U16', 'U17', 'U18', 'U19',
+  'U10', 'U11', 'U12', 'U13', 'U14', 'U15', 'U16', 'U17', 'U18', 'U19',
   'Herren 1', 'Herren 2', 'Damen 1', 'Damen 2'
 ] as const;
 export type MatchTeam = typeof MATCH_TEAMS[number];

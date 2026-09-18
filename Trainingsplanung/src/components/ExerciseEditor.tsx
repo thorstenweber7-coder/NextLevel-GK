@@ -78,12 +78,14 @@ interface ExerciseEditorProps {
   initialExercise?: Exercise | null;
   onSaved?: (savedExercise: Exercise) => void;
   onCancel?: () => void;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
 export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
   initialExercise,
   onSaved,
-  onCancel
+  onCancel,
+  onDirtyChange
 }) => {
   const { user, isAdmin, isMasterAdmin, isClubAdmin, isClubCoach, clubId, clubName, currentClub, favoriteExerciseIds } = useAuth();
   const canvasRef = useRef<TacticalCanvasRef | null>(null);
@@ -92,6 +94,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState<boolean>(false);
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [isLoadedAsTemplate, setIsLoadedAsTemplate] = useState<boolean>(false);
+  const [canvasElements, setCanvasElements] = useState<any[]>(() => initialExercise?.canvasData?.elements || []);
 
   // Core Form State
   const [title, setTitle] = useState<string>(initialExercise?.title || '');
@@ -251,8 +254,12 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     // Canvas
     if (templateExercise.canvasData && canvasRef.current) {
       canvasRef.current.loadCanvasData(templateExercise.canvasData);
+      setCanvasElements(templateExercise.canvasData.elements || []);
     } else if (canvasRef.current) {
       canvasRef.current.clearCanvas();
+      setCanvasElements([]);
+    } else {
+      setCanvasElements(templateExercise.canvasData?.elements || []);
     }
 
     setIsLoadedAsTemplate(true);
@@ -542,6 +549,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
       setMinAgeGroup(initialExercise.minAgeGroup || 'immer');
       setDurationMinutes(initialExercise.durationMinutes || 15);
       setMaterials(initialExercise.materials || []);
+      setVideoUrl(initialExercise.videoUrl || '');
       setCoachingPoints(initialExercise.coachingPoints || '');
 
       setIsPublished(initialExercise.isPublished ?? false);
@@ -568,9 +576,45 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
       setTaktikprinzipien(initialExercise.taktikprinzipien || '');
       setIncludeTaktikprinzipienInPdf(initialExercise.includeTaktikprinzipienInPdf ?? true);
       setSiegbedingung(initialExercise.siegbedingung || '');
+      setIsLoadedAsTemplate(false);
+      setCanvasElements(initialExercise.canvasData?.elements || []);
 
       if (initialExercise.canvasData && canvasRef.current) {
         canvasRef.current.loadCanvasData(initialExercise.canvasData);
+      } else if (canvasRef.current) {
+        canvasRef.current.clearCanvas();
+      }
+    } else {
+      setTitle('');
+      setCategory('WarmUp');
+      setAblauf('');
+      setMinKeepers(1);
+      setMaxKeepers(4);
+      setMinAgeGroup('immer');
+      setDurationMinutes(15);
+      setMaterials([]);
+      setVideoUrl('');
+      setCoachingPoints('');
+      setIsPublished(false);
+      setIsClubPublished(false);
+      setAtSchwerpunkt('unspezifisch');
+      setKognition('nicht enthalten');
+      setKoordinativesElement('nicht enthalten');
+      setVisuellesElement('nicht enthalten');
+      setWarmUpSchwerpunkte([]);
+      setAthletikSchwerpunkt('Explosivität');
+      setAthletischerEntwicklungsreiz('');
+      setTechnik('');
+      setTechnikprinzipien('');
+      setMethodikStufen({ stufe1: '', stufe2: '', stufe3: '', stufe4: '', stufe5: '', stufe6: '' });
+      setSituativeSchwerpunkte([]);
+      setTaktikprinzipien('');
+      setIncludeTaktikprinzipienInPdf(true);
+      setSiegbedingung('');
+      setIsLoadedAsTemplate(false);
+      setCanvasElements([]);
+      if (canvasRef.current) {
+        canvasRef.current.clearCanvas();
       }
     }
   }, [initialExercise]);
@@ -594,6 +638,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
 
   // Synchronize Materials with Symbols on Canvas (unions canvas materials without deleting manually checked items)
   const handleCanvasChange = (data: TacticalCanvasData) => {
+    setCanvasElements(data.elements || []);
     const activeBoardMaterials = new Set<MaterialType>();
     (data.elements || []).forEach(el => {
       const mapped = TOOL_TO_MATERIAL_MAP[el.type];
@@ -606,6 +651,150 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
       return Array.from(new Set([...prev, ...Array.from(activeBoardMaterials)]));
     });
   };
+
+  // Detect Unsaved Changes (Dirty State)
+  const isDirty = useMemo(() => {
+    if (isLoadedAsTemplate) return true;
+
+    if (!initialExercise) {
+      // New Exercise: dirty if at least 1 field has been filled or changed from defaults
+      if (title.trim() !== '') return true;
+      if (category !== 'WarmUp') return true;
+      if (ablauf.trim() !== '') return true;
+      if (minKeepers !== 1 || maxKeepers !== 4) return true;
+      if (minAgeGroup !== 'immer') return true;
+      if (durationMinutes !== 15) return true;
+      if (materials.length > 0) return true;
+      if (videoUrl.trim() !== '') return true;
+      if (coachingPoints.trim() !== '') return true;
+
+      // WarmUp
+      if (atSchwerpunkt !== 'unspezifisch') return true;
+      if (kognition !== 'nicht enthalten') return true;
+      if (koordinativesElement !== 'nicht enthalten') return true;
+      if (visuellesElement !== 'nicht enthalten') return true;
+      if (warmUpSchwerpunkte.length > 0) return true;
+
+      // Torwart-Athletik
+      if (athletikSchwerpunkt !== 'Explosivität') return true;
+      if (typeof athletischerEntwicklungsreiz === 'string' && athletischerEntwicklungsreiz.trim() !== '') return true;
+
+      // Analytisch
+      if (technik.trim() !== '') return true;
+      if (technikprinzipien.trim() !== '') return true;
+      if (Object.values(methodikStufen).some(val => (val || '').trim() !== '')) return true;
+
+      // Situativ & Wettkämpfe
+      if (situativeSchwerpunkte.length > 0) return true;
+      if (taktikprinzipien.trim() !== '') return true;
+      if (siegbedingung.trim() !== '') return true;
+
+      // Canvas
+      if (canvasElements.length > 0) return true;
+
+      return false;
+    }
+
+    // Existing Exercise: dirty if any field changed compared to initialExercise
+    if (title.trim() !== (initialExercise.title || '').trim()) return true;
+    if (category !== (initialExercise.category || 'WarmUp')) return true;
+    if (ablauf.trim() !== (initialExercise.ablauf || '').trim()) return true;
+    if (minKeepers !== (initialExercise.minKeepers ?? 1)) return true;
+    if (maxKeepers !== (initialExercise.maxKeepers ?? 4)) return true;
+    if (minAgeGroup !== (initialExercise.minAgeGroup || 'immer')) return true;
+    if (durationMinutes !== (initialExercise.durationMinutes ?? 15)) return true;
+    if (videoUrl.trim() !== (initialExercise.videoUrl || '').trim()) return true;
+    if (coachingPoints.trim() !== (initialExercise.coachingPoints || '').trim()) return true;
+
+    // Materials
+    const initialMats = [...(initialExercise.materials || [])].sort().join(',');
+    const currentMats = [...materials].sort().join(',');
+    if (initialMats !== currentMats) return true;
+
+    // WarmUp
+    if (atSchwerpunkt !== ((initialExercise.atSchwerpunkt as string) || 'unspezifisch')) return true;
+    if (kognition !== ((initialExercise.kognition as string) || 'nicht enthalten')) return true;
+    if (koordinativesElement !== ((initialExercise.koordinativesElement as string) || 'nicht enthalten')) return true;
+    if (visuellesElement !== ((initialExercise.visuellesElement as string) || 'nicht enthalten')) return true;
+    const initialWarmUp = [...(initialExercise.warmUpSchwerpunkte || [])].sort().join(',');
+    const currentWarmUp = [...warmUpSchwerpunkte].sort().join(',');
+    if (initialWarmUp !== currentWarmUp) return true;
+
+    // Torwart-Athletik
+    if (athletikSchwerpunkt !== ((initialExercise.athletikSchwerpunkt as FocusSchwerpunkt) || 'Explosivität')) return true;
+    if ((athletischerEntwicklungsreiz || '') !== (initialExercise.athletischerEntwicklungsreiz || '')) return true;
+
+    // Analytisch
+    if (technik.trim() !== (initialExercise.technik || '').trim()) return true;
+    if (technikprinzipien.trim() !== (initialExercise.technikprinzipien || '').trim()) return true;
+    const initialStufen = initialExercise.methodischeReiheStufen || { stufe1: '', stufe2: '', stufe3: '', stufe4: '', stufe5: '', stufe6: '' };
+    if (
+      (methodikStufen.stufe1 || '') !== (initialStufen.stufe1 || '') ||
+      (methodikStufen.stufe2 || '') !== (initialStufen.stufe2 || '') ||
+      (methodikStufen.stufe3 || '') !== (initialStufen.stufe3 || '') ||
+      (methodikStufen.stufe4 || '') !== (initialStufen.stufe4 || '') ||
+      (methodikStufen.stufe5 || '') !== (initialStufen.stufe5 || '') ||
+      (methodikStufen.stufe6 || '') !== (initialStufen.stufe6 || '')
+    ) return true;
+
+    // Situativ & Wettkämpfe
+    const initialSituativ = [...(initialExercise.situativeSchwerpunkte || (initialExercise.situativerSchwerpunkt ? [initialExercise.situativerSchwerpunkt] : []))].sort().join(',');
+    const currentSituativ = [...situativeSchwerpunkte].sort().join(',');
+    if (initialSituativ !== currentSituativ) return true;
+    if (taktikprinzipien.trim() !== (initialExercise.taktikprinzipien || '').trim()) return true;
+    if (siegbedingung.trim() !== (initialExercise.siegbedingung || '').trim()) return true;
+
+    // Canvas
+    const initialElements = initialExercise.canvasData?.elements || [];
+    if (canvasElements.length !== initialElements.length) return true;
+    if (JSON.stringify(canvasElements) !== JSON.stringify(initialElements)) return true;
+
+    return false;
+  }, [
+    isLoadedAsTemplate,
+    initialExercise,
+    title,
+    category,
+    ablauf,
+    minKeepers,
+    maxKeepers,
+    minAgeGroup,
+    durationMinutes,
+    materials,
+    videoUrl,
+    coachingPoints,
+    atSchwerpunkt,
+    kognition,
+    koordinativesElement,
+    visuellesElement,
+    warmUpSchwerpunkte,
+    athletikSchwerpunkt,
+    athletischerEntwicklungsreiz,
+    technik,
+    technikprinzipien,
+    methodikStufen,
+    situativeSchwerpunkte,
+    taktikprinzipien,
+    siegbedingung,
+    canvasElements
+  ]);
+
+  // Notify Parent of Dirty State
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  // Prevent Unintentional Browser Reload/Close when Dirty
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   const AUTO_COACHING_TIP = 'Vororientierung - Blick ins Zentrum fordern';
   const TRIGGER_TOPICS_FOR_COACHING_TIP = [

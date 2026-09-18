@@ -414,52 +414,138 @@ export function renderPitchDiagram(elements: CanvasElement[], width = 720, heigh
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.restore();
-    } else if (elem.type === 'pass_arrow' || elem.type === 'run_arrow' || elem.type === 'shot_arrow') {
+    } else if (elem.type === 'pass_arrow' || elem.type === 'run_arrow' || elem.type === 'dribble_arrow' || elem.type === 'shot_arrow' || elem.type === 'cross_arrow') {
       if (elem.endX !== undefined && elem.endY !== undefined) {
         ctx.restore();
         ctx.save();
 
         const dx = elem.endX - elem.x;
         const dy = elem.endY - elem.y;
+        const len = Math.hypot(dx, dy);
         const angle = Math.atan2(dy, dx);
+
+        ctx.translate(elem.x, elem.y);
+        ctx.rotate(angle);
 
         ctx.beginPath();
         if (elem.type === 'pass_arrow') {
           ctx.strokeStyle = '#facc15';
           ctx.lineWidth = 3;
-          ctx.setLineDash([8, 5]);
+          ctx.setLineDash([]);
+          ctx.moveTo(0, 0);
+          ctx.lineTo(len - 4, 0);
+          ctx.stroke();
         } else if (elem.type === 'shot_arrow') {
           ctx.strokeStyle = '#ef4444';
           ctx.lineWidth = 3.5;
           ctx.setLineDash([]);
-        } else {
+          ctx.moveTo(0, 0);
+          ctx.lineTo(len - 4, 0);
+          ctx.stroke();
+        } else if (elem.type === 'run_arrow') {
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 3;
+          ctx.setLineDash([7, 5]);
+          ctx.moveTo(0, 0);
+          ctx.lineTo(len - 4, 0);
+          ctx.stroke();
+        } else if (elem.type === 'dribble_arrow') {
+          ctx.strokeStyle = '#06b6d4';
+          ctx.lineWidth = 3;
           ctx.setLineDash([]);
+          const waveAmplitude = 5;
+          const waveLength = 20;
+          const endWaveX = Math.max(0, len - 13);
+          ctx.moveTo(0, 0);
+          const steps = Math.max(10, Math.floor(endWaveX / 2));
+          for (let i = 1; i <= steps; i++) {
+            const x = (i / steps) * endWaveX;
+            const y = Math.sin((x / waveLength) * Math.PI * 2) * waveAmplitude;
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(len - 4, 0);
+          ctx.stroke();
+        } else if (elem.type === 'cross_arrow') {
+          ctx.strokeStyle = '#c084fc';
+          ctx.lineWidth = 3.2;
+          ctx.setLineDash([]);
+          const h = Math.min(50, Math.max(18, len * 0.25));
+          ctx.moveTo(0, 0);
+          ctx.quadraticCurveTo(len / 2, h, len - 3, 0);
+          ctx.stroke();
         }
 
-        ctx.moveTo(elem.x, elem.y);
-        ctx.lineTo(elem.endX, elem.endY);
-        ctx.stroke();
-
         ctx.setLineDash([]);
-        ctx.fillStyle = elem.type === 'pass_arrow' ? '#facc15' : elem.type === 'shot_arrow' ? '#ef4444' : '#ffffff';
-        ctx.beginPath();
+        const color = elem.type === 'pass_arrow' ? '#facc15' : elem.type === 'shot_arrow' ? '#ef4444' : elem.type === 'dribble_arrow' ? '#06b6d4' : elem.type === 'cross_arrow' ? '#c084fc' : '#ffffff';
+        ctx.fillStyle = color;
         const headLength = 13;
-        ctx.moveTo(elem.endX, elem.endY);
-        ctx.lineTo(
-          elem.endX - headLength * Math.cos(angle - Math.PI / 6),
-          elem.endY - headLength * Math.sin(angle - Math.PI / 6)
-        );
-        ctx.lineTo(
-          elem.endX - headLength * Math.cos(angle + Math.PI / 6),
-          elem.endY - headLength * Math.sin(angle + Math.PI / 6)
-        );
-        ctx.closePath();
-        ctx.fill();
+
+        if (elem.type === 'cross_arrow') {
+          const h = Math.min(50, Math.max(18, len * 0.25));
+          const tangentPhi = Math.atan2(-h, len / 2);
+          ctx.save();
+          ctx.translate(len, 0);
+          ctx.rotate(tangentPhi);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(-headLength, -headLength * 0.55);
+          ctx.lineTo(-headLength, headLength * 0.55);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(len, 0);
+          ctx.lineTo(len - headLength, -headLength * 0.55);
+          ctx.lineTo(len - headLength, headLength * 0.55);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
     }
 
+    ctx.restore();
+  });
+
+  // Draw arrow numbering badges
+  const arrowElems = elements.filter((e: CanvasElement) => ['pass_arrow', 'run_arrow', 'dribble_arrow', 'shot_arrow', 'cross_arrow'].includes(e.type));
+  arrowElems.forEach((arrowElem: CanvasElement, arrowIdx: number) => {
+    if (arrowElem.endX === undefined || arrowElem.endY === undefined) return;
+    const dx = arrowElem.endX - arrowElem.x;
+    const dy = arrowElem.endY - arrowElem.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 5) return;
+    const angle = Math.atan2(dy, dx);
+    const ux = Math.cos(angle);
+    const uy = Math.sin(angle);
+    const nx = -uy;
+    const ny = ux;
+
+    let bx = (arrowElem.x + arrowElem.endX) / 2 + nx * 14;
+    let by = (arrowElem.y + arrowElem.endY) / 2 + ny * 14;
+
+    if (arrowElem.type === 'cross_arrow') {
+      const h = Math.min(50, Math.max(18, len * 0.25));
+      const apexX = arrowElem.x + ux * (len / 2) + nx * (h / 2);
+      const apexY = arrowElem.y + uy * (len / 2) + ny * (h / 2);
+      bx = apexX + nx * 14;
+      by = apexY + ny * 14;
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(bx, by, 9.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#020617';
+    ctx.fill();
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = arrowElem.type === 'pass_arrow' ? '#facc15' : arrowElem.type === 'shot_arrow' ? '#ef4444' : arrowElem.type === 'dribble_arrow' ? '#06b6d4' : arrowElem.type === 'cross_arrow' ? '#c084fc' : '#ffffff';
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 9.5px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((arrowIdx + 1).toString(), bx, by + 0.5);
     ctx.restore();
   });
 

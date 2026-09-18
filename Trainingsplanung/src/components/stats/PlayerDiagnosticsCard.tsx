@@ -1797,6 +1797,7 @@ export const PlayerDiagnosticsCard: React.FC<PlayerDiagnosticsCardProps> = ({
               group={activeSelectedPlayerObj.group}
               savedPlans={savedPlans}
               matchPlaytimes={matchPlaytimes}
+              absences={absences}
             />
           )}
         </div>

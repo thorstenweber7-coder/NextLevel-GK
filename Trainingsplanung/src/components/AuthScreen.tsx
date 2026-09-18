@@ -13,6 +13,7 @@ import {
   User
 } from 'lucide-react';
 import { cn } from '../utils/cn';
+import logoImg from '../assets/Logo.png';
 
 type AuthMode = 'login' | 'register' | 'forgot_password';
 
@@ -132,7 +133,7 @@ export const AuthScreen: React.FC = () => {
         <div className="flex flex-col items-center text-center space-y-3">
           <div className="h-20 sm:h-24 w-auto flex items-center justify-center">
             <img
-              src="/Logo.png"
+              src={logoImg}
               alt="NextLevel Logo"
               className="h-full w-auto object-contain drop-shadow-[0_6px_20px_rgba(34,197,94,0.35)]"
             />

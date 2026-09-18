@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keeper Login | NextLevel Goalkeeping Academy</title>
+  <meta name="description" content="Offizielle Loginseite für Torhüterinnen und Torhüter der NextLevel Goalkeeping Academy. Direkter Zugang zu Trainingsplänen, Athletik, Neuroathletik und Videoanalysen.">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="Assets/logo_tiny.png">
+  
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Keeper Login | NextLevel Goalkeeping Academy">
+  <meta property="og:description" content="Melde dich in deinem persönlichen NextLevel Keeper Portal an.">
+  <meta property="og:image" content="https://nextlevel-gk.de/Assets/Logo.jpg">
+
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              DEFAULT: '#0A0D14',
+              light: '#131824',
+              lighter: '#1C2336',
+              border: '#2A344A'
+            },
+            neonGreen: {
+              DEFAULT: '#39FF14',
+              hover: '#29e00c',
+              glow: 'rgba(57, 255, 20, 0.4)',
+              dim: 'rgba(57, 255, 20, 0.1)'
+            },
+            accentCyan: {
+              DEFAULT: '#06B6D4',
+              hover: '#0891B2',
+            }
+          },
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: #0A0D14;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col justify-between antialiased bg-dark selection:bg-neonGreen selection:text-dark">
+
+  <!-- Background Glow Orbs -->
+  <div class="fixed top-[15%] left-[-10%] w-[500px] h-[500px] bg-neonGreen/10 rounded-full mix-blend-screen filter blur-[140px] pointer-events-none z-0"></div>
+  <div class="fixed bottom-[10%] right-[-10%] w-[450px] h-[450px] bg-emerald-500/10 rounded-full mix-blend-screen filter blur-[140px] pointer-events-none z-0"></div>
+
+  <!-- Header -->
+  <header class="relative z-20 backdrop-blur-xl bg-dark/85 border-b border-white/5">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
+      <a href="torhueter.html" class="flex items-center gap-3 group">
+        <img src="Assets/logo_small.png" alt="NextLevel Logo" class="h-12 w-12 sm:h-14 sm:w-14 object-contain rounded-xl transition-transform group-hover:scale-105">
+        <div class="flex flex-col">
+          <span class="text-white font-black text-lg sm:text-xl tracking-tight leading-none group-hover:text-neonGreen transition-colors uppercase">
+            NEXTLEVEL
+          </span>
+          <span class="text-[9px] sm:text-[10px] font-bold text-neonGreen uppercase tracking-widest leading-none mt-0.5">
+            KEEPER ACADEMY
+          </span>
+        </div>
+      </a>
+
+      <div class="flex items-center gap-3">
+        <a href="torhueter.html" class="text-xs sm:text-sm font-semibold text-slate-400 hover:text-white transition-colors flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+          <span class="hidden sm:inline">Zurück zur</span> Übersicht
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Login Card Area -->
+  <main class="relative z-10 flex-grow flex items-center justify-center p-4 sm:p-6 py-12">
+    <div class="w-full max-w-lg bg-dark-light/90 border-2 border-neonGreen/40 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-md relative overflow-hidden">
+      <!-- Top Gradient Accent -->
+      <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-neonGreen via-emerald-400 to-neonGreen"></div>
+
+      <!-- Card Header with Logo -->
+      <div class="flex flex-col items-center text-center mb-8">
+        <div class="relative mb-4">
+          <div class="absolute inset-0 bg-neonGreen/20 rounded-2xl filter blur-xl"></div>
+          <img 
+            src="Assets/logo_small.png" 
+            alt="NextLevel Logo" 
+            class="h-20 w-20 sm:h-24 sm:w-24 object-contain rounded-2xl relative z-10 drop-shadow-[0_8px_25px_rgba(57,255,20,0.35)]"
+          >
+        </div>
+
+        <span class="text-[10px] sm:text-xs font-black tracking-[0.25em] text-neonGreen uppercase bg-neonGreen/10 border border-neonGreen/30 px-3 py-1 rounded-full mb-3">
+          KEEPER PORTAL LOGIN
+        </span>
+
+        <h1 class="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">
+          Login für Torhüter:innen
+        </h1>
+
+        <p class="text-xs sm:text-sm text-slate-300 mt-2 max-w-sm leading-relaxed">
+          Dein persönlicher Zugang zu Athletik-Plänen, Neuroathletik, Videoanalysen und individuellen Entwicklungszielen.
+        </p>
+      </div>
+
+      <!-- Direct Launch Action Container -->
+      <div class="space-y-4">
+        <!-- Direct Launch Button -->
+        <a 
+          id="keeperAppBtn"
+          href="/app/" 
+          class="w-full bg-neonGreen hover:bg-neonGreen-hover text-dark font-black tracking-wide text-sm sm:text-base py-4 px-6 rounded-2xl transition-all shadow-xl shadow-neonGreen/25 hover:shadow-neonGreen/40 flex items-center justify-center gap-3 uppercase cursor-pointer group"
+        >
+          <span>Jetzt im Keeper-Portal anmelden</span>
+          <svg class="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </a>
+
+        <!-- Fast redirect status text -->
+        <div id="redirectStatus" class="text-center text-[11px] text-slate-400 font-mono flex items-center justify-center gap-2 pt-1">
+          <span class="w-2 h-2 rounded-full bg-neonGreen animate-pulse"></span>
+          <span>Sichere Verbindung zum Academy-Portal wird aufgebaut...</span>
+        </div>
+      </div>
+
+      <!-- Info Box -->
+      <div class="mt-8 pt-6 border-t border-dark-border/80 space-y-3 text-xs text-slate-400">
+        <div class="flex items-start gap-2.5">
+          <svg class="w-4 h-4 text-neonGreen flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <p>
+            <strong class="text-white">Zugangsdaten:</strong> Nutze deinen Benutzernamen oder deine E-Mail-Adresse und dein persönliches Passwort.
+          </p>
+        </div>
+        <div class="flex items-start gap-2.5">
+          <svg class="w-4 h-4 text-neonGreen flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+          <p>
+            <strong class="text-white">Passwort vergessen?</strong> Im Login-Fenster kannst du dir jederzeit einen Link zum Zurücksetzen an deine E-Mail senden lassen.
+          </p>
+        </div>
+        <div class="flex items-start gap-2.5">
+          <svg class="w-4 h-4 text-accentCyan flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+          <p>
+            Bist du Torwarttrainer:in? <a href="login-torwarttrainer.html" class="text-accentCyan hover:underline font-bold">Hier geht's zum Trainer-Login</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="relative z-10 py-6 border-t border-white/5 text-center text-xs text-slate-500">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <span>&copy; NextLevel Goalkeeping. Alle Rechte vorbehalten.</span>
+      <div class="flex items-center gap-4">
+        <a href="impressum.html" class="hover:text-white transition-colors">Impressum</a>
+        <a href="datenschutz.html" class="hover:text-white transition-colors">Datenschutz</a>
+        <a href="ueber-mich.html" class="hover:text-white transition-colors">Über Dr. Thorsten Weber</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Smart Redirect Script for Local and Web -->
+  <script>
+    (function() {
+      var isLocalFile = window.location.protocol === 'file:';
+      var targetUrl = isLocalFile ? './Keepersoftware/dist/index.html' : '/app/';
+      var btn = document.getElementById('keeperAppBtn');
+      if (btn) {
+        btn.setAttribute('href', targetUrl);
+      }
+
+      // Automatically forward after a brief delay if user visits this direct link
+      var params = new URLSearchParams(window.location.search);
+      if (params.get('stay') !== 'true') {
+        setTimeout(function() {
+          window.location.href = targetUrl;
+        }, 1200);
+      }
+    })();
+  </script>
+</body>
+</html>

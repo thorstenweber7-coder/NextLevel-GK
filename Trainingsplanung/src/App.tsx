@@ -20,7 +20,11 @@ import {
   Crown,
   WifiOff,
   Building2,
-  User
+  User,
+  ChevronDown,
+  Check,
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { cn } from './utils/cn';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -99,6 +103,14 @@ const MainAppContent: React.FC = () => {
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [editorOriginTab, setEditorOriginTab] = useState<ActiveTab>('planner');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
+  const [isEditorDirty, setIsEditorDirty] = useState<boolean>(false);
+  const [pendingTabTransition, setPendingTabTransition] = useState<{
+    tab: ActiveTab;
+    orgaSubTab?: any;
+    exerciseToEdit?: Exercise | null;
+    isNew?: boolean;
+  } | null>(null);
 
   // Run automatic, zero-data-loss migration from localStorage to Dexie IndexedDB
   useEffect(() => {
@@ -106,6 +118,55 @@ const MainAppContent: React.FC = () => {
       console.warn('IndexedDB automatic migration note:', err);
     });
   }, []);
+
+  // Centralized Tab Navigation Execution
+  const executeTabChange = (
+    targetTab: ActiveTab, 
+    targetOrgaSubTab?: any, 
+    targetExercise?: Exercise | null,
+    isNew?: boolean
+  ) => {
+    setIsEditorDirty(false);
+    setPendingTabTransition(null);
+    setIsMobileNavOpen(false);
+    if (targetOrgaSubTab) {
+      setOrgaSubTab(targetOrgaSubTab);
+    }
+    if (targetTab === 'editor') {
+      setEditorOriginTab(activeTab === 'editor' ? editorOriginTab : activeTab);
+      if (isNew) {
+        setEditingExercise(null);
+      } else if (targetExercise !== undefined) {
+        setEditingExercise(targetExercise);
+      }
+    } else {
+      setEditingExercise(null);
+    }
+    setActiveTab(targetTab);
+  };
+
+  // Guarded Tab Navigation (Prompts if Editor has unsaved changes)
+  const handleRequestTabChange = (
+    targetTab: ActiveTab, 
+    targetOrgaSubTab?: any, 
+    targetExercise?: Exercise | null,
+    isNew?: boolean
+  ) => {
+    if (activeTab === 'editor' && isEditorDirty) {
+      if (targetTab === 'editor' && !isNew && targetExercise === editingExercise) {
+        return;
+      }
+      setPendingTabTransition({
+        tab: targetTab,
+        orgaSubTab: targetOrgaSubTab,
+        exerciseToEdit: targetExercise,
+        isNew
+      });
+      return;
+    }
+
+    executeTabChange(targetTab, targetOrgaSubTab, targetExercise, isNew);
+  };
 
   // Global desktop keyboard shortcuts (Cmd/Ctrl+S, Cmd/Ctrl+P, Cmd/Ctrl+K, Escape)
   useKeyboardShortcuts({
@@ -116,11 +177,11 @@ const MainAppContent: React.FC = () => {
       window.print();
     },
     onSearch: () => {
-      setActiveTab('catalog');
+      handleRequestTabChange('catalog');
     },
     onEscape: () => {
       setIsProfileModalOpen(false);
-      setEditingExercise(null);
+      setPendingTabTransition(null);
     }
   });
 
@@ -233,18 +294,15 @@ const MainAppContent: React.FC = () => {
 
   // 5. Full Access Granted -> Render Dashboard
   const handleOpenEditorForNew = () => {
-    setEditorOriginTab(activeTab);
-    setEditingExercise(null);
-    setActiveTab('editor');
+    handleRequestTabChange('editor', undefined, null, true);
   };
 
   const handleOpenEditorForEdit = (exercise: Exercise) => {
-    setEditorOriginTab(activeTab);
-    setEditingExercise(exercise);
-    setActiveTab('editor');
+    handleRequestTabChange('editor', undefined, exercise, false);
   };
 
   const handleExerciseSaved = (savedExercise?: Exercise) => {
+    setIsEditorDirty(false);
     if (editorOriginTab === 'planner' && savedExercise && savedExercise.id) {
       const normalize = (str?: string) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const catNorm = normalize(savedExercise.category);
@@ -328,7 +386,7 @@ const MainAppContent: React.FC = () => {
           
           {/* Logo & Brand */}
           <div 
-            onClick={() => setActiveTab('planner')} 
+            onClick={() => handleRequestTabChange('planner')} 
             className="flex items-center gap-2.5 cursor-pointer select-none group flex-shrink-0"
           >
             <div className="h-10 sm:h-12 w-auto flex items-center justify-center group-hover:scale-105 transition-transform flex-shrink-0">
@@ -353,11 +411,11 @@ const MainAppContent: React.FC = () => {
             </div>
           </div>
 
-          {/* Navigation Tabs (Orga is left of Trainingsplaner) */}
-          <nav className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800/90 text-xs flex-shrink-1">
+          {/* Desktop Navigation Tabs (NUR Desktop / Tablet ab md) */}
+          <nav className="hidden md:flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800/90 text-xs flex-shrink-1">
             <button
               type="button"
-              onClick={() => { setEditingExercise(null); setOrgaSubTab('periodization'); }}
+              onClick={() => handleRequestTabChange('orga', 'periodization')}
               className={cn(
                 "px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap",
                 activeTab === 'orga'
@@ -371,7 +429,7 @@ const MainAppContent: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => { setEditingExercise(null); setActiveTab('planner'); }}
+              onClick={() => handleRequestTabChange('planner')}
               className={cn(
                 "px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap",
                 activeTab === 'planner'
@@ -403,7 +461,7 @@ const MainAppContent: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => { setEditingExercise(null); setActiveTab('catalog'); }}
+              onClick={() => handleRequestTabChange('catalog')}
               className={cn(
                 "px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap",
                 activeTab === 'catalog'
@@ -420,7 +478,7 @@ const MainAppContent: React.FC = () => {
             {(isClubAdmin || isMasterAdmin) && (
               <button
                 type="button"
-                onClick={() => { setEditingExercise(null); setActiveTab('club_admin'); }}
+                onClick={() => handleRequestTabChange('club_admin')}
                 className={cn(
                   "px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap relative",
                   activeTab === 'club_admin'
@@ -445,7 +503,7 @@ const MainAppContent: React.FC = () => {
             {(isMasterAdmin || isAdmin) && (
               <button
                 type="button"
-                onClick={() => { setEditingExercise(null); setActiveTab('admin'); }}
+                onClick={() => handleRequestTabChange('admin')}
                 className={cn(
                   "px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 whitespace-nowrap",
                   activeTab === 'admin'
@@ -459,6 +517,208 @@ const MainAppContent: React.FC = () => {
               </button>
             )}
           </nav>
+
+          {/* Mobile Navigation Dropdown (NUR auf mobilen Geräten unter md) */}
+          <div className="relative md:hidden">
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(prev => !prev)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
+            >
+              {activeTab === 'orga' && <Layers className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
+              {activeTab === 'planner' && <CalendarDays className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
+              {activeTab === 'editor' && <PenTool className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
+              {activeTab === 'catalog' && <BookOpen className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
+              {activeTab === 'club_admin' && <Building2 className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />}
+              {activeTab === 'admin' && <ShieldCheck className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />}
+
+              <span className="font-extrabold text-xs">
+                {activeTab === 'orga' && 'Orga'}
+                {activeTab === 'planner' && 'Planer'}
+                {activeTab === 'editor' && (editingExercise ? 'Editor *' : 'Editor')}
+                {activeTab === 'catalog' && 'Katalog'}
+                {activeTab === 'club_admin' && 'Verein'}
+                {activeTab === 'admin' && 'Admin'}
+              </span>
+
+              <ChevronDown className={cn("w-3.5 h-3.5 text-slate-400 transition-transform duration-200", isMobileNavOpen && "rotate-180")} />
+            </button>
+
+            {isMobileNavOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs"
+                  onClick={() => setIsMobileNavOpen(false)}
+                />
+                <div className="absolute left-0 top-full mt-2 w-64 bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-2xl z-50 space-y-1 animate-in fade-in zoom-in-95">
+                  <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800/80 mb-1 flex items-center justify-between">
+                    <span>Reiter wechseln</span>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsMobileNavOpen(false)}
+                      className="text-slate-500 hover:text-white p-0.5 rounded-lg"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Orga */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleRequestTabChange('orga', 'periodization');
+                    }}
+                    className={cn(
+                      "w-full px-3 py-2.5 rounded-xl font-bold transition flex items-center justify-between text-xs text-left cursor-pointer",
+                      activeTab === 'orga'
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/60 font-extrabold"
+                        : "text-slate-300 hover:text-white hover:bg-slate-850"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn("p-1.5 rounded-lg", activeTab === 'orga' ? "bg-emerald-700 text-white" : "bg-slate-950 text-emerald-400")}>
+                        <Layers className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="block font-bold">Orga</span>
+                        <span className="block text-[10px] font-normal opacity-75">Periodisierung & Daten</span>
+                      </div>
+                    </div>
+                    {activeTab === 'orga' && <Check className="w-4 h-4 text-white" />}
+                  </button>
+
+                  {/* Trainingsplaner */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleRequestTabChange('planner');
+                    }}
+                    className={cn(
+                      "w-full px-3 py-2.5 rounded-xl font-bold transition flex items-center justify-between text-xs text-left cursor-pointer",
+                      activeTab === 'planner'
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/60 font-extrabold"
+                        : "text-slate-300 hover:text-white hover:bg-slate-850"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn("p-1.5 rounded-lg", activeTab === 'planner' ? "bg-emerald-700 text-white" : "bg-slate-950 text-emerald-400")}>
+                        <CalendarDays className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="block font-bold">Trainingsplaner</span>
+                        <span className="block text-[10px] font-normal opacity-75">Sitzungen & Belastung</span>
+                      </div>
+                    </div>
+                    {activeTab === 'planner' && <Check className="w-4 h-4 text-white" />}
+                  </button>
+
+                  {/* Übungseditor */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleOpenEditorForNew();
+                    }}
+                    className={cn(
+                      "w-full px-3 py-2.5 rounded-xl font-bold transition flex items-center justify-between text-xs text-left cursor-pointer",
+                      activeTab === 'editor'
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/60 font-extrabold"
+                        : "text-slate-300 hover:text-white hover:bg-slate-850"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn("p-1.5 rounded-lg", activeTab === 'editor' ? "bg-emerald-700 text-white" : "bg-slate-950 text-emerald-400")}>
+                        <PenTool className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="block font-bold">{editingExercise ? 'Übung bearbeiten' : 'Übungseditor'}</span>
+                        <span className="block text-[10px] font-normal opacity-75">Zeichnen & Konzipieren</span>
+                      </div>
+                    </div>
+                    {activeTab === 'editor' && <Check className="w-4 h-4 text-white" />}
+                  </button>
+
+                  {/* Übungskatalog */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleRequestTabChange('catalog');
+                    }}
+                    className={cn(
+                      "w-full px-3 py-2.5 rounded-xl font-bold transition flex items-center justify-between text-xs text-left cursor-pointer",
+                      activeTab === 'catalog'
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/60 font-extrabold"
+                        : "text-slate-300 hover:text-white hover:bg-slate-850"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn("p-1.5 rounded-lg", activeTab === 'catalog' ? "bg-emerald-700 text-white" : "bg-slate-950 text-emerald-400")}>
+                        <BookOpen className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="block font-bold">Übungskatalog</span>
+                        <span className="block text-[10px] font-normal opacity-75">Bibliothek & Übungen</span>
+                      </div>
+                    </div>
+                    {activeTab === 'catalog' && <Check className="w-4 h-4 text-white" />}
+                  </button>
+
+                  {/* Vereins-Verwaltung */}
+                  {(isClubAdmin || isMasterAdmin) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleRequestTabChange('club_admin');
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2.5 rounded-xl font-bold transition flex items-center justify-between text-xs text-left cursor-pointer",
+                        activeTab === 'club_admin'
+                          ? "bg-sky-600 text-white shadow-md shadow-sky-950/60 font-extrabold"
+                          : "text-sky-400 hover:text-sky-300 hover:bg-slate-850"
+                      )}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className={cn("p-1.5 rounded-lg", activeTab === 'club_admin' ? "bg-sky-700 text-white" : "bg-slate-950 text-sky-400")}>
+                          <Building2 className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="block font-bold">{currentClub?.name || clubName || 'Vereins-Verwaltung'}</span>
+                          <span className="block text-[10px] font-normal opacity-75">Trainer & Club-Teams</span>
+                        </div>
+                      </div>
+                      {activeTab === 'club_admin' && <Check className="w-4 h-4 text-white" />}
+                    </button>
+                  )}
+
+                  {/* Master Admin */}
+                  {(isMasterAdmin || isAdmin) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleRequestTabChange('admin');
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2.5 rounded-xl font-bold transition flex items-center justify-between text-xs text-left cursor-pointer",
+                        activeTab === 'admin'
+                          ? "bg-purple-600 text-white shadow-md shadow-purple-950/60 font-extrabold"
+                          : "text-purple-400 hover:text-purple-300 hover:bg-slate-850"
+                      )}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className={cn("p-1.5 rounded-lg", activeTab === 'admin' ? "bg-purple-700 text-white" : "bg-slate-950 text-purple-400")}>
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="block font-bold">Master Admin</span>
+                          <span className="block text-[10px] font-normal opacity-75">Globale Verwaltung</span>
+                        </div>
+                      </div>
+                      {activeTab === 'admin' && <Check className="w-4 h-4 text-white" />}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* User Status / Profile Button / Logout */}
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
@@ -529,7 +789,7 @@ const MainAppContent: React.FC = () => {
           {activeTab === 'orga' && (
             <OrgaView
               initialSubTab={orgaSubTab}
-              onNavigateToPlanner={() => setActiveTab('planner')}
+              onNavigateToPlanner={() => handleRequestTabChange('planner')}
             />
           )}
 
@@ -539,9 +799,9 @@ const MainAppContent: React.FC = () => {
               onOpenEditorForEdit={handleOpenEditorForEdit}
               onNavigateToOrga={(subTab) => {
                 if (subTab) {
-                  setOrgaSubTab(subTab);
+                  handleRequestTabChange('orga', subTab);
                 } else {
-                  setActiveTab('orga');
+                  handleRequestTabChange('orga');
                 }
               }}
               phaseExercises={phaseExercises}
@@ -555,7 +815,8 @@ const MainAppContent: React.FC = () => {
             <ExerciseEditor
               initialExercise={editingExercise}
               onSaved={handleExerciseSaved}
-              onCancel={() => setActiveTab(editorOriginTab || 'planner')}
+              onCancel={() => handleRequestTabChange(editorOriginTab || 'planner')}
+              onDirtyChange={setIsEditorDirty}
             />
           )}
 
@@ -596,6 +857,53 @@ const MainAppContent: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* Discard Changes Confirmation Modal */}
+      {pendingTabTransition !== null && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 flex-shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">Übung verwerfen?</h3>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">Ungespeicherte Änderungen</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Du hast ungespeicherte Änderungen an dieser Übung. Wenn du den Übungseditor jetzt verlässt, gehen deine nicht gespeicherten Eingaben verloren.
+            </p>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingTabTransition(null)}
+                className="flex-1 py-3 px-4 rounded-xl text-sm font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 hover:text-white transition cursor-pointer"
+              >
+                Zurück
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pendingTabTransition) {
+                    executeTabChange(
+                      pendingTabTransition.tab,
+                      pendingTabTransition.orgaSubTab,
+                      pendingTabTransition.exerciseToEdit,
+                      pendingTabTransition.isNew
+                    );
+                  }
+                }}
+                className="flex-1 py-3 px-4 rounded-xl text-sm font-extrabold text-white bg-rose-600 hover:bg-rose-500 active:scale-[0.98] transition shadow-lg shadow-rose-950/60 cursor-pointer"
+              >
+                Übung verwerfen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* User Profile Modal */}
       <UserProfileModal

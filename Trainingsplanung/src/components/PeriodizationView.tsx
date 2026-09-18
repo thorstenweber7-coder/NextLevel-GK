@@ -47,7 +47,8 @@ import {
   DEFAULT_VOLUME_LEVELS,
   DEFAULT_WEEK_SETTINGS,
   type TrainingPlan,
-  type PlayerMatchPlaytime
+  type PlayerMatchPlaytime,
+  type PlayerAbsence
 } from '../types';
 import { 
   getLocalPeriodizationSeasons, 
@@ -63,7 +64,9 @@ import {
   subscribeUserPlans,
   savePlanToFirestore,
   subscribeUserMatchPlaytimes,
-  getLocalMatchPlaytimes
+  getLocalMatchPlaytimes,
+  subscribeUserAbsences,
+  getLocalPlayerAbsences
 } from '../firebase/firestoreService';
 import { useAuth } from '../context/AuthContext';
 
@@ -127,6 +130,9 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
   const [matchPlaytimes, setMatchPlaytimes] = useState<PlayerMatchPlaytime[]>(() => {
     return getLocalMatchPlaytimes(user?.uid);
   });
+  const [absences, setAbsences] = useState<PlayerAbsence[]>(() => {
+    return getLocalPlayerAbsences(user?.uid);
+  });
 
   // Active Selections
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>('');
@@ -152,6 +158,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
     const unsubMeso = subscribeUserMesoPlans(user, data => setMesoPlans(data), undefined, clubId);
     const unsubPlans = subscribeUserPlans(user, Boolean(isAdmin || isMasterAdmin), data => setSavedPlans(data), undefined, clubId, isClubAdmin);
     const unsubMatches = subscribeUserMatchPlaytimes(user, data => setMatchPlaytimes(data), undefined, clubId);
+    const unsubAbsences = subscribeUserAbsences(user, data => setAbsences(data), undefined, clubId);
 
     return () => {
       unsubSeasons();
@@ -159,6 +166,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
       unsubMeso();
       unsubPlans?.();
       unsubMatches?.();
+      unsubAbsences?.();
     };
   }, [user, clubId, isAdmin, isMasterAdmin, isClubAdmin]);
 
@@ -581,8 +589,8 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
 
   // Workload Summary for active group in Mikroplanung based on previous week data
   const microGroupWorkload = useMemo(() => {
-    return calculateGroupWorkload(activeGroup, groups, savedPlans, microPreviousWeekDate, matchPlaytimes, mesoPlans);
-  }, [activeGroup, groups, savedPlans, microPreviousWeekDate, matchPlaytimes, mesoPlans]);
+    return calculateGroupWorkload(activeGroup, groups, savedPlans, microPreviousWeekDate, matchPlaytimes, mesoPlans, absences);
+  }, [activeGroup, groups, savedPlans, microPreviousWeekDate, matchPlaytimes, mesoPlans, absences]);
 
   // Switch to Mikroplanung and auto-select the first unsaved week
   const handleSelectMicroStage = () => {
@@ -3108,6 +3116,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
         savedPlans={savedPlans}
         matchPlaytimes={matchPlaytimes}
         mesoPlans={mesoPlans}
+        absences={absences}
         initialGroupId={selectedGroupId}
         referenceDate={activeStage === 'micro' ? microPreviousWeekDate : undefined}
       />

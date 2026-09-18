@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { Player, TrainingGroup, TrainingPlan, PlayerMatchPlaytime } from '../../types';
+import type { Player, TrainingGroup, TrainingPlan, PlayerMatchPlaytime, PlayerAbsence } from '../../types';
 import {
   Activity,
   ChevronDown,
@@ -24,13 +24,15 @@ interface PlayerWorkloadSeasonSectionProps {
   group?: TrainingGroup;
   savedPlans?: TrainingPlan[];
   matchPlaytimes?: PlayerMatchPlaytime[];
+  absences?: PlayerAbsence[];
 }
 
 export const PlayerWorkloadSeasonSection: React.FC<PlayerWorkloadSeasonSectionProps> = ({
   player,
   group: _group,
   savedPlans = [],
-  matchPlaytimes = []
+  matchPlaytimes = [],
+  absences = []
 }) => {
   // Standardmäßig zugeklappt (collapsed by default)
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -84,8 +86,8 @@ export const PlayerWorkloadSeasonSection: React.FC<PlayerWorkloadSeasonSectionPr
 
   // Calculate full season workload
   const seasonData: PlayerSeasonWorkload = useMemo(() => {
-    return calculatePlayerSeasonWorkload(player, savedPlans, matchPlaytimes, selectedSeasonStartYear);
-  }, [player, savedPlans, matchPlaytimes, selectedSeasonStartYear]);
+    return calculatePlayerSeasonWorkload(player, savedPlans, matchPlaytimes, selectedSeasonStartYear, absences);
+  }, [player, savedPlans, matchPlaytimes, selectedSeasonStartYear, absences]);
 
   const MONTH_NAMES = [
     'Juli',

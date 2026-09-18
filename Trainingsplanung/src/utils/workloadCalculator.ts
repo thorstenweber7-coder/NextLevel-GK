@@ -1,5 +1,44 @@
-import type { TrainingPlan, TrainingGroup, Player, PlayerMatchPlaytime, MesoPlan, MesoDayItem, PitchSurface } from '../types';
+import type { TrainingPlan, TrainingGroup, Player, PlayerMatchPlaytime, MesoPlan, MesoDayItem, PitchSurface, PlayerAbsence } from '../types';
 import { PITCH_SURFACE_OPTIONS } from '../types';
+
+/**
+ * Helper: Check if a player was absent/injured on a given date (YYYY-MM-DD)
+ */
+export function isPlayerAbsentOnDate(
+  playerId: string,
+  dateStr: string | undefined | null,
+  absences: PlayerAbsence[] = []
+): boolean {
+  if (!dateStr || !absences || absences.length === 0) return false;
+  const pYMD = normalizeToYMD(dateStr);
+  if (!pYMD) return false;
+
+  const dateObj = new Date(pYMD + 'T12:00:00Z');
+  const dayOfWeek = dateObj.getUTCDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+
+  return absences.some(abs => {
+    if (abs.playerId !== playerId) return false;
+
+    // 1. Recurring weekly absence (e.g. absent every Tuesday)
+    if (abs.isRecurring && abs.recurringWeekday !== undefined) {
+      if (Number(abs.recurringWeekday) === dayOfWeek) {
+        const startYMD = abs.startDate ? normalizeToYMD(abs.startDate) : null;
+        const endYMD = abs.endDate ? normalizeToYMD(abs.endDate) : null;
+        if (startYMD && pYMD < startYMD) return false;
+        if (endYMD && pYMD > endYMD) return false;
+        return true;
+      }
+      return false;
+    }
+
+    // 2. Date range absence (e.g. injury from 2026-08-01 to 2026-08-21)
+    if (!abs.startDate) return false;
+    const startYMD = normalizeToYMD(abs.startDate);
+    if (!startYMD) return false;
+    const endYMD = normalizeToYMD(abs.endDate || abs.startDate) || startYMD;
+    return pYMD >= startYMD && pYMD <= endYMD;
+  });
+}
 
 export type WorkloadStatus = 'undertraining' | 'optimal' | 'warning' | 'danger';
 
@@ -226,7 +265,8 @@ export function calculatePlayerWorkload(
   referenceDateInput: Date | string = new Date(),
   weeksCount: number = 8,
   matchPlaytimes?: PlayerMatchPlaytime[],
-  mesoPlans?: MesoPlan[]
+  mesoPlans?: MesoPlan[],
+  absences?: PlayerAbsence[]
 ): PlayerWorkload {
   const refDate = typeof referenceDateInput === 'string' ? new Date(referenceDateInput) : new Date(referenceDateInput.getTime());
   // End of reference day (23:59:59)
@@ -343,11 +383,19 @@ export function calculatePlayerWorkload(
       return undefined;
     };
 
+    // Check if player was absent/injured on this date
+    const isAbsent = isPlayerAbsentOnDate(playerId, planDateStr, absences);
+
     // Check Priority 1: Individual debrief rating entered in "Einheit nachbereiten"
     let debriefRpe = plan.keeperLoadRatings?.[playerId];
     if (debriefRpe === undefined && plan.keeperLoadRatings) {
       const matchKey = Object.keys(plan.keeperLoadRatings).find(k => k.toLowerCase() === playerName.toLowerCase());
       if (matchKey) debriefRpe = plan.keeperLoadRatings[matchKey];
+    }
+
+    // If player was absent and has NO explicit debrief rating > 0, their training load is 0 (skip)
+    if (isAbsent && !(debriefRpe !== undefined && debriefRpe > 0)) {
+      return;
     }
 
     if (debriefRpe !== undefined && debriefRpe > 0) {
@@ -449,6 +497,9 @@ export function calculatePlayerWorkload(
 
           // Only add if not already filled by a savedPlan
           if (!dailyLoadsMap[dayDateStr]) {
+            // If player was absent/injured on this date, skip (load = 0)
+            if (isPlayerAbsentOnDate(playerId, dayDateStr, absences)) return;
+
             const microLoadResult = calculateMicroDayLoad(day);
             if (microLoadResult.hasTraining) {
               const topicName = day.morningTopic || day.afternoonTopic || 'Einheit';
@@ -488,6 +539,12 @@ export function calculatePlayerWorkload(
       if (isBench === undefined && match.playerBenchStatus) {
         const benchKey = Object.keys(match.playerBenchStatus).find(k => k.toLowerCase() === playerName.toLowerCase());
         if (benchKey) isBench = match.playerBenchStatus[benchKey];
+      }
+
+      // If player was absent and did not play active minutes (> 0), skip bench load
+      const isAbsent = isPlayerAbsentOnDate(playerId, matchDateStr, absences);
+      if (isAbsent && !(minutes !== undefined && minutes > 0)) {
+        return;
       }
 
       if (minutes !== undefined && minutes > 0) {
@@ -777,7 +834,8 @@ export function calculateGroupWorkload(
   savedPlans: TrainingPlan[],
   referenceDate: Date | string = new Date(),
   matchPlaytimes?: PlayerMatchPlaytime[],
-  mesoPlans?: MesoPlan[]
+  mesoPlans?: MesoPlan[],
+  absences?: PlayerAbsence[]
 ): GroupWorkloadSummary {
   const groupObj = targetGroup || allGroups[0] || null;
   const targetGroupId = groupObj?.id || 'all';
@@ -810,7 +868,7 @@ export function calculateGroupWorkload(
   }
 
   // Calculate workload for every keeper
-  const playersWorkloads = playersList.map(p => calculatePlayerWorkload(p, savedPlans, referenceDate, 8, matchPlaytimes, mesoPlans));
+  const playersWorkloads = playersList.map(p => calculatePlayerWorkload(p, savedPlans, referenceDate, 8, matchPlaytimes, mesoPlans, absences));
 
   const hasDangerSpike = playersWorkloads.some(p => p.status === 'danger');
   const hasWarning = playersWorkloads.some(p => p.status === 'warning');
@@ -899,7 +957,8 @@ export function calculatePlayerSeasonWorkload(
   player: { id: string; firstName?: string; lastName?: string; name?: string; jerseyNumber?: number | string; groupId?: string },
   savedPlans: TrainingPlan[] = [],
   matchPlaytimes: PlayerMatchPlaytime[] = [],
-  seasonStartYearInput?: number
+  seasonStartYearInput?: number,
+  absences: PlayerAbsence[] = []
 ): PlayerSeasonWorkload {
   const playerId = player.id;
   const playerName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Torwart';
@@ -937,6 +996,9 @@ export function calculatePlayerSeasonWorkload(
 
     if (planDate.getTime() < baselineStartDate.getTime() || planDate.getTime() > seasonEndDate.getTime()) return;
 
+    // Check if player was absent/injured on this date
+    const isAbsent = isPlayerAbsentOnDate(playerId, planDateStr, absences);
+
     const playerJumpVol = plan.keeperJumpVolumes?.[playerId]
       || (plan.keeperJumpVolumes && Object.keys(plan.keeperJumpVolumes).find(k => k.toLowerCase() === playerName.toLowerCase()) ? plan.keeperJumpVolumes[Object.keys(plan.keeperJumpVolumes).find(k => k.toLowerCase() === playerName.toLowerCase())!] : undefined)
       || (plan.jumpVolume as 'low' | 'medium' | 'high' | undefined);
@@ -945,6 +1007,11 @@ export function calculatePlayerSeasonWorkload(
     if (debriefRpe === undefined && plan.keeperLoadRatings) {
       const matchKey = Object.keys(plan.keeperLoadRatings).find(k => k.toLowerCase() === playerName.toLowerCase());
       if (matchKey) debriefRpe = plan.keeperLoadRatings[matchKey];
+    }
+
+    // If player was absent and has NO explicit debrief rating > 0, their training load is 0 (skip)
+    if (isAbsent && !(debriefRpe !== undefined && debriefRpe > 0)) {
+      return;
     }
 
     const duration = plan.totalMinutes || plan.totalDuration || 75;
@@ -989,6 +1056,12 @@ export function calculatePlayerSeasonWorkload(
     if (isBench === undefined && match.playerBenchStatus) {
       const benchKey = Object.keys(match.playerBenchStatus).find(k => k.toLowerCase() === playerName.toLowerCase());
       if (benchKey) isBench = match.playerBenchStatus[benchKey];
+    }
+
+    // If player was absent and did not play active minutes (> 0), skip bench load
+    const isAbsent = isPlayerAbsentOnDate(playerId, matchDateStr, absences);
+    if (isAbsent && !(minutes !== undefined && minutes > 0)) {
+      return;
     }
 
     if (minutes !== undefined && minutes > 0) {

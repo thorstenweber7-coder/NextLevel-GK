@@ -2252,6 +2252,7 @@ export async function saveTrainingGroupToFirestore(
     lastName: (p.lastName || '').trim(),
     birthYear: p.birthYear || '',
     jerseyNumber: p.jerseyNumber || '',
+    mainTeam: p.mainTeam ? String(p.mainTeam).trim() : undefined,
     notes: p.notes || '',
     archived: Boolean(p.archived),
     ...(p.archivedAt ? { archivedAt: p.archivedAt } : {}),

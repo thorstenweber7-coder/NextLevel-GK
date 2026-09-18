@@ -508,9 +508,10 @@ export async function generateTrainingPlanPDF(
     const hasDribble = elements.some(e => e.type === 'dribble_arrow');
     const hasRun = elements.some(e => e.type === 'run_arrow');
     const hasShot = elements.some(e => e.type === 'shot_arrow');
+    const hasCross = elements.some(e => e.type === 'cross_arrow');
 
-    const usedArrowsCount = (hasPass ? 1 : 0) + (hasDribble ? 1 : 0) + (hasRun ? 1 : 0) + (hasShot ? 1 : 0);
-    const legendHeight = usedArrowsCount > 0 ? (usedArrowsCount <= 2 ? 8 : 13) : 0;
+    const usedArrowsCount = (hasPass ? 1 : 0) + (hasDribble ? 1 : 0) + (hasRun ? 1 : 0) + (hasShot ? 1 : 0) + (hasCross ? 1 : 0);
+    const legendHeight = usedArrowsCount > 0 ? (usedArrowsCount <= 2 ? 8 : (usedArrowsCount <= 4 ? 13 : 17)) : 0;
     const estLeftHeight = imgHeight + (legendHeight > 0 ? legendHeight + 2 : 0);
 
     let rightTextH = 10.0; // Title & Badge top margin + free line space after title
@@ -601,17 +602,19 @@ export async function generateTrainingPlanPDF(
       const hasDribble = elements.some(e => e.type === 'dribble_arrow');
       const hasRun = elements.some(e => e.type === 'run_arrow');
       const hasShot = elements.some(e => e.type === 'shot_arrow');
+      const hasCross = elements.some(e => e.type === 'cross_arrow');
 
-      const usedArrows: { id: 'pass' | 'dribble' | 'run' | 'shot'; label: string }[] = [];
+      const usedArrows: { id: 'pass' | 'dribble' | 'run' | 'shot' | 'cross'; label: string }[] = [];
       if (hasPass) usedArrows.push({ id: 'pass', label: 'Passweg' });
       if (hasDribble) usedArrows.push({ id: 'dribble', label: 'Dribbelweg' });
       if (hasRun) usedArrows.push({ id: 'run', label: 'Laufweg' });
       if (hasShot) usedArrows.push({ id: 'shot', label: 'Schuss' });
+      if (hasCross) usedArrows.push({ id: 'cross', label: 'Flanke' });
 
       const imgWidth = 88;
       const imgHeight = 58;
       const rightWidth = contentWidth - imgWidth - 5;
-      const legendHeight = usedArrows.length > 0 ? (usedArrows.length <= 2 ? 8 : 13) : 0;
+      const legendHeight = usedArrows.length > 0 ? (usedArrows.length <= 2 ? 8 : (usedArrows.length <= 4 ? 13 : 17)) : 0;
 
       // 1. LEFT COLUMN: Canvas Image + Legend (Unchanged & large)
       const exImgDataUrl = (exercise.id && preloadedImages.get(exercise.id)) ||
@@ -708,6 +711,17 @@ export async function generateTrainingPlanPDF(
             doc.setFontSize(6.5);
             doc.setTextColor(51, 65, 85);
             doc.text('Schuss', itemX + 10.0, itemY + 0.8);
+          } else if (item.id === 'cross') {
+            doc.setDrawColor(168, 85, 247);
+            doc.setLineWidth(0.8);
+            doc.line(itemX, itemY - 0.5, itemX + 3.0, itemY + 1.2);
+            doc.line(itemX + 3.0, itemY + 1.2, itemX + 6.0, itemY - 0.5);
+            doc.setFillColor(168, 85, 247);
+            doc.triangle(itemX + 6.0, itemY - 1.4, itemX + 6.0, itemY + 0.4, itemX + 8.0, itemY - 0.5, 'F');
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(6.5);
+            doc.setTextColor(51, 65, 85);
+            doc.text('Flanke', itemX + 10.0, itemY + 0.8);
           }
         });
       }

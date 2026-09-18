@@ -310,7 +310,11 @@ export async function generatePlayerEvaluationPDF(
     : 100;
 
   // Match playtime calculation (Spielzeit in Minuten)
+  const mainTeam = data.player.mainTeam?.trim();
   const playerMatches = (data.matchPlaytimes || []).filter(m => {
+    if (mainTeam) {
+      return m.team === mainTeam;
+    }
     const inGroup = m.groupId === data.group.id;
     const hasMinutes = m.playerMinutes && m.playerMinutes[data.player.id] !== undefined;
     const hasGrade = m.playerGrades && m.playerGrades[data.player.id] !== undefined;
@@ -322,7 +326,8 @@ export async function generatePlayerEvaluationPDF(
   playerMatches.forEach(m => {
     const mins = Number(m.playerMinutes?.[data.player.id] ?? 0);
     totalPlayedMins += mins;
-    const maxMinsInMatch = Math.max(90, ...Object.values(m.playerMinutes || {}).map(v => Number(v) || 0));
+    const matchTotalFilledMins = Object.values(m.playerMinutes || {}).reduce((sum, v) => sum + Math.max(0, Number(v) || 0), 0);
+    const maxMinsInMatch = matchTotalFilledMins > 0 ? matchTotalFilledMins : mins;
     totalPossibleMins += maxMinsInMatch;
   });
 
@@ -1076,10 +1081,13 @@ export async function generatePlayerEvaluationPDF(
   // 3. ÜBERSCHRIFT: "Spielzeiten"
   // ==========================================================================
   checkPageBreak(75);
-  drawSectionHeader("3. Spielzeiten");
+  drawSectionHeader(mainTeam ? `3. Spielzeiten (${mainTeam})` : "3. Spielzeiten");
 
   const playerMatchList = (data.matchPlaytimes || [])
     .filter(m => {
+      if (mainTeam) {
+        return m.team === mainTeam;
+      }
       const isGroupMatch = m.groupId === data.group.id || (m as any).trainingGroupId === data.group.id;
       const hasMinutes = (m.playerMinutes?.[data.player.id] ?? 0) > 0;
       const onBench = Boolean(m.playerBenchStatus?.[data.player.id]);
@@ -1091,24 +1099,33 @@ export async function generatePlayerEvaluationPDF(
   const matchBreakdowns = playerMatchList.map(m => {
     const playedMins = Math.max(0, m.playerMinutes?.[data.player.id] ?? 0);
     const isExplicitBench = Boolean(m.playerBenchStatus?.[data.player.id]);
-    const matchDuration = Math.max(90, playedMins);
+    const matchTotalFilledMins = Object.values(m.playerMinutes || {}).reduce((sum, v) => sum + Math.max(0, Number(v) || 0), 0);
+    const matchDuration = matchTotalFilledMins > 0 ? matchTotalFilledMins : playedMins;
     const grade = m.playerGrades?.[data.player.id];
 
     let benchMins = 0;
     let outMins = 0;
     let statusType: 'FULL_PLAY' | 'PARTIAL_PLAY_AND_BENCH' | 'FULL_BENCH' | 'OUT_OF_SQUAD' = 'OUT_OF_SQUAD';
 
-    if (playedMins >= matchDuration) {
-      statusType = 'FULL_PLAY';
-    } else if (playedMins > 0) {
-      benchMins = Math.max(0, matchDuration - playedMins);
-      statusType = 'PARTIAL_PLAY_AND_BENCH';
-    } else if (isExplicitBench) {
-      benchMins = matchDuration;
-      statusType = 'FULL_BENCH';
+    if (matchDuration > 0) {
+      if (playedMins >= matchDuration) {
+        statusType = 'FULL_PLAY';
+      } else if (playedMins > 0) {
+        benchMins = Math.max(0, matchDuration - playedMins);
+        statusType = 'PARTIAL_PLAY_AND_BENCH';
+      } else if (isExplicitBench) {
+        benchMins = matchDuration;
+        statusType = 'FULL_BENCH';
+      } else {
+        outMins = matchDuration;
+        statusType = 'OUT_OF_SQUAD';
+      }
     } else {
-      outMins = matchDuration;
-      statusType = 'OUT_OF_SQUAD';
+      if (isExplicitBench) {
+        statusType = 'FULL_BENCH';
+      } else {
+        statusType = 'OUT_OF_SQUAD';
+      }
     }
 
     return {
@@ -1493,6 +1510,47 @@ export async function generatePlayerEvaluationPDF(
     }
 
     currentY += boxH + 8;
+
+    // Check if player has additional match minutes in other teams
+    const additionalMatches = (data.matchPlaytimes || []).filter(m => {
+      const mins = Number(m.playerMinutes?.[data.player.id] ?? 0);
+      if (mins < 1) return false;
+      if (mainTeam && m.team === mainTeam) return false;
+      return true;
+    });
+
+    if (additionalMatches.length > 0) {
+      const addTeamsMap: Record<string, number> = {};
+      let totalAddMins = 0;
+      additionalMatches.forEach(m => {
+        const mins = Number(m.playerMinutes?.[data.player.id] ?? 0);
+        const t = m.team || 'Anderes Team';
+        addTeamsMap[t] = (addTeamsMap[t] || 0) + mins;
+        totalAddMins += mins;
+      });
+
+      const teamSummaries = Object.entries(addTeamsMap)
+        .sort((a, b) => b[1] - a[1])
+        .map(([t, m]) => `${t}: ${m}' Min.`)
+        .join("  •  ");
+
+      checkPageBreak(16);
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(199, 210, 254);
+      doc.roundedRect(margin, currentY, contentWidth, 11, 1.5, 1.5, "FD");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(5.8);
+      doc.setTextColor(79, 70, 229);
+      doc.text(`Zusatzspielzeit in anderen Teams (${totalAddMins}' Min. Gesamt):`, margin + 3.5, currentY + 4.2);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(5.2);
+      doc.setTextColor(51, 65, 85);
+      doc.text(teamSummaries, margin + 3.5, currentY + 8.2);
+
+      currentY += 15;
+    }
   }
 
   // ==========================================================================
@@ -1504,7 +1562,9 @@ export async function generatePlayerEvaluationPDF(
   const seasonWorkload = calculatePlayerSeasonWorkload(
     data.player,
     data.savedPlans || [],
-    data.matchPlaytimes || []
+    data.matchPlaytimes || [],
+    undefined,
+    data.absences || []
   );
 
   const curStatusCfg = WORKLOAD_STATUS_CONFIG[seasonWorkload.currentStatus] || WORKLOAD_STATUS_CONFIG.optimal;

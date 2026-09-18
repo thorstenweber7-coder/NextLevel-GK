@@ -367,6 +367,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     lastName: '',
     birthYear: '',
     jerseyNumber: '',
+    mainTeam: '',
     notes: ''
   });
 
@@ -888,6 +889,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       lastName: '',
       birthYear: '',
       jerseyNumber: '',
+      mainTeam: '',
       notes: ''
     });
     setIsPlayerModalOpen(true);
@@ -901,6 +903,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       lastName: player.lastName,
       birthYear: player.birthYear ? String(player.birthYear) : '',
       jerseyNumber: player.jerseyNumber ? String(player.jerseyNumber) : '',
+      mainTeam: player.mainTeam || '',
       notes: player.notes || ''
     });
     setIsPlayerModalOpen(true);
@@ -926,6 +929,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
             lastName: playerFormData.lastName.trim(),
             birthYear: playerFormData.birthYear.trim() || undefined,
             jerseyNumber: playerFormData.jerseyNumber.trim() || undefined,
+            mainTeam: playerFormData.mainTeam.trim() || undefined,
             notes: playerFormData.notes.trim() || undefined,
             updatedAt: Date.now()
           };
@@ -937,6 +941,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
           lastName: playerFormData.lastName.trim(),
           birthYear: playerFormData.birthYear.trim() || undefined,
           jerseyNumber: playerFormData.jerseyNumber.trim() || undefined,
+          mainTeam: playerFormData.mainTeam.trim() || undefined,
           notes: playerFormData.notes.trim() || undefined,
           createdAt: Date.now()
         });
@@ -2439,9 +2444,16 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                             {initials}
                                           </div>
                                           <div className="min-w-0">
-                                            <span className="font-bold text-white block truncate">
-                                              {player.firstName} {player.lastName}
-                                            </span>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="font-bold text-white truncate">
+                                                {player.firstName} {player.lastName}
+                                              </span>
+                                              {player.mainTeam && (
+                                                <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 inline-flex items-center gap-1">
+                                                  ⚽ {player.mainTeam}
+                                                </span>
+                                              )}
+                                            </div>
                                             <span className="text-[10px] text-slate-500 block truncate">
                                               {player.birthYear ? `Jg. ${player.birthYear}` : 'Kein Jahrgang'} {player.notes ? `• ${player.notes}` : ''}
                                             </span>
@@ -3459,7 +3471,62 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
               {/* ================================================================= */}
               {/* LINKE SPALTE: FORMULAR ZUR SPIELERFASSUNG & SPIELZEITEN (60% Breite) */}
               {/* ================================================================= */}
-              <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
+              <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+                {/* Trainingsgruppe als Reiter direkt über dem Schriftzug nebeneinander */}
+                {visibleGroups.length > 0 && (
+                  <div className="space-y-1.5 pb-2">
+                    <label className="block text-slate-400 font-bold text-[11px] flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Trainingsgruppe</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-normal">Reiter (1 Klick)</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {visibleGroups.map(g => {
+                        const isSelected = (matchFormData.groupId === g.id) || (!matchFormData.groupId && visibleGroups[0]?.id === g.id);
+                        const gActivePlayers = (g.players || []).filter(p => !p.archived);
+                        return (
+                          <button
+                            key={g.id}
+                            type="button"
+                            onClick={() => {
+                              const initMins: Record<string, number> = {};
+                              const initGrades: Record<string, number> = {};
+                              (g.players || []).forEach(p => {
+                                initMins[p.id] = matchFormData.playerMinutes[p.id] ?? 0;
+                                if (matchFormData.playerGrades[p.id] !== undefined) {
+                                  initGrades[p.id] = matchFormData.playerGrades[p.id];
+                                }
+                              });
+                              setMatchFormData(prev => ({
+                                ...prev,
+                                groupId: g.id,
+                                playerMinutes: initMins,
+                                playerGrades: initGrades
+                              }));
+                            }}
+                            className={cn(
+                              "px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer active:scale-95",
+                              isSelected
+                                ? "bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-950/60"
+                                : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-850"
+                            )}
+                          >
+                            <span>{g.name}</span>
+                            <span className={cn(
+                              "text-[10px] px-1.5 py-0.5 rounded-md font-semibold",
+                              isSelected ? "bg-emerald-700 text-emerald-100" : "bg-slate-900 text-slate-400 border border-slate-800"
+                            )}>
+                              {gActivePlayers.length} TW
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
                   <div className="flex items-center gap-2">
                     <div className={cn(
@@ -3522,10 +3589,10 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                       return null;
                     })()}
 
-                    {/* 1. Zeile: Datum & Trainingsgruppe in einer Zeile (Datum klein, Trainingsgruppe flexibel) */}
-                    <div className="flex flex-wrap sm:flex-nowrap items-start gap-3.5">
-                      {/* Datum (kleines Feld) */}
-                      <div className="w-full sm:w-40 flex-shrink-0">
+                    {/* 1. Zeile: Datum & Team / Mannschaft in einer Zeile nebeneinander */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {/* Datum */}
+                      <div>
                         <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1.5">
                             <Calendar className="w-3.5 h-3.5 text-emerald-400" />
@@ -3546,57 +3613,25 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                         />
                       </div>
 
-                      {/* Trainingsgruppe als Reiter (so groß wie nötig) */}
-                      <div className="flex-1 min-w-0">
+                      {/* Team / Mannschaft (rechts neben dem Datum) */}
+                      <div>
                         <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1.5">
-                            <Users className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Trainingsgruppe <span className="text-emerald-400">*</span></span>
+                            <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Team / Mannschaft <span className="text-emerald-400">*</span></span>
                           </span>
-                          <span className="text-[10px] text-slate-500 font-normal">Reiter (1 Klick)</span>
                         </label>
-                        <div className="flex flex-wrap gap-2">
-                          {visibleGroups.map(g => {
-                            const isSelected = (matchFormData.groupId === g.id) || (!matchFormData.groupId && visibleGroups[0]?.id === g.id);
-                            const gActivePlayers = (g.players || []).filter(p => !p.archived);
-                            return (
-                              <button
-                                key={g.id}
-                                type="button"
-                                onClick={() => {
-                                  const initMins: Record<string, number> = {};
-                                  const initGrades: Record<string, number> = {};
-                                  (g.players || []).forEach(p => {
-                                    initMins[p.id] = matchFormData.playerMinutes[p.id] ?? 0;
-                                    if (matchFormData.playerGrades[p.id] !== undefined) {
-                                      initGrades[p.id] = matchFormData.playerGrades[p.id];
-                                    }
-                                  });
-                                  setMatchFormData(prev => ({
-                                    ...prev,
-                                    groupId: g.id,
-                                    playerMinutes: initMins,
-                                    playerGrades: initGrades
-                                  }));
-                                }}
-                                className={cn(
-                                  "px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer active:scale-95",
-                                  isSelected
-                                    ? "bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-950/60"
-                                    : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-850"
-                                )}
-                              >
-                                <span>{g.name}</span>
-                                <span className={cn(
-                                  "text-[10px] px-1.5 py-0.5 rounded-md font-semibold",
-                                  isSelected ? "bg-emerald-700 text-emerald-100" : "bg-slate-900 text-slate-400 border border-slate-800"
-                                )}>
-                                  {gActivePlayers.length} TW
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <select
+                          value={matchFormData.team}
+                          onChange={e => setMatchFormData(prev => ({ ...prev, team: e.target.value }))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-xs font-semibold cursor-pointer"
+                        >
+                          {MATCH_TEAMS.map(team => (
+                            <option key={team} value={team} className="bg-slate-900 text-slate-100">
+                              {team}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
@@ -3636,14 +3671,14 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                       </div>
                     </div>
 
-                    {/* 3. Notiz / Besonderheiten (optional) direkt unter dem Feld Spieltyp */}
+                    {/* 3. Wichtige Szenen mit Angabe der Minute innerhalb des Spiels */}
                     <div>
-                      <label className="block text-slate-300 font-bold mb-1">Notiz / Besonderheiten (optional)</label>
+                      <label className="block text-slate-300 font-bold mb-1">Wichtige Szenen mit Angabe der Minute innerhalb des Spiels</label>
                       <input
                         type="text"
                         value={matchFormData.notes}
                         onChange={e => setMatchFormData(prev => ({ ...prev, notes: e.target.value }))}
-                        placeholder="z. B. Elfmeter pariert, 1. Pflichtspieleinsatz..."
+                        placeholder="z. B. 23. Min: Starke 1-gg-1 Parade, 68. Min: Elfmeter pariert..."
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 text-xs"
                       />
                     </div>
@@ -7243,7 +7278,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">Jahrgang / Geburtsjahr</label>
                   <input
@@ -7263,6 +7298,21 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                     placeholder="z. B. 1 oder 22"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 text-xs"
                   />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Hauptmannschaft</label>
+                  <select
+                    value={playerFormData.mainTeam}
+                    onChange={e => setPlayerFormData(prev => ({ ...prev, mainTeam: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-xs font-semibold cursor-pointer"
+                  >
+                    <option value="" className="bg-slate-900 text-slate-400">Keine Zuordnung</option>
+                    {MATCH_TEAMS.map(team => (
+                      <option key={team} value={team} className="bg-slate-900 text-slate-100">
+                        {team}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

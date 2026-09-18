@@ -34,7 +34,7 @@ import type {
   PlayerEvaluation,
   SkillDefinition
 } from '../types';
-import { CATEGORY_COLORS, METHODISCHE_REIHE_LABELS, SKILL_DEFINITIONS } from '../types';
+import { CATEGORY_COLORS, METHODISCHE_REIHE_LABELS, SKILL_DEFINITIONS, MATCH_TEAMS } from '../types';
 import { ExerciseModal } from './ExerciseModal';
 import { MovePlayerModal } from './MovePlayerModal';
 import { 
@@ -184,6 +184,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
     lastName: '',
     birthYear: '',
     jerseyNumber: '',
+    mainTeam: '',
     notes: ''
   });
 
@@ -922,6 +923,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
       lastName: '',
       birthYear: '',
       jerseyNumber: '',
+      mainTeam: '',
       notes: ''
     });
     setIsPlayerModalOpen(true);
@@ -935,6 +937,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
       lastName: player.lastName,
       birthYear: player.birthYear !== undefined ? String(player.birthYear) : '',
       jerseyNumber: player.jerseyNumber !== undefined ? String(player.jerseyNumber) : '',
+      mainTeam: player.mainTeam || '',
       notes: player.notes || ''
     });
     setIsPlayerModalOpen(true);
@@ -960,7 +963,9 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
               lastName: playerFormData.lastName.trim(),
               birthYear: playerFormData.birthYear ? parseInt(playerFormData.birthYear, 10) || undefined : undefined,
               jerseyNumber: playerFormData.jerseyNumber ? parseInt(playerFormData.jerseyNumber, 10) || undefined : undefined,
-              notes: playerFormData.notes.trim() || undefined
+              mainTeam: playerFormData.mainTeam.trim() || undefined,
+              notes: playerFormData.notes.trim() || undefined,
+              updatedAt: Date.now()
             };
           }
           return p;
@@ -978,6 +983,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
           lastName: playerFormData.lastName.trim(),
           birthYear: playerFormData.birthYear ? parseInt(playerFormData.birthYear, 10) || undefined : undefined,
           jerseyNumber: playerFormData.jerseyNumber ? parseInt(playerFormData.jerseyNumber, 10) || undefined : undefined,
+          mainTeam: playerFormData.mainTeam.trim() || undefined,
           notes: playerFormData.notes.trim() || undefined,
           createdAt: Date.now()
         };
@@ -1996,10 +2002,17 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                                       {initials}
                                     </div>
                                     <div className="min-w-0">
-                                      <span className="font-bold text-white block truncate">
-                                        {player.firstName} {player.lastName}
-                                        {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ''}
-                                      </span>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-white block truncate">
+                                          {player.firstName} {player.lastName}
+                                          {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ''}
+                                        </span>
+                                        {player.mainTeam && (
+                                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 font-mono">
+                                            ⚽ {player.mainTeam}
+                                          </span>
+                                        )}
+                                      </div>
                                       <span className="text-[10px] text-slate-500 block truncate">
                                         {player.birthYear ? `Jg. ${player.birthYear}` : 'Kein Jahrgang'} {player.notes ? `• ${player.notes}` : ''}
                                       </span>
@@ -3320,7 +3333,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">Jahrgang / Geburtsjahr</label>
                   <input
@@ -3340,6 +3353,21 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
                     placeholder="z. B. 1 oder 22"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 text-xs"
                   />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Hauptmannschaft</label>
+                  <select
+                    value={playerFormData.mainTeam}
+                    onChange={e => setPlayerFormData(prev => ({ ...prev, mainTeam: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-xs font-semibold cursor-pointer"
+                  >
+                    <option value="" className="bg-slate-900 text-slate-400">Keine Zuordnung</option>
+                    {MATCH_TEAMS.map(team => (
+                      <option key={team} value={team} className="bg-slate-900 text-slate-100">
+                        {team}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
