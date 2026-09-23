@@ -25,7 +25,7 @@ import {
   MicOff
 } from 'lucide-react';
 import type { TrainingPlan, TrainingGroup, Exercise } from '../types';
-import { CATEGORY_COLORS, createPlaceholderExercise } from '../types';
+import { CATEGORY_COLORS } from '../types';
 import { savePlanToFirestore } from '../firebase/firestoreService';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../utils/cn';
@@ -183,16 +183,36 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
     return Array.from(allPlayersMap.values());
   }, [targetGroupObj, groups]);
 
-  // Derived: Exercises in this plan
+  // Derived: Exercises in this plan (strictly only exercises that were part of this training unit)
   const planExercises = useMemo(() => {
     if (!plan) return [];
     const phaseMap = plan.phaseExercises || plan.phases || {};
-    const allExIds = Object.values(phaseMap).flatMap(ids => Array.isArray(ids) ? ids : []);
-    const uniqueIds = Array.from(new Set(allExIds));
+    const result: Exercise[] = [];
+    const seenIds = new Set<string>();
 
-    return uniqueIds.map(id => {
-      return exerciseMap.get(id) || plan.customPlanExercises?.[id] || createPlaceholderExercise(id);
+    Object.values(phaseMap).forEach(list => {
+      if (!Array.isArray(list)) return;
+      list.forEach(item => {
+        if (!item) return;
+        if (typeof item === 'string' && item.trim()) {
+          const id = item.trim();
+          if (seenIds.has(id)) return;
+          const ex = plan.customPlanExercises?.[id] || exerciseMap.get(id);
+          if (ex && ex.title) {
+            seenIds.add(id);
+            result.push(ex);
+          }
+        } else if (typeof item === 'object' && (item as Exercise).title) {
+          const exObj = item as Exercise;
+          const id = exObj.id || exObj.title;
+          if (id && seenIds.has(id)) return;
+          if (id) seenIds.add(id);
+          result.push(exObj);
+        }
+      });
     });
+
+    return result;
   }, [plan, exerciseMap]);
 
   // Derived: Active Selected Exercise for the right column in exercises tab
@@ -250,9 +270,9 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
   };
 
   const filledJumpVolumeCount = (jumpVolume ? 1 : 0) + Object.keys(keeperJumpVolumes).length;
-  const filledKeepersCount = Object.values(keeperInsights).filter(v => v && v.trim()).length;
-  const filledExercisesCount = Object.values(exerciseExperiences).filter(v => v && v.trim()).length;
-  const filledTalksCount = Object.values(playerConversations).filter(v => v && v.trim()).length;
+  const filledKeepersCount = keepersList.filter(k => k.id && keeperInsights[k.id]?.trim()).length;
+  const filledExercisesCount = planExercises.filter(ex => ex.id && exerciseExperiences[ex.id]?.trim()).length;
+  const filledTalksCount = keepersList.filter(k => k.id && playerConversations[k.id]?.trim()).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">

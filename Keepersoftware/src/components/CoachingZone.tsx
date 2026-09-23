@@ -614,6 +614,11 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
         body: JSON.stringify({ uid: selectedUser.uid, newPassword: pwd })
       });
 
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      if (!isJson) {
+        throw new Error(`Der Server hat keine JSON-Antwort geliefert (HTTP ${res.status}). Bitte stelle sicher, dass der Entwicklungsserver aktiv ist.`);
+      }
+
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Fehler beim Setzen des Passworts.');
@@ -669,8 +674,12 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
             },
             body: JSON.stringify({ uid: selectedUser.uid, email: newEmail })
           });
+          const isJson = syncRes.headers.get('content-type')?.includes('application/json');
+          if (!isJson) {
+            throw new Error(`Der Server hat keine JSON-Antwort geliefert (HTTP ${syncRes.status}).`);
+          }
+          const errData = await syncRes.json();
           if (!syncRes.ok) {
-            const errData = await syncRes.json();
             throw new Error(errData.error || 'Authentifizierungssynchronisierung fehlgeschlagen.');
           }
           authSynced = true;

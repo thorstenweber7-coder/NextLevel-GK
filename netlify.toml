@@ -2,13 +2,13 @@
 # Automatically builds both apps (Keepersoftware & Trainingsplanung) and serves all static pages from dist.
 
 [build]
-  command = "cd Keepersoftware && npm install && npm run build:frontend && cd ../Trainingsplanung && npm install && npm run build && cd .. && mkdir -p dist && cp -r Assets *.html dist/ 2>/dev/null || true && cp Assets/Logo.png dist/Logo.png 2>/dev/null || true && cp Assets/Logo.jpg dist/Logo.jpg 2>/dev/null || true && mkdir -p dist/app && cp -r Keepersoftware/dist/* dist/app/ && mkdir -p dist/Trainingsplanung && cp -r Trainingsplanung/dist/* dist/Trainingsplanung/ && mkdir -p dist/trainingsplanung && cp -r Trainingsplanung/dist/* dist/trainingsplanung/"
+  command = "cd Keepersoftware && npm install && npm run build:frontend && cd ../Trainingsplanung && npm install && npm run build && cd .. && mkdir -p dist && cp -r Assets *.html dist/ 2>/dev/null || true && cp Assets/Logo.png dist/Logo.png 2>/dev/null || true && cp Assets/Logo.jpg dist/Logo.jpg 2>/dev/null || true && mkdir -p dist/app && cp -r Keepersoftware/dist/* dist/app/ && mkdir -p dist/coaching-suite && cp -r Trainingsplanung/dist/* dist/coaching-suite/ && mkdir -p dist/coach-suite && cp -r Trainingsplanung/dist/* dist/coach-suite/ && mkdir -p dist/coach && cp -r Trainingsplanung/dist/* dist/coach/ && mkdir -p dist/Trainingsplanung && cp -r Trainingsplanung/dist/* dist/Trainingsplanung/ && mkdir -p dist/trainingsplanung && cp -r Trainingsplanung/dist/* dist/trainingsplanung/"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "20"
 
-# Dedicated Direct Link Routes for Keeper & Coach Login
+# Dedicated Direct Link Routes for Keeper & Coach Login Hubs
 [[redirects]]
   from = "/login"
   to = "/login.html"
@@ -49,6 +49,17 @@
   to = "/login-torwarttrainer.html"
   status = 200
 
+# Dedicated Direct Link Routes for Coaching Suite Gateway
+[[redirects]]
+  from = "/coaching-suite-login"
+  to = "/coaching-suite.html"
+  status = 200
+
+[[redirects]]
+  from = "/coach-suite-login"
+  to = "/coach-suite.html"
+  status = 200
+
 # SPA client-side routing for the Keepersoftware (/app)
 [[redirects]]
   from = "/app/*"
@@ -72,6 +83,61 @@
   to = "/app/"
   status = 301
 
+# SPA client-side routing for Coaching Suite (/coaching-suite)
+[[redirects]]
+  from = "/coaching-suite/*"
+  to = "/coaching-suite/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/coaching-suite"
+  to = "/coaching-suite/"
+  status = 301
+
+# SPA client-side routing for Coach Suite (/coach-suite)
+[[redirects]]
+  from = "/coach-suite/*"
+  to = "/coach-suite/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/coach-suite"
+  to = "/coach-suite/"
+  status = 301
+
+# Short alias /coaching
+[[redirects]]
+  from = "/coaching/*"
+  to = "/coaching-suite/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/coaching"
+  to = "/coaching-suite/"
+  status = 301
+
+# SPA client-side routing for /coach
+[[redirects]]
+  from = "/coach/*"
+  to = "/coach/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/coach"
+  to = "/coach/"
+  status = 301
+
+# SPA client-side routing for /trainer
+[[redirects]]
+  from = "/trainer/*"
+  to = "/coach/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/trainer"
+  to = "/coach/"
+  status = 301
+
 # SPA client-side routing for Trainingsplanung (/Trainingsplanung)
 [[redirects]]
   from = "/Trainingsplanung/*"
@@ -87,32 +153,12 @@
 # Lowercase and alternate alias redirects for Trainingsplanung
 [[redirects]]
   from = "/trainingsplanung/*"
-  to = "/Trainingsplanung/index.html"
+  to = "/trainingsplanung/index.html"
   status = 200
 
 [[redirects]]
   from = "/trainingsplanung"
-  to = "/Trainingsplanung/"
-  status = 301
-
-[[redirects]]
-  from = "/coach/*"
-  to = "/Trainingsplanung/index.html"
-  status = 200
-
-[[redirects]]
-  from = "/coach"
-  to = "/Trainingsplanung/"
-  status = 301
-
-[[redirects]]
-  from = "/trainer/*"
-  to = "/Trainingsplanung/index.html"
-  status = 200
-
-[[redirects]]
-  from = "/trainer"
-  to = "/Trainingsplanung/"
+  to = "/trainingsplanung/"
   status = 301
 
 # Cache headers for optimal asset performance
@@ -123,6 +169,21 @@
 
 [[headers]]
   for = "/app/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/coaching-suite/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/coach-suite/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/coach/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 

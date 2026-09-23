@@ -499,7 +499,7 @@ export const TrainingPlanHistoryModal: React.FC<TrainingPlanHistoryModalProps> =
                       <div className="pt-1.5 flex flex-wrap gap-1">
                         {Object.entries(phaseMap).flatMap(([phaseId, exerciseIds]) => 
                           (Array.isArray(exerciseIds) ? exerciseIds : []).map(exId => {
-                            const ex = exerciseMap.get(exId);
+                            const ex = plan.customPlanExercises?.[exId] || exerciseMap.get(exId);
                             return ex ? (
                               <span 
                                 key={`${phaseId}-${exId}`} 
