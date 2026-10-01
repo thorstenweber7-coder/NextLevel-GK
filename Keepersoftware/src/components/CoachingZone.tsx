@@ -604,7 +604,7 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
     setDirectPasswordMsg(null);
 
     try {
-      const idToken = await auth.currentUser?.getIdToken();
+      const idToken = await auth.currentUser?.getIdToken(true);
       const res = await fetch('/api/admin-set-user-password', {
         method: 'POST',
         headers: {
@@ -631,9 +631,13 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
       setDirectPassword('');
     } catch (err: any) {
       console.error('Error setting direct password:', err);
+      let errMsg = err.message || 'Passwort konnte nicht geändert werden.';
+      if (errMsg === 'Failed to fetch' || err.name === 'TypeError') {
+        errMsg = 'Verbindung zum Backend fehlgeschlagen (Failed to fetch). Bitte stelle sicher, dass der lokale Entwicklungsserver aktiv ist und die Seite über http://localhost:3000 aufgerufen wird.';
+      }
       setDirectPasswordMsg({
         type: 'error',
-        text: `Fehler: ${err.message || 'Passwort konnte nicht geändert werden.'}`
+        text: `Fehler: ${errMsg}`
       });
     } finally {
       setDirectPasswordLoading(false);
@@ -665,7 +669,7 @@ export default function CoachingZone({ currentUserProfile }: CoachingZoneProps) 
       let authSynced = false;
       if (newEmail && newEmail !== oldEmail) {
         try {
-          const idToken = await auth.currentUser?.getIdToken();
+          const idToken = await auth.currentUser?.getIdToken(true);
           const syncRes = await fetch('/api/update-user-email', {
             method: 'POST',
             headers: { 

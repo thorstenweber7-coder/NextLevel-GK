@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Trainer Login | NextLevel Coach Suite</title>
   <meta name="description" content="Offizielle Loginseite für Torwarttrainerinnen und Torwarttrainer der NextLevel Coach Suite. Direkter Zugang zu Trainingsplaner, Übungseditor, Periodisierung und Vereinsverwaltung.">
+  <meta http-equiv="refresh" content="0;url=/trainingsplanung/">
+  <script>
+    if (window.location.protocol !== 'file:' && !window.location.search.includes('stay=true')) {
+      window.location.replace('/trainingsplanung/');
+    }
+  </script>
   
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="Assets/logo_tiny.png">
@@ -125,7 +131,7 @@
         <!-- Direct Launch Button -->
         <a 
           id="coachAppBtn"
-          href="/coaching-suite/" 
+          href="/trainingsplanung/" 
           class="w-full bg-accentCyan hover:bg-cyan-400 text-dark font-black tracking-wide text-sm sm:text-base py-4 px-6 rounded-2xl transition-all shadow-xl shadow-accentCyan/25 hover:shadow-accentCyan/40 flex items-center justify-center gap-3 uppercase cursor-pointer group"
         >
           <span>Jetzt in der Coach Suite anmelden</span>
@@ -150,7 +156,7 @@
             Browser blockieren aus Sicherheitsgründen moderne JavaScript-Module über das Dateisystem (<code class="text-amber-300">file://</code>). Wähle eine Startoption:
           </p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-            <a href="https://nextlevel-gk.de/coaching-suite/" class="bg-accentCyan/20 hover:bg-accentCyan hover:text-dark text-accentCyan text-center py-2 px-3 rounded-lg font-bold transition-all">
+            <a href="https://nextlevel-gk.de/trainingsplanung/" class="bg-accentCyan/20 hover:bg-accentCyan hover:text-dark text-accentCyan text-center py-2 px-3 rounded-lg font-bold transition-all">
               🌐 Online öffnen
             </a>
             <a href="http://localhost:5173" class="bg-slate-800 hover:bg-slate-700 text-white text-center py-2 px-3 rounded-lg font-semibold transition-all">
@@ -218,7 +224,7 @@
           btn.setAttribute('target', '_self');
         }
       } else {
-        var targetUrl = '/coaching-suite/';
+        var targetUrl = '/trainingsplanung/';
         if (btn) {
           btn.setAttribute('href', targetUrl);
         }

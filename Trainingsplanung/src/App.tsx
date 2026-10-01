@@ -129,9 +129,6 @@ const MainAppContent: React.FC = () => {
     setIsEditorDirty(false);
     setPendingTabTransition(null);
     setIsMobileNavOpen(false);
-    if (targetOrgaSubTab) {
-      setOrgaSubTab(targetOrgaSubTab);
-    }
     if (targetTab === 'editor') {
       setEditorOriginTab(activeTab === 'editor' ? editorOriginTab : activeTab);
       if (isNew) {
@@ -139,10 +136,14 @@ const MainAppContent: React.FC = () => {
       } else if (targetExercise !== undefined) {
         setEditingExercise(targetExercise);
       }
+      setActiveTab(targetTab);
+    } else if (targetTab === 'orga') {
+      setEditingExercise(null);
+      setOrgaSubTab(targetOrgaSubTab || 'periodization');
     } else {
       setEditingExercise(null);
+      setActiveTab(targetTab);
     }
-    setActiveTab(targetTab);
   };
 
   // Guarded Tab Navigation (Prompts if Editor has unsaved changes)
@@ -301,9 +302,10 @@ const MainAppContent: React.FC = () => {
     handleRequestTabChange('editor', undefined, exercise, false);
   };
 
-  const handleExerciseSaved = (savedExercise?: Exercise) => {
+  const handleExerciseSaved = (savedExercise?: Exercise, addToPlan?: boolean) => {
     setIsEditorDirty(false);
-    if (editorOriginTab === 'planner' && savedExercise && savedExercise.id) {
+    const shouldAddToPlan = addToPlan ?? (editorOriginTab === 'planner');
+    if (shouldAddToPlan && savedExercise && savedExercise.id) {
       const normalize = (str?: string) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const catNorm = normalize(savedExercise.category);
       const phases = activeStructure.phases || [];
@@ -335,7 +337,7 @@ const MainAppContent: React.FC = () => {
       }
     }
 
-    const returnTab = editorOriginTab || 'planner';
+    const returnTab = addToPlan ? 'planner' : (editorOriginTab || 'catalog');
     setEditingExercise(null);
     setActiveTab(returnTab);
   };

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   subscribeAllUsers, 
+  fetchAllUsersOnce,
+  fetchUserByUidOrEmail,
   unlockUserForOneYear, 
   extendUserTrial, 
   updateUserRole, 
@@ -156,10 +158,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
   const [trayUserSearch, setTrayUserSearch] = useState<string>('');
   const [trayUserFilter, setTrayUserFilter] = useState<'all' | 'unassigned' | 'assigned'>('all');
 
+  // Manual refresh & deep lookup state
+  const [refreshingUsers, setRefreshingUsers] = useState<boolean>(false);
+  const [userLookupLoading, setUserLookupLoading] = useState<boolean>(false);
+
   // Subscribe to all users, exercises, clubs, progressions & tactical principles
   useEffect(() => {
     if (!isAdmin) return;
-    const unsubUsers = subscribeAllUsers(setUsers);
+    const unsubUsers = subscribeAllUsers(
+      (loadedUsers) => {
+        setUsers(loadedUsers);
+      },
+      (err) => {
+        console.warn('subscribeAllUsers listener error, attempting one-time fetch:', err);
+        fetchAllUsersOnce().then(setUsers).catch(console.error);
+      }
+    );
     const unsubExercises = subscribeExercises(null, true, setExercises);
     const unsubClubs = subscribeClubs(setClubs);
     const unsubProgressions = subscribeMethodicalProgressions(setProgressions);
@@ -176,6 +190,46 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
   const showFeedbackToast = (msg: string) => {
     setFeedback(msg);
     setTimeout(() => setFeedback(null), 4000);
+  };
+
+  const handleRefreshUsers = async () => {
+    try {
+      setRefreshingUsers(true);
+      const loaded = await fetchAllUsersOnce();
+      setUsers(loaded);
+      showFeedbackToast(`Benutzerliste erfolgreich aktualisiert (${loaded.length} Profile geladen).`);
+    } catch (err: any) {
+      console.error('Error manually refreshing users:', err);
+      showFeedbackToast('Fehler beim Aktualisieren der Benutzerliste: ' + (err?.message || 'Unbekannt'));
+    } finally {
+      setRefreshingUsers(false);
+    }
+  };
+
+  const handleDeepUserLookup = async () => {
+    const q = searchUser.trim();
+    if (!q) return;
+    try {
+      setUserLookupLoading(true);
+      const found = await fetchUserByUidOrEmail(q);
+      if (found) {
+        setUsers(prev => {
+          const exists = prev.some(u => u.uid === found.uid || (u.email && found.email && u.email.toLowerCase() === found.email.toLowerCase()));
+          if (exists) {
+            return prev.map(u => (u.uid === found.uid || u.email?.toLowerCase() === found.email?.toLowerCase()) ? found : u);
+          }
+          return [found, ...prev];
+        });
+        showFeedbackToast(`Benutzer "${found.email || found.uid}" in Firestore gefunden und geladen!`);
+      } else {
+        showFeedbackToast(`Kein Benutzer mit UID oder E-Mail "${q}" in Firestore gefunden.`);
+      }
+    } catch (err) {
+      console.error('Error looking up user:', err);
+      showFeedbackToast('Fehler bei der Tiefensuche.');
+    } finally {
+      setUserLookupLoading(false);
+    }
   };
 
   // License Handlers
@@ -1429,7 +1483,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
       {activeTab === 'users' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <h3 className="text-base font-extrabold text-white flex items-center gap-2">
                 <Key className="w-4 h-4 text-emerald-400" />
                 <span>Trainer-Accounts & Laufzeiten</span>
@@ -1441,6 +1495,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>+ Benutzer anlegen</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleRefreshUsers}
+                disabled={refreshingUsers}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer disabled:opacity-50"
+                title="Benutzerliste direkt aus Firestore neu laden"
+              >
+                <RotateCcw className={cn("w-3.5 h-3.5 text-purple-400", refreshingUsers && "animate-spin")} />
+                <span>{refreshingUsers ? 'Lade...' : 'Aktualisieren'}</span>
               </button>
             </div>
 
@@ -1621,8 +1685,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
               <tbody className="divide-y divide-slate-850 bg-slate-900/60 text-slate-200">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-500 italic">
-                      Keine Trainer für die aktuellen Filterkriterien gefunden.
+                    <td colSpan={6} className="py-10 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <p className="italic text-slate-400">Keine Trainer für die aktuellen Filterkriterien gefunden.</p>
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          {searchUser.trim() && (
+                            <button
+                              type="button"
+                              onClick={handleDeepUserLookup}
+                              disabled={userLookupLoading}
+                              className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer disabled:opacity-50"
+                            >
+                              <Search className={cn("w-3.5 h-3.5", userLookupLoading && "animate-spin")} />
+                              <span>In Firestore nach "{searchUser}" suchen</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleRefreshUsers}
+                            disabled={refreshingUsers}
+                            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 border border-slate-700 cursor-pointer disabled:opacity-50"
+                          >
+                            <RotateCcw className={cn("w-3.5 h-3.5 text-purple-400", refreshingUsers && "animate-spin")} />
+                            <span>Alle Benutzer neu laden</span>
+                          </button>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 ) : (

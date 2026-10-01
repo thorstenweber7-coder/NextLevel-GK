@@ -824,6 +824,127 @@ export async function deletePlanFromFirestore(
 // ----------------------------------------------------------------------------
 
 /**
+ * Normalize raw firestore user document to UserProfile
+ */
+export function normalizeUserProfile(docSnapId: string, rawData: any): UserProfile {
+  const d = rawData || {};
+  const fName = (d.firstName || d.first_name || '').trim();
+  const lName = (d.lastName || d.last_name || '').trim();
+  const email = (d.email || d.mail || d.userEmail || '').trim();
+  
+  let fullName = (d.displayName || '').trim();
+  if (!fullName) {
+    if (fName && lName) {
+      fullName = `${fName} ${lName}`;
+    } else if (fName) {
+      fullName = fName;
+    } else if (email) {
+      fullName = email.split('@')[0];
+    } else {
+      fullName = 'Trainer';
+    }
+  }
+
+  let createdAt = Date.now();
+  if (typeof d.createdAt === 'number') {
+    createdAt = d.createdAt;
+  } else if (d.createdAt && typeof d.createdAt.toMillis === 'function') {
+    createdAt = d.createdAt.toMillis();
+  } else if (d.created_at) {
+    createdAt = Number(d.created_at);
+  }
+
+  let trialExpiresAt: number = 0;
+  if (typeof d.trialExpiresAt === 'number') {
+    trialExpiresAt = d.trialExpiresAt;
+  } else if (d.trialExpiresAt && typeof d.trialExpiresAt.toMillis === 'function') {
+    trialExpiresAt = d.trialExpiresAt.toMillis();
+  } else if (d.trial_expires_at) {
+    trialExpiresAt = Number(d.trial_expires_at);
+  }
+
+  let subscriptionExpiresAt: number | null = null;
+  if (typeof d.subscriptionExpiresAt === 'number') {
+    subscriptionExpiresAt = d.subscriptionExpiresAt;
+  } else if (d.subscriptionExpiresAt && typeof d.subscriptionExpiresAt.toMillis === 'function') {
+    subscriptionExpiresAt = d.subscriptionExpiresAt.toMillis();
+  } else if (d.subscription_expires_at) {
+    subscriptionExpiresAt = Number(d.subscription_expires_at);
+  }
+
+  return {
+    uid: d.uid || docSnapId,
+    email: email,
+    firstName: fName,
+    lastName: lName,
+    displayName: fullName,
+    role: (d.role as UserRole) || 'single_standard',
+    clubId: d.clubId || undefined,
+    clubName: d.clubName || undefined,
+    createdAt: createdAt,
+    trialExpiresAt: trialExpiresAt,
+    subscriptionExpiresAt: subscriptionExpiresAt,
+    isBlocked: Boolean(d.isBlocked),
+    favoriteExerciseIds: Array.isArray(d.favoriteExerciseIds) ? d.favoriteExerciseIds : []
+  };
+}
+
+/**
+ * Fetch all users once directly from Firestore (Admin only)
+ */
+export async function fetchAllUsersOnce(): Promise<UserProfile[]> {
+  try {
+    const colRef = collection(firestoreDb, USERS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const items: UserProfile[] = [];
+    snapshot.forEach((docSnap) => {
+      items.push(normalizeUserProfile(docSnap.id, docSnap.data()));
+    });
+    items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return items;
+  } catch (err) {
+    console.error('[fetchAllUsersOnce] Error fetching all users:', err);
+    throw err;
+  }
+}
+
+/**
+ * Targeted lookup for a specific user by UID or email (Admin only)
+ */
+export async function fetchUserByUidOrEmail(queryStr: string): Promise<UserProfile | null> {
+  const qClean = queryStr.trim();
+  if (!qClean) return null;
+
+  try {
+    // 1. Try direct doc lookup by UID
+    const docRef = doc(firestoreDb, USERS_COLLECTION, qClean);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return normalizeUserProfile(docSnap.id, docSnap.data());
+    }
+
+    // 2. Try query by email (case-insensitive search)
+    const normEmail = qClean.toLowerCase();
+    const qCol = collection(firestoreDb, USERS_COLLECTION);
+    const qSnap = await getDocs(query(qCol, where('email', '==', normEmail)));
+    if (!qSnap.empty) {
+      return normalizeUserProfile(qSnap.docs[0].id, qSnap.docs[0].data());
+    }
+
+    // 3. Fallback: fetch all and find matching email / uid
+    const allUsers = await fetchAllUsersOnce();
+    const found = allUsers.find(u => 
+      u.uid.toLowerCase() === qClean.toLowerCase() || 
+      (u.email && u.email.toLowerCase().trim() === normEmail)
+    );
+    return found || null;
+  } catch (err) {
+    console.error('[fetchUserByUidOrEmail] Error searching user:', err);
+    return null;
+  }
+}
+
+/**
  * Real-time listener for all user profiles (Admin only)
  */
 export function subscribeAllUsers(
@@ -832,29 +953,32 @@ export function subscribeAllUsers(
 ): () => void {
   const colRef = collection(firestoreDb, USERS_COLLECTION);
   
+  // Proactive direct fetch to guarantee immediate population
+  fetchAllUsersOnce().then(users => {
+    if (users && users.length > 0) {
+      onData(users);
+    }
+  }).catch(err => {
+    console.warn('[subscribeAllUsers] Proactive initial fetch warning:', err);
+  });
+
   return onSnapshot(
     colRef,
     (snapshot) => {
       const items: UserProfile[] = [];
       snapshot.forEach((docSnap) => {
-        const d = docSnap.data() as UserProfile;
-        items.push({
-          ...d,
-          uid: d.uid || docSnap.id,
-          email: d.email || '',
-          firstName: d.firstName || '',
-          lastName: d.lastName || '',
-          displayName: d.displayName || '',
-          role: d.role || 'single_standard',
-          createdAt: d.createdAt || 0
-        });
+        items.push(normalizeUserProfile(docSnap.id, docSnap.data()));
       });
       items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       onData(items);
     },
     (err) => {
-      console.error('Error subscribing to users:', err);
-      if (onError) onError(err);
+      console.error('[subscribeAllUsers] Snapshot listener error:', err);
+      // Attempt fallback direct getDocs fetch
+      fetchAllUsersOnce().then(onData).catch(fetchErr => {
+        console.error('[subscribeAllUsers] Fallback fetch also failed:', fetchErr);
+        if (onError) onError(err);
+      });
     }
   );
 }
@@ -884,13 +1008,14 @@ export async function extendUserTrial(uid: string, days: number): Promise<void> 
 }
 
 export interface CreateUserInput {
+  uid?: string;
   email: string;
   firstName?: string;
   lastName?: string;
   role: UserRole;
   clubId?: string;
   clubName?: string;
-  licenseType?: 'trial_14' | 'pro_1_year' | 'lifetime' | 'standard';
+  licenseType?: 'trial_14' | 'pro_1_year' | 'sub_1year' | 'lifetime' | 'unlimited' | 'standard' | 'expired';
 }
 
 /**
@@ -908,12 +1033,15 @@ export async function createNewUserByAdmin(input: CreateUserInput): Promise<stri
   let trialExpiresAt = now + 14 * 24 * 60 * 60 * 1000;
   let subscriptionExpiresAt: number | null = null;
   
-  if (input.licenseType === 'pro_1_year' || input.role === 'single_pro' || input.role === 'club_admin' || input.role === 'club_coach') {
+  if (input.licenseType === 'pro_1_year' || input.licenseType === 'sub_1year' || input.role === 'single_pro' || input.role === 'club_admin' || input.role === 'club_coach') {
     subscriptionExpiresAt = now + 365 * 24 * 60 * 60 * 1000;
-  } else if (input.licenseType === 'lifetime' || input.role === 'master_admin' || input.role === 'admin') {
+  } else if (input.licenseType === 'lifetime' || input.licenseType === 'unlimited' || input.role === 'master_admin' || input.role === 'admin') {
     subscriptionExpiresAt = now + 3650 * 24 * 60 * 60 * 1000;
   } else if (input.licenseType === 'trial_14' || input.role === 'trial_user') {
     trialExpiresAt = now + 14 * 24 * 60 * 60 * 1000;
+  } else if (input.licenseType === 'expired') {
+    trialExpiresAt = now - 24 * 60 * 60 * 1000;
+    subscriptionExpiresAt = null;
   }
 
   const fName = input.firstName?.trim() || '';
@@ -937,7 +1065,7 @@ export async function createNewUserByAdmin(input: CreateUserInput): Promise<stri
     return existingDoc.id;
   }
 
-  const newUid = `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const newUid = input.uid?.trim() || `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
   const newProfile: UserProfile = {
     uid: newUid,
     email: normEmail,

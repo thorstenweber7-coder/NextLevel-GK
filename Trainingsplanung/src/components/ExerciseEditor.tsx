@@ -33,7 +33,8 @@ import {
   Info,
   Copy,
   Building2,
-  BookOpen
+  BookOpen,
+  PlusCircle
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { ExerciseCanvasStage } from './editor/ExerciseCanvasStage';
@@ -43,6 +44,8 @@ import { ExerciseTemplatesModal } from './editor/ExerciseTemplatesModal';
 import { ExerciseMetaForm } from './editor/ExerciseMetaForm';
 
 const TOOL_TO_MATERIAL_MAP: Partial<Record<ToolType, MaterialType>> = {
+  goal_large: 'Zweites Großtor',
+  goal_mini: 'Minitore',
   cone: 'Hütchen',
   dummy: 'Dummies',
   hurdle: 'Hürden',
@@ -55,10 +58,13 @@ const TOOL_TO_MATERIAL_MAP: Partial<Record<ToolType, MaterialType>> = {
   medicine_ball: 'Medizinball',
   square: 'Quadrate',
   resistance_band: 'Widerstandsbänder',
-  jumping_rope: 'Sprungseile'
+  jumping_rope: 'Sprungseile',
+  bib: 'Hemdchen'
 };
 
 const MATERIAL_TO_TOOL_MAP: Partial<Record<MaterialType, ToolType>> = {
+  'Zweites Großtor': 'goal_large',
+  Minitore: 'goal_mini',
   Hütchen: 'cone',
   Dummies: 'dummy',
   Hürden: 'hurdle',
@@ -71,12 +77,13 @@ const MATERIAL_TO_TOOL_MAP: Partial<Record<MaterialType, ToolType>> = {
   Medizinball: 'medicine_ball',
   Quadrate: 'square',
   Widerstandsbänder: 'resistance_band',
-  Sprungseile: 'jumping_rope'
+  Sprungseile: 'jumping_rope',
+  Hemdchen: 'bib'
 };
 
 interface ExerciseEditorProps {
   initialExercise?: Exercise | null;
-  onSaved?: (savedExercise: Exercise) => void;
+  onSaved?: (savedExercise: Exercise, addToPlan?: boolean) => void;
   onCancel?: () => void;
   onDirtyChange?: (isDirty: boolean) => void;
 }
@@ -619,11 +626,15 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     }
   }, [initialExercise]);
 
-  // Material Toggle Handler: checks/unchecks material and places symbol on canvas if not present
+  // Material Toggle Handler: checks/unchecks material and places/removes symbol on canvas
   const handleToggleMaterial = (mat: MaterialType) => {
     setMaterials(prev => {
       const isAlreadyIncluded = prev.includes(mat);
       if (isAlreadyIncluded) {
+        const tool = MATERIAL_TO_TOOL_MAP[mat];
+        if (tool && canvasRef.current) {
+          canvasRef.current.removeElementsByType(tool);
+        }
         return prev.filter(m => m !== mat);
       } else {
         // When checked: automatically add the symbol to top right area if mapped to a tool
@@ -636,19 +647,25 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     });
   };
 
-  // Synchronize Materials with Symbols on Canvas (unions canvas materials without deleting manually checked items)
+  // Synchronize Materials with Symbols on Canvas (removes checkmark when symbol is removed from board)
   const handleCanvasChange = (data: TacticalCanvasData) => {
-    setCanvasElements(data.elements || []);
+    const elements = data.elements || [];
+    setCanvasElements(elements);
+
     const activeBoardMaterials = new Set<MaterialType>();
-    (data.elements || []).forEach(el => {
+    elements.forEach(el => {
       const mapped = TOOL_TO_MATERIAL_MAP[el.type];
       if (mapped) {
         activeBoardMaterials.add(mapped);
       }
     });
 
+    const mappableMaterials = new Set(Object.values(TOOL_TO_MATERIAL_MAP));
+
     setMaterials(prev => {
-      return Array.from(new Set([...prev, ...Array.from(activeBoardMaterials)]));
+      // Retain unmapped manual materials (e.g. Strobobrille)
+      const unmappedPrev = prev.filter(m => !mappableMaterials.has(m));
+      return Array.from(new Set([...unmappedPrev, ...Array.from(activeBoardMaterials)]));
     });
   };
 
@@ -931,7 +948,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     });
   };
 
-  const handleSaveExercise = async (e?: React.FormEvent, asNew: boolean = false) => {
+  const handleSaveExercise = async (e?: React.FormEvent, asNew: boolean = false, addToPlan: boolean = false) => {
     if (e && e.preventDefault) e.preventDefault();
 
     let effectiveTitle = title.trim();
@@ -1087,7 +1104,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
 
       // Smooth transition back
       setTimeout(() => {
-        if (onSaved) onSaved(exerciseData);
+        if (onSaved) onSaved(exerciseData, addToPlan);
       }, 400);
 
       if (!initialExercise) {
@@ -1344,7 +1361,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => handleSaveExercise(undefined, false)}
+                    onClick={() => handleSaveExercise(undefined, false, false)}
                     disabled={isSubmitting}
                     className="py-3.5 px-6 rounded-2xl text-sm font-extrabold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 disabled:opacity-50 cursor-pointer"
                   >
@@ -1354,7 +1371,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => handleSaveExercise(undefined, true)}
+                    onClick={() => handleSaveExercise(undefined, true, false)}
                     disabled={isSubmitting}
                     className="py-3.5 px-5 rounded-2xl text-sm font-bold text-sky-300 bg-sky-950/80 hover:bg-sky-900 border border-sky-700/80 active:scale-[0.98] transition flex items-center justify-center gap-2 shadow-lg shadow-sky-950/60 disabled:opacity-50 cursor-pointer"
                   >
@@ -1373,25 +1390,37 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
                 )}
               </div>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveExercise(undefined, false, false)}
+                    disabled={isSubmitting}
+                    className="py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-bold text-slate-200 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 active:scale-[0.98] transition flex items-center justify-center gap-2 shadow-md disabled:opacity-50 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4 text-emerald-400" />
+                    <span>{isSubmitting ? 'Wird gespeichert...' : 'Übung speichern'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveExercise(undefined, false, true)}
+                    disabled={isSubmitting}
+                    className="py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-extrabold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 disabled:opacity-50 cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>{isSubmitting ? 'Wird gespeichert...' : 'Übung speichern & hinzufügen'}</span>
+                  </button>
+                </div>
                 {onCancel && (
                   <button
                     type="button"
                     onClick={onCancel}
-                    className="px-5 py-3.5 rounded-2xl text-sm font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] transition cursor-pointer"
+                    className="w-full py-2.5 rounded-2xl text-xs font-semibold text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 transition cursor-pointer"
                   >
                     Abbrechen
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleSaveExercise(undefined, false)}
-                  disabled={isSubmitting}
-                  className="flex-1 py-3.5 rounded-2xl text-sm font-extrabold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 disabled:opacity-50 cursor-pointer"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>{isSubmitting ? 'Wird gespeichert...' : 'Übung erstellen & speichern'}</span>
-                </button>
               </div>
             )}
           </div>

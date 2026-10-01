@@ -282,15 +282,47 @@ export function renderPitchDiagram(elements: CanvasElement[], width = 720, heigh
     }
 
     if (elem.type === 'goal_large') {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(-38, -6, 76, 12);
-      ctx.strokeStyle = '#0f172a';
+      const goalWidth = width * 0.16;
+      const hw = goalWidth / 2;
+      const goalDepth = 12;
+
+      ctx.save();
+      // Goal Net background
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.fillRect(-hw, -goalDepth, goalWidth, goalDepth);
+
+      // Vertical Net lines
+      ctx.strokeStyle = 'rgba(15, 23, 42, 0.5)';
+      ctx.lineWidth = 1;
+      for (let gx = -hw + 6; gx < hw; gx += 8) {
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, -goalDepth);
+        ctx.stroke();
+      }
+
+      // Net back line
+      ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
-      ctx.strokeRect(-38, -6, 76, 12);
-      ctx.fillStyle = '#0284c7';
-      ctx.font = 'bold 9.5px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('TOR', 0, 3.5);
+      ctx.strokeRect(-hw, -goalDepth, goalWidth, goalDepth);
+
+      // Torlatte / Pfosten auf der Torlinie
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(-hw, 0);
+      ctx.lineTo(hw, 0);
+      ctx.stroke();
+
+      // Goal Post markers
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(-hw, 0, 4, 0, Math.PI * 2);
+      ctx.arc(hw, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
     } else if (elem.type === 'goal_mini') {
       ctx.fillStyle = '#f8fafc';
       ctx.fillRect(-20, -5, 40, 10);
@@ -413,6 +445,43 @@ export function renderPitchDiagram(elements: CanvasElement[], width = 720, heigh
       ctx.strokeStyle = '#b08968';
       ctx.lineWidth = 1;
       ctx.stroke();
+      ctx.restore();
+    } else if (elem.type === 'bib') {
+      ctx.save();
+      const bibColor = elem.color || '#84cc16';
+      ctx.beginPath();
+      ctx.moveTo(-4, -12);
+      ctx.quadraticCurveTo(0, -8, 4, -12);
+      ctx.lineTo(10, -12);
+      ctx.lineTo(12, -7);
+      ctx.lineTo(9, -5);
+      ctx.quadraticCurveTo(7, 0, 9, 4);
+      ctx.lineTo(9, 12);
+      ctx.lineTo(-9, 12);
+      ctx.lineTo(-9, 4);
+      ctx.quadraticCurveTo(-7, 0, -9, -5);
+      ctx.lineTo(-12, -7);
+      ctx.lineTo(-10, -12);
+      ctx.closePath();
+
+      ctx.fillStyle = bibColor;
+      ctx.fill();
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(-4, -12);
+      ctx.quadraticCurveTo(0, -7, 4, -12);
+      ctx.strokeStyle = 'rgba(15, 23, 42, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 7px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(elem.label || 'HEMD', 0, 3);
       ctx.restore();
     } else if (elem.type === 'pass_arrow' || elem.type === 'run_arrow' || elem.type === 'dribble_arrow' || elem.type === 'shot_arrow' || elem.type === 'cross_arrow') {
       if (elem.endX !== undefined && elem.endY !== undefined) {

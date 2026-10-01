@@ -27,6 +27,7 @@ export interface TacticalCanvasRef {
   loadCanvasData: (data: TacticalCanvasData) => void;
   clearCanvas: () => void;
   addElement: (type: ToolType, customProps?: Partial<CanvasElement>) => void;
+  removeElementsByType: (type: ToolType) => void;
 }
 
 interface TacticalCanvasProps {
@@ -417,6 +418,8 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
       newElem.color = activeColor === '#f97316' ? '#a855f7' : activeColor;
     } else if (type === 'jumping_rope') {
       newElem.color = activeColor === '#f97316' ? '#10b981' : activeColor;
+    } else if (type === 'bib') {
+      newElem.color = activeColor === '#f97316' ? '#84cc16' : activeColor;
     } else if (type === 'gk') {
       const currentGkCount = elements.filter(el => el.type === 'gk').length;
       newElem.label = `TW${currentGkCount + 1}`;
@@ -491,13 +494,27 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
     }
   }, []);
 
+  const removeElementsByType = useCallback((type: ToolType) => {
+    setElements(prev => {
+      const next = prev.filter(el => el.type !== type);
+      pushToHistory(next);
+      return next;
+    });
+    setSelectedId(prev => {
+      if (!prev) return null;
+      const selected = elements.find(el => el.id === prev);
+      return selected?.type === type ? null : prev;
+    });
+  }, [elements, pushToHistory]);
+
   useImperativeHandle(ref, () => ({
     exportImage,
     getCanvasData,
     loadCanvasData,
     clearCanvas: handleClear,
-    addElement
-  }), [exportImage, getCanvasData, loadCanvasData, addElement]);
+    addElement,
+    removeElementsByType
+  }), [exportImage, getCanvasData, loadCanvasData, addElement, removeElementsByType]);
 
   useEffect(() => {
     if (initialData?.elements && elements.length === 0) {
@@ -636,51 +653,103 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
 
         // Selection ring & Rotation Handle
         if (isSelected && !readOnly) {
-          ctx.beginPath();
-          ctx.arc(0, 0, 24, 0, Math.PI * 2);
-          ctx.strokeStyle = '#38bdf8';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([4, 3]);
-          ctx.stroke();
-          ctx.setLineDash([]);
+          if (elem.type === 'goal_large') {
+            const goalWidth = width * 0.16;
+            const hw = goalWidth / 2;
+            const goalDepth = 12;
 
-          // Rotation Handle Line & Dot
-          ctx.beginPath();
-          ctx.moveTo(0, -24);
-          ctx.lineTo(0, -36);
-          ctx.strokeStyle = '#38bdf8';
-          ctx.lineWidth = 2;
-          ctx.stroke();
+            ctx.beginPath();
+            ctx.rect(-hw - 4, -goalDepth - 4, goalWidth + 8, goalDepth + 8);
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 3]);
+            ctx.stroke();
+            ctx.setLineDash([]);
 
-          ctx.beginPath();
-          ctx.arc(0, -36, 5.5, 0, Math.PI * 2);
-          ctx.fillStyle = '#38bdf8';
-          ctx.fill();
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
+            // Rotation Handle Line & Dot
+            ctx.beginPath();
+            ctx.moveTo(0, -goalDepth - 4);
+            ctx.lineTo(0, -goalDepth - 18);
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, -goalDepth - 18, 5.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          } else {
+            ctx.beginPath();
+            ctx.arc(0, 0, 24, 0, Math.PI * 2);
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 3]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Rotation Handle Line & Dot
+            ctx.beginPath();
+            ctx.moveTo(0, -24);
+            ctx.lineTo(0, -36);
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, -36, 5.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
         }
 
         if (elem.type === 'goal_large') {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(-38, -6, 76, 12);
-          ctx.strokeStyle = '#0f172a';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(-38, -6, 76, 12);
+          const goalWidth = width * 0.16;
+          const hw = goalWidth / 2;
+          const goalDepth = 12;
 
-          ctx.strokeStyle = 'rgba(15, 23, 42, 0.4)';
+          ctx.save();
+          // Goal Net background
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+          ctx.fillRect(-hw, -goalDepth, goalWidth, goalDepth);
+
+          // Vertical Net lines
+          ctx.strokeStyle = 'rgba(15, 23, 42, 0.5)';
           ctx.lineWidth = 1;
-          for (let gx = -30; gx <= 30; gx += 10) {
+          for (let gx = -hw + 6; gx < hw; gx += 8) {
             ctx.beginPath();
-            ctx.moveTo(gx, -6);
-            ctx.lineTo(gx, 6);
+            ctx.moveTo(gx, 0);
+            ctx.lineTo(gx, -goalDepth);
             ctx.stroke();
           }
 
-          ctx.fillStyle = '#0284c7';
-          ctx.font = 'bold 9.5px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText('TOR', 0, 3.5);
+          // Net back line
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(-hw, -goalDepth, goalWidth, goalDepth);
+
+          // Torlatte / Pfosten auf der Torlinie
+          ctx.fillStyle = '#ffffff';
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(-hw, 0);
+          ctx.lineTo(hw, 0);
+          ctx.stroke();
+
+          // Goal Post markers
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(-hw, 0, 4, 0, Math.PI * 2);
+          ctx.arc(hw, 0, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
         } else if (elem.type === 'goal_mini') {
           ctx.fillStyle = '#f8fafc';
           ctx.fillRect(-20, -5, 40, 10);
@@ -1045,6 +1114,55 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
           ctx.fillText('SEIL', 0, 1);
 
           ctx.restore();
+        } else if (elem.type === 'bib') {
+          // HEMDCHEN (Trainingsleibchen)
+          ctx.save();
+          const bibColor = elem.color || '#84cc16';
+          ctx.beginPath();
+          // Top neck left
+          ctx.moveTo(-4, -12);
+          // Neck curve
+          ctx.quadraticCurveTo(0, -8, 4, -12);
+          // Right shoulder
+          ctx.lineTo(10, -12);
+          // Right armhole
+          ctx.lineTo(12, -7);
+          ctx.lineTo(9, -5);
+          ctx.quadraticCurveTo(7, 0, 9, 4);
+          // Right body down
+          ctx.lineTo(9, 12);
+          // Bottom hem
+          ctx.lineTo(-9, 12);
+          // Left body up
+          ctx.lineTo(-9, 4);
+          ctx.quadraticCurveTo(-7, 0, -9, -5);
+          ctx.lineTo(-12, -7);
+          // Left shoulder
+          ctx.lineTo(-10, -12);
+          ctx.closePath();
+
+          ctx.fillStyle = bibColor;
+          ctx.fill();
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Subtle V-Neck / Collar line
+          ctx.beginPath();
+          ctx.moveTo(-4, -12);
+          ctx.quadraticCurveTo(0, -7, 4, -12);
+          ctx.strokeStyle = 'rgba(15, 23, 42, 0.6)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Centered Text Label
+          ctx.fillStyle = '#0f172a';
+          ctx.font = 'bold 7px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(elem.label || 'HEMD', 0, 3);
+
+          ctx.restore();
         }
       }
 
@@ -1189,9 +1307,10 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
 
   // Helper: check if click is on rotation handle
   const isClickOnRotationHandle = (x: number, y: number, elem: CanvasElement): boolean => {
+    const handleDistance = elem.type === 'goal_large' ? 30 : 36;
     const rotRad = ((elem.rotation || 0) * Math.PI) / 180;
-    const handleX = elem.x + Math.sin(rotRad) * 36;
-    const handleY = elem.y - Math.cos(rotRad) * 36;
+    const handleX = elem.x + Math.sin(rotRad) * handleDistance;
+    const handleY = elem.y - Math.cos(rotRad) * handleDistance;
     return Math.hypot(x - handleX, y - handleY) <= 12;
   };
 
@@ -1242,8 +1361,21 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
             if (d < 12) return elem;
           }
         }
+      } else if (elem.type === 'goal_large') {
+        const goalWidth = width * 0.16;
+        const hw = goalWidth / 2;
+        const goalDepth = 12;
+        const rotRad = -((elem.rotation || 0) * Math.PI) / 180;
+        const dx = x - elem.x;
+        const dy = y - elem.y;
+        const localX = dx * Math.cos(rotRad) - dy * Math.sin(rotRad);
+        const localY = dx * Math.sin(rotRad) + dy * Math.cos(rotRad);
+
+        if (Math.abs(localX) <= hw + 8 && localY >= -goalDepth - 8 && localY <= 8) {
+          return elem;
+        }
       } else {
-        const radius = elem.type === 'goal_large' ? 38 : (elem.type === 'goal_mini' || elem.type === 'bench' || elem.type === 'square' || elem.type === 'plyobox') ? 22 : 18;
+        const radius = (elem.type === 'goal_mini' || elem.type === 'bench' || elem.type === 'square' || elem.type === 'plyobox') ? 22 : 18;
         const dx = elem.x - x;
         const dy = elem.y - y;
         if (Math.hypot(dx, dy) <= radius) {
@@ -2055,18 +2187,36 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
                 </svg>
                 <span>Seil</span>
               </button>
+
+              {/* Hemdchen (Bib) */}
+              <button
+                type="button"
+                onClick={() => setActiveTool('bib')}
+                title="Hemdchen / Trainingsleibchen"
+                className={cn(
+                  "py-1 rounded-lg transition flex flex-col items-center gap-0.5 font-extrabold text-[9px]",
+                  activeTool === 'bib'
+                    ? "bg-lime-600 text-white shadow"
+                    : "text-lime-400 hover:bg-lime-950/30 bg-slate-900 border border-slate-800"
+                )}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 4h3a3 3 0 0 0 6 0h3l2 5-3 2v9H7v-9L4 9l2-5z" fill="currentColor" fillOpacity="0.25" />
+                </svg>
+                <span>Hemd</span>
+              </button>
             </div>
 
             {/* Quick Color Picker */}
-            {(activeTool === 'cone' || activeTool === 'blazepod' || activeTool === 'pole' || activeTool === 'square' || activeTool === 'resistance_band' || activeTool === 'jumping_rope' || activeTool === 'plyobox') && (
+            {(activeTool === 'cone' || activeTool === 'blazepod' || activeTool === 'pole' || activeTool === 'square' || activeTool === 'resistance_band' || activeTool === 'jumping_rope' || activeTool === 'plyobox' || activeTool === 'bib') && (
               <div className="pt-1.5 border-t border-slate-800 flex flex-col items-center gap-1">
                 {[
-                  { name: 'Orange', color: '#f97316' },
+                  { name: 'Grün', color: '#84cc16' },
                   { name: 'Gelb', color: '#eab308' },
-                  { name: 'Cyan', color: '#06b6d4' },
+                  { name: 'Orange', color: '#f97316' },
                   { name: 'Rot', color: '#ef4444' },
-                  { name: 'Lila', color: '#a855f7' },
-                  { name: 'Grün', color: '#10b981' }
+                  { name: 'Cyan', color: '#06b6d4' },
+                  { name: 'Lila', color: '#a855f7' }
                 ].map(c => (
                   <button
                     key={c.color}

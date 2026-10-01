@@ -306,9 +306,11 @@ export type MaterialType =
   | 'Bank'
   | 'Blazepods'
   | 'Dummies'
+  | 'Hemdchen'
   | 'Hürden'
   | 'Hütchen'
   | 'Medizinball'
+  | 'Minitore'
   | 'Plyobox'
   | 'Quadrate'
   | 'Rebounder'
@@ -316,15 +318,18 @@ export type MaterialType =
   | 'Sprungseile'
   | 'Stangen'
   | 'Strobobrille'
-  | 'Widerstandsbänder';
+  | 'Widerstandsbänder'
+  | 'Zweites Großtor';
 
 export const ALL_MATERIALS: MaterialType[] = [
   'Bank',
   'Blazepods',
   'Dummies',
+  'Hemdchen',
   'Hürden',
   'Hütchen',
   'Medizinball',
+  'Minitore',
   'Plyobox',
   'Quadrate',
   'Rebounder',
@@ -332,7 +337,8 @@ export const ALL_MATERIALS: MaterialType[] = [
   'Sprungseile',
   'Stangen',
   'Strobobrille',
-  'Widerstandsbänder'
+  'Widerstandsbänder',
+  'Zweites Großtor'
 ];
 
 // Age Groups for Exercise Tagging & Filtering
@@ -577,6 +583,7 @@ export type ToolType =
   | 'square'
   | 'resistance_band'
   | 'jumping_rope'
+  | 'bib'
   | 'ball' 
   | 'gk' 
   | 'player' 

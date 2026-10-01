@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Coaching Suite | NextLevel Goalkeeping</title>
   <meta name="description" content="Direkter Zugang zur NextLevel Coaching Suite für Torwarttrainer:innen – Trainingsplaner, DFB-WASIC-Periodisierung, 2D-Taktikboard und Vereinsausbildung.">
+  <meta http-equiv="refresh" content="0;url=/trainingsplanung/">
+  <script>
+    if (window.location.protocol !== 'file:' && !window.location.search.includes('stay=true')) {
+      window.location.replace('/trainingsplanung/');
+    }
+  </script>
   
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="Assets/logo_tiny.png">
@@ -125,7 +131,7 @@
         <!-- Direct Launch Button -->
         <a 
           id="coachingSuiteAppBtn"
-          href="/coaching-suite/" 
+          href="/trainingsplanung/" 
           class="w-full bg-accentCyan hover:bg-cyan-400 text-dark font-black tracking-wide text-sm sm:text-base py-4 px-6 rounded-2xl transition-all shadow-xl shadow-accentCyan/25 hover:shadow-accentCyan/40 flex items-center justify-center gap-3 uppercase cursor-pointer group"
         >
           <span>Jetzt Coaching Suite öffnen</span>
@@ -150,7 +156,7 @@
             Moderne Single-Page-Apps mit JavaScript-Modulen erfordern aus Sicherheitsgründen der Webbrowser eine HTTP-Umgebung:
           </p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-            <a href="https://nextlevel-gk.de/coaching-suite/" class="bg-accentCyan/20 hover:bg-accentCyan hover:text-dark text-accentCyan text-center py-2 px-3 rounded-lg font-bold transition-all">
+            <a href="https://nextlevel-gk.de/trainingsplanung/" class="bg-accentCyan/20 hover:bg-accentCyan hover:text-dark text-accentCyan text-center py-2 px-3 rounded-lg font-bold transition-all">
               🌐 Online öffnen
             </a>
             <a href="http://localhost:5173" class="bg-slate-800 hover:bg-slate-700 text-white text-center py-2 px-3 rounded-lg font-semibold transition-all">
@@ -214,7 +220,7 @@
         }
       } else {
         // Online / HTTP / HTTPS environment:
-        var targetUrl = '/coaching-suite/';
+        var targetUrl = '/trainingsplanung/';
         if (appBtn) {
           appBtn.setAttribute('href', targetUrl);
         }

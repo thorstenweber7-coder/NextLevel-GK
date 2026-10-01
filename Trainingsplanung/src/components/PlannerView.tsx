@@ -149,14 +149,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     }
   });
 
-  const [availableKeepers, setAvailableKeepers] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem(`planner_available_keepers_${userKey}`);
-      return saved !== null ? parseInt(saved, 10) || 3 : 3;
-    } catch {
-      return 3;
-    }
-  });
+  const [manualKeepersOverride, setManualKeepersOverride] = useState<number | null>(null);
 
   const [pitchSurface, setPitchSurface] = useState<PitchSurface>(() => {
     try {
@@ -183,6 +176,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
 
   const handleTargetGroupChange = (val: string) => {
     setTargetGroup(val);
+    setManualKeepersOverride(null);
     try {
       localStorage.setItem(`planner_target_group_${userKey}`, val);
     } catch (e) {
@@ -250,9 +244,9 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   useEffect(() => {
     const unsub1 = subscribeExercises(user, isAdmin, (data: Exercise[]) => setAllExercises(data), undefined, isClubAdmin, clubId);
     const unsub2 = subscribeUserPlans(user, isAdmin, (data: TrainingPlan[]) => setSavedPlans(data), undefined, clubId, isClubAdmin);
-    const unsub3 = subscribeUserTrainingGroups(user, (data) => setTrainingGroups(data));
-    const unsub4 = subscribeUserMesoPlans(user, (data) => setMesoPlans(data));
-    const unsub5 = subscribeUserMatchPlaytimes(user, (data) => setMatchPlaytimes(data));
+    const unsub3 = subscribeUserTrainingGroups(user, (data) => setTrainingGroups(data), undefined, clubId);
+    const unsub4 = subscribeUserMesoPlans(user, (data) => setMesoPlans(data), undefined, clubId);
+    const unsub5 = subscribeUserMatchPlaytimes(user, (data) => setMatchPlaytimes(data), undefined, clubId);
     const unsub6 = subscribeUserFeedbackTalks(user, (data) => setFeedbackTalks(data), undefined, clubId);
     const unsub7 = subscribeUserAbsences(user, (data: PlayerAbsence[]) => setAbsences(data), undefined, clubId);
     const unsub8 = subscribeUserMicroPlans(user, (data) => setMicroPlans(data), undefined, clubId);
@@ -298,14 +292,24 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   };
 
   const visibleTrainingGroups = useMemo(() => {
-    return trainingGroups.filter(canViewGroup);
+    return trainingGroups
+      .filter(canViewGroup)
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [trainingGroups, user, isMasterAdmin, isClubAdmin, isClubCoach]);
 
-  // Ensure default targetGroup is always the first created group
+  // Ensure default targetGroup matches or falls back to first created group
   useEffect(() => {
     if (visibleTrainingGroups.length > 0) {
       setTargetGroup(prev => {
-        if (prev && visibleTrainingGroups.some(g => g.name === prev)) return prev;
+        if (prev) {
+          const matched = visibleTrainingGroups.find(g => 
+            g.name === prev || 
+            g.id === prev || 
+            g.name.trim().toLowerCase() === prev.trim().toLowerCase() ||
+            g.name.replace(/\s+/g, '').toLowerCase() === prev.replace(/\s+/g, '').toLowerCase()
+          );
+          if (matched) return matched.name;
+        }
         return visibleTrainingGroups[0].name;
       });
     }
@@ -313,22 +317,40 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
 
   // Selected Training Group Object & Calculated Available Keepers for planDate (Group Keepers - Absences)
   const selectedGroupObj = useMemo(() => {
-    return visibleTrainingGroups.find(g => g.name === targetGroup || g.id === targetGroup) || visibleTrainingGroups[0];
+    if (visibleTrainingGroups.length === 0) return undefined;
+    if (!targetGroup) return visibleTrainingGroups[0];
+    const normalizedTarget = targetGroup.trim().toLowerCase();
+    const cleanTarget = normalizedTarget.replace(/\s+/g, '');
+    return (
+      visibleTrainingGroups.find(g => g.id === targetGroup || g.name === targetGroup) ||
+      visibleTrainingGroups.find(g => g.name.trim().toLowerCase() === normalizedTarget) ||
+      visibleTrainingGroups.find(g => g.name.toLowerCase().replace(/\s+/g, '') === cleanTarget) ||
+      visibleTrainingGroups[0]
+    );
   }, [visibleTrainingGroups, targetGroup]);
 
-  const actualAvailableKeepers = useMemo(() => {
-    if (!selectedGroupObj || !selectedGroupObj.players) return 0;
-    const activePlayers = selectedGroupObj.players.filter(p => !p.archived);
-    if (activePlayers.length === 0) return 0;
-    if (!planDate) return activePlayers.length;
+  const attendanceBreakdown = useMemo(() => {
+    if (!selectedGroupObj || !selectedGroupObj.players) {
+      return { activePlayers: [], absentPlayersToday: [], presentPlayersToday: [] };
+    }
+    const active = selectedGroupObj.players.filter(p => !p.archived);
+    if (active.length === 0) {
+      return { activePlayers: [], absentPlayersToday: [], presentPlayersToday: [] };
+    }
+    if (!planDate) {
+      return { activePlayers: active, absentPlayersToday: [], presentPlayersToday: active };
+    }
 
     const targetDateStr = planDate.split('T')[0];
     const targetDateObj = new Date(targetDateStr + 'T12:00:00');
     const targetTime = targetDateObj.getTime();
     const targetDayOfWeek = targetDateObj.getDay(); // 0 = So, 1 = Mo, 2 = Di, 3 = Mi, 4 = Do, 5 = Fr, 6 = Sa
 
-    const absentCount = activePlayers.filter(player => {
-      return absences.some(abs => {
+    const absentList: { player: Player; reason: string; isRecurring?: boolean }[] = [];
+    const presentList: Player[] = [];
+
+    active.forEach(player => {
+      const matchedAbsence = absences.find(abs => {
         if (abs.playerId !== player.id) return false;
 
         // Check recurring weekday absence
@@ -352,22 +374,37 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
         if (isNaN(startTime) || isNaN(endTime)) return false;
         return targetTime >= startTime && targetTime <= endTime;
       });
-    }).length;
 
-    return Math.max(0, activePlayers.length - absentCount);
+      if (matchedAbsence) {
+        absentList.push({
+          player,
+          reason: matchedAbsence.reason || 'Fehlzeit',
+          isRecurring: matchedAbsence.isRecurring
+        });
+      } else {
+        presentList.push(player);
+      }
+    });
+
+    return {
+      activePlayers: active,
+      absentPlayersToday: absentList,
+      presentPlayersToday: presentList
+    };
   }, [selectedGroupObj, absences, planDate]);
 
-  // Automatically adjust availableKeepers when group or date changes
-  const prevGroupAndDateRef = useRef<string>('');
+  const actualAvailableKeepers = attendanceBreakdown.presentPlayersToday.length;
 
-  useEffect(() => {
-    const groupDateKey = `${targetGroup}__${planDate}`;
-    if (prevGroupAndDateRef.current !== groupDateKey) {
-      prevGroupAndDateRef.current = groupDateKey;
-      const targetVal = actualAvailableKeepers > 0 ? Math.min(8, Math.max(1, actualAvailableKeepers)) : 1;
-      setAvailableKeepers(targetVal);
+  // Synchronously compute availableKeepers from attending keepers of selected group (with manual override support)
+  const availableKeepers: number = useMemo(() => {
+    if (manualKeepersOverride !== null) {
+      return manualKeepersOverride;
     }
-  }, [targetGroup, planDate, actualAvailableKeepers]);
+    if (actualAvailableKeepers > 0) {
+      return Math.min(8, Math.max(1, actualAvailableKeepers));
+    }
+    return 1;
+  }, [manualKeepersOverride, actualAvailableKeepers]);
 
   // Catalog filtering state
   const [activeCatalogTab, setActiveCatalogTab] = useState<PlannerCatalogTab>('ALLE');
@@ -637,19 +674,25 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   // Drag and Drop State
   const [dragOverPhaseId, setDragOverPhaseId] = useState<string | null>(null);
   const [draggedCardInfo, setDraggedCardInfo] = useState<{ sourcePhaseId: string; sourceIndex: number; exerciseId?: string } | null>(null);
+  const draggedCardInfoRef = useRef<{ sourcePhaseId: string; sourceIndex: number; exerciseId?: string } | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<{ phaseId: string; index: number; position: 'above' | 'below' } | null>(null);
 
   const handleDragStart = (e: React.DragEvent, exerciseId: string) => {
+    draggedCardInfoRef.current = null;
+    setDraggedCardInfo(null);
     e.dataTransfer.setData('text/plain', exerciseId);
+    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'catalog', exerciseId }));
     e.dataTransfer.effectAllowed = 'copyMove';
   };
 
   const handleCardDragStart = (e: React.DragEvent, phaseId: string, index: number, exerciseId: string) => {
     e.stopPropagation();
+    const info = { sourcePhaseId: phaseId, sourceIndex: index, exerciseId };
+    draggedCardInfoRef.current = info;
+    setDraggedCardInfo(info);
     e.dataTransfer.setData('text/plain', exerciseId);
-    e.dataTransfer.setData('application/json', JSON.stringify({ phaseId, index, exerciseId }));
-    e.dataTransfer.effectAllowed = 'copyMove';
-    setDraggedCardInfo({ sourcePhaseId: phaseId, sourceIndex: index, exerciseId });
+    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'phase-card', sourcePhaseId: phaseId, sourceIndex: index, exerciseId }));
+    e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent, phaseId: string) => {
@@ -666,21 +709,35 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   const handleDrop = (e: React.DragEvent, targetPhaseId: string) => {
     e.preventDefault();
     setDragOverPhaseId(null);
-    let sourceInfo = draggedCardInfo;
+    setDragOverTarget(null);
+
+    let sourceInfo = draggedCardInfoRef.current || draggedCardInfo;
     const rawJson = e.dataTransfer.getData('application/json');
     if (rawJson) {
       try {
-        sourceInfo = JSON.parse(rawJson);
+        const parsed = JSON.parse(rawJson);
+        if (parsed && (parsed.sourcePhaseId || parsed.phaseId)) {
+          sourceInfo = {
+            sourcePhaseId: parsed.sourcePhaseId || parsed.phaseId,
+            sourceIndex: parsed.sourceIndex !== undefined ? parsed.sourceIndex : parsed.index,
+            exerciseId: parsed.exerciseId
+          };
+        }
       } catch (err) {
         console.error(err);
       }
     }
 
-    if (sourceInfo && sourceInfo.sourcePhaseId) {
+    draggedCardInfoRef.current = null;
+    setDraggedCardInfo(null);
+
+    // Check if dragging an existing phase card (MOVE operation)
+    if (sourceInfo && sourceInfo.sourcePhaseId !== undefined && sourceInfo.sourceIndex !== undefined) {
       const { sourcePhaseId, sourceIndex, exerciseId: rawExId } = sourceInfo;
       const exId = rawExId || (phaseExercises[sourcePhaseId] || [])[sourceIndex];
+      if (!exId) return;
+
       if (sourcePhaseId === targetPhaseId) {
-        setDraggedCardInfo(null);
         return;
       }
       setPhaseExercises(prev => {
@@ -692,16 +749,15 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           [targetPhaseId]: targetList
         };
       });
-      setOpenPhases({ [targetPhaseId]: true });
-      setDraggedCardInfo(null);
+      setOpenPhases(prev => ({ ...prev, [targetPhaseId]: true }));
       return;
     }
 
+    // Dragged from catalog sidebar (INSERT new copy)
     const exerciseId = e.dataTransfer.getData('text/plain');
     if (exerciseId) {
       handleAddExerciseToPhase(targetPhaseId, exerciseId);
     }
-    setDraggedCardInfo(null);
   };
 
   const handleCardDragOver = (e: React.DragEvent, phaseId: string, index: number) => {
@@ -721,62 +777,82 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   const handleCardDrop = (e: React.DragEvent, targetPhaseId: string, targetIndex: number) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverTarget(null);
 
-    let sourceInfo = draggedCardInfo;
+    const currentDropTarget = dragOverTarget;
+    setDragOverTarget(null);
+    setDragOverPhaseId(null);
+
+    let sourceInfo = draggedCardInfoRef.current || draggedCardInfo;
     const rawJson = e.dataTransfer.getData('application/json');
     if (rawJson) {
       try {
-        sourceInfo = JSON.parse(rawJson);
+        const parsed = JSON.parse(rawJson);
+        if (parsed && (parsed.sourcePhaseId || parsed.phaseId)) {
+          sourceInfo = {
+            sourcePhaseId: parsed.sourcePhaseId || parsed.phaseId,
+            sourceIndex: parsed.sourceIndex !== undefined ? parsed.sourceIndex : parsed.index,
+            exerciseId: parsed.exerciseId
+          };
+        }
       } catch (err) {
         console.error(err);
       }
     }
 
-    if (sourceInfo && sourceInfo.sourcePhaseId) {
+    draggedCardInfoRef.current = null;
+    setDraggedCardInfo(null);
+
+    // Check if dragging an existing phase card (MOVE operation)
+    if (sourceInfo && sourceInfo.sourcePhaseId !== undefined && sourceInfo.sourceIndex !== undefined) {
       const { sourcePhaseId, sourceIndex, exerciseId: rawExId } = sourceInfo;
       const exId = rawExId || (phaseExercises[sourcePhaseId] || [])[sourceIndex];
+      if (!exId) return;
+
       if (sourcePhaseId === targetPhaseId) {
-        if (sourceIndex === targetIndex) {
-          setDraggedCardInfo(null);
+        let destIndex = currentDropTarget?.position === 'below' ? targetIndex + 1 : targetIndex;
+        if (sourceIndex < destIndex) {
+          destIndex--;
+        }
+        if (destIndex === sourceIndex) {
           return;
         }
         setPhaseExercises(prev => {
           const list = [...(prev[targetPhaseId] || [])];
           const [moved] = list.splice(sourceIndex, 1);
-          list.splice(targetIndex, 0, moved);
+          list.splice(destIndex, 0, moved || exId);
           return { ...prev, [targetPhaseId]: list };
         });
       } else {
+        let destIndex = currentDropTarget?.position === 'below' ? targetIndex + 1 : targetIndex;
         setPhaseExercises(prev => {
           const sourceList = (prev[sourcePhaseId] || []).filter((_, idx) => idx !== sourceIndex);
           const targetList = [...(prev[targetPhaseId] || [])];
-          targetList.splice(targetIndex, 0, exId);
+          targetList.splice(destIndex, 0, exId);
           return {
             ...prev,
             [sourcePhaseId]: sourceList,
             [targetPhaseId]: targetList
           };
         });
-        setOpenPhases({ [targetPhaseId]: true });
+        setOpenPhases(prev => ({ ...prev, [targetPhaseId]: true }));
       }
-      setDraggedCardInfo(null);
       return;
     }
 
+    // Dragged from catalog sidebar (INSERT new copy)
     const exerciseId = e.dataTransfer.getData('text/plain');
     if (exerciseId) {
+      let destIndex = currentDropTarget?.position === 'below' ? targetIndex + 1 : targetIndex;
       setPhaseExercises(prev => {
         const targetList = [...(prev[targetPhaseId] || [])];
-        targetList.splice(targetIndex, 0, exerciseId);
+        targetList.splice(destIndex, 0, exerciseId);
         return {
           ...prev,
           [targetPhaseId]: targetList
         };
       });
-      setOpenPhases({ [targetPhaseId]: true });
+      setOpenPhases(prev => ({ ...prev, [targetPhaseId]: true }));
     }
-    setDraggedCardInfo(null);
   };
 
   // Phase color helper
@@ -799,8 +875,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     setPlanImportantNotes('');
     setPlanHasVideoAnalysis(false);
     setPlanVideoAnalysisNotes('');
-    const targetVal = actualAvailableKeepers > 0 ? Math.min(8, Math.max(1, actualAvailableKeepers)) : 1;
-    setAvailableKeepers(targetVal);
+    setManualKeepersOverride(null);
   };
 
   // Modals State
@@ -993,12 +1068,14 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
       setPlanDate(loadedDate);
     }
     if (plan.trainerName) handleTrainerChange(plan.trainerName);
-    const loadedGroup = plan.targetGroup || targetGroup;
     if (plan.targetGroup) handleTargetGroupChange(plan.targetGroup);
     
-    // Prevent auto-sync from overriding the explicitly loaded keepers of this plan
-    prevGroupAndDateRef.current = `${loadedGroup}__${loadedDate}`;
-    if (typeof plan.availableKeepers === 'number') setAvailableKeepers(plan.availableKeepers);
+    // Set manual keeper count if specified in saved plan
+    if (typeof plan.availableKeepers === 'number') {
+      setManualKeepersOverride(plan.availableKeepers);
+    } else {
+      setManualKeepersOverride(null);
+    }
     if (plan.pitchSurface) setPitchSurface(plan.pitchSurface as PitchSurface);
 
     const phasesData = plan.phaseExercises || plan.phases || {};
@@ -1287,7 +1364,10 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
             </div>
             <CustomDatePicker
               value={planDate}
-              onChange={newDate => setPlanDate(newDate)}
+              onChange={newDate => {
+                setPlanDate(newDate);
+                setManualKeepersOverride(null);
+              }}
             />
           </div>
 
@@ -1399,13 +1479,13 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
               )}
             </div>
             <select
-              value={targetGroup}
+              value={selectedGroupObj?.name || targetGroup}
               onChange={e => handleTargetGroupChange(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition font-medium truncate"
             >
               {visibleTrainingGroups.map(g => (
                 <option key={g.id} value={g.name} className="bg-slate-900 text-white">
-                  {g.name} ({g.players?.length || 0} TW)
+                  {g.name} ({g.players?.filter(p => !p.archived).length || 0} TW)
                 </option>
               ))}
             </select>
@@ -1435,14 +1515,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                 <button
                   key={num}
                   type="button"
-                  onClick={() => {
-                    setAvailableKeepers(num);
-                    try {
-                      localStorage.setItem(`planner_available_keepers_${userKey}`, num.toString());
-                    } catch (e) {
-                      console.error(e);
-                    }
-                  }}
+                  onClick={() => setManualKeepersOverride(num)}
                   className={cn(
                     "flex-1 py-1 rounded-lg text-xs font-bold transition cursor-pointer text-center",
                     availableKeepers === num
@@ -1455,10 +1528,50 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
               ))}
             </div>
 
+            {/* Attendance Status & Absences Breakdown */}
+            {attendanceBreakdown.absentPlayersToday.length > 0 ? (
+              <div 
+                onClick={() => onNavigateToOrga?.('absences')}
+                className="mt-1 p-1.5 rounded-lg bg-rose-950/50 border border-rose-500/40 text-rose-300 text-[10px] font-bold flex flex-col gap-0.5 animate-in fade-in leading-tight shadow-sm cursor-pointer hover:bg-rose-950/80 transition"
+                title="Klicken, um Fehlzeiten in der Organisation zu öffnen"
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="flex items-center gap-1 text-rose-400 font-extrabold">
+                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                    <span>{attendanceBreakdown.absentPlayersToday.length} TW abwesend ({actualAvailableKeepers} von {attendanceBreakdown.activePlayers.length} da)</span>
+                  </span>
+                  <span className="text-[9px] text-rose-400 underline font-semibold">Fehlzeiten &rarr;</span>
+                </div>
+                <div className="text-[9.5px] text-rose-200/90 truncate font-normal">
+                  {attendanceBreakdown.absentPlayersToday.map(a => `${a.player.firstName} ${a.player.lastName} (${a.reason}${a.isRecurring ? ' - Wöchentlich' : ''})`).join(', ')}
+                </div>
+              </div>
+            ) : attendanceBreakdown.activePlayers.length > 0 ? (
+              <div className="mt-1 px-1.5 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 text-[9.5px] font-medium flex items-center justify-between">
+                <span>Alle {attendanceBreakdown.activePlayers.length} TW anwesend (0 Fehlzeiten)</span>
+                {manualKeepersOverride !== null && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setManualKeepersOverride(null);
+                    }}
+                    className="text-[9px] text-amber-400 underline hover:text-amber-300 ml-1 cursor-pointer"
+                  >
+                    Auto-Wert
+                  </button>
+                )}
+              </div>
+            ) : null}
+
             {availableKeepers !== actualAvailableKeepers && (
-              <div className="mt-1 p-1.5 rounded-lg bg-rose-950/40 border border-rose-500/40 text-rose-400 text-[10.5px] font-bold flex items-center gap-1.5 animate-in fade-in leading-tight shadow-sm">
-                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-rose-400" />
-                <span>Sind an diesem Tag wirklich so viele TW da? (Fehlzeiten beachten!)</span>
+              <div 
+                onClick={() => onNavigateToOrga?.('absences')}
+                className="mt-1 p-1.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-amber-300 text-[10px] font-bold flex items-center gap-1.5 animate-in fade-in leading-tight shadow-sm cursor-pointer hover:bg-amber-950/70 transition"
+                title="Zu Orga > Dateneingabe > Fehlzeiten wechseln"
+              >
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-amber-400" />
+                <span>Manuell überschrieben: {availableKeepers} TW gewählt (Laut Fehlzeiten: {actualAvailableKeepers} TW anwesend)</span>
               </div>
             )}
           </div>
@@ -1626,8 +1739,10 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                   onDrop={(e) => handleDrop(e, phase.id)}
                   onCardDragStart={(e, exIdx, exId) => handleCardDragStart(e, phase.id, exIdx, exId)}
                   onCardDragEnd={() => {
+                    draggedCardInfoRef.current = null;
                     setDraggedCardInfo(null);
                     setDragOverTarget(null);
+                    setDragOverPhaseId(null);
                   }}
                   onCardDragOver={(e, exIdx) => handleCardDragOver(e, phase.id, exIdx)}
                   onCardDragLeave={handleCardDragLeave}
