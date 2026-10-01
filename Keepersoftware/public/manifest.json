@@ -1,0 +1,26 @@
+{
+  "name": "NextLevel Keeper Academy",
+  "short_name": "Keeper Academy",
+  "description": "NextLevel Goalkeeping Academy Portal für Torhüterinnen und Torhüter",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "id": "/app/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0d14",
+  "theme_color": "#0a0d14",
+  "icons": [
+    {
+      "src": "/app/Logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/app/Logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,10 +1,9 @@
-const CACHE_NAME = 'nextlevel-coach-cache-v1';
+const CACHE_NAME = 'nextlevel-coach-cache-v2';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/Logo.png',
-  '/logo_pdf.png',
-  '/manifest.json'
+  '/trainingsplanung/',
+  '/trainingsplanung/index.html',
+  '/trainingsplanung/Logo.png',
+  '/trainingsplanung/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
@@ -52,7 +51,7 @@ self.addEventListener('fetch', (event) => {
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           }
           return response;
-        }).catch(() => caches.match('/Logo.png'));
+        }).catch(() => caches.match('/trainingsplanung/Logo.png'));
       })
     );
     return;
@@ -72,7 +71,7 @@ self.addEventListener('fetch', (event) => {
         return caches.match(event.request).then((cached) => {
           if (cached) return cached;
           if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
+            return caches.match('/trainingsplanung/index.html');
           }
           return null;
         });
