@@ -1064,14 +1064,18 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
         exerciseData.siegbedingung = effectiveSiegbedingung;
       }
 
+      const effectiveClubId = currentClub?.id || clubId || null;
+      const effectiveClubName = currentClub?.name || clubName || null;
+      const isCoachOrAdminOfClub = isClubAdmin || isClubCoach || Boolean(effectiveClubId);
+
       if (shouldSaveAsNew) {
         exerciseData.id = undefined;
         exerciseData.ownerId = user?.uid || 'anonymous';
         exerciseData.ownerEmail = user?.email || '';
         exerciseData.isPublished = isMasterAdmin ? Boolean(isPublished) : false;
         exerciseData.isClubPublished = isClubAdmin ? Boolean(isClubPublished) : false;
-        exerciseData.clubId = (isClubAdmin || isClubCoach) ? (clubId || null) : null;
-        exerciseData.clubName = (isClubAdmin || isClubCoach) ? (clubName || null) : null;
+        exerciseData.clubId = isCoachOrAdminOfClub ? effectiveClubId : null;
+        exerciseData.clubName = isCoachOrAdminOfClub ? effectiveClubName : null;
         exerciseData.createdAt = Date.now();
         exerciseData.updatedAt = Date.now();
         exerciseData.rejectionReason = '';
@@ -1081,8 +1085,8 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
         exerciseData.ownerEmail = initialExercise!.ownerEmail || user?.email || '';
         exerciseData.isPublished = isMasterAdmin ? Boolean(isPublished) : Boolean(initialExercise!.isPublished);
         exerciseData.isClubPublished = isClubAdmin ? Boolean(isClubPublished) : Boolean(initialExercise!.isClubPublished);
-        exerciseData.clubId = initialExercise!.clubId !== undefined ? initialExercise!.clubId : (clubId || null);
-        exerciseData.clubName = initialExercise!.clubName !== undefined ? initialExercise!.clubName : (clubName || null);
+        exerciseData.clubId = initialExercise!.clubId !== undefined ? initialExercise!.clubId : (isCoachOrAdminOfClub ? effectiveClubId : null);
+        exerciseData.clubName = initialExercise!.clubName !== undefined ? initialExercise!.clubName : (isCoachOrAdminOfClub ? effectiveClubName : null);
         exerciseData.createdAt = initialExercise!.createdAt || Date.now();
         exerciseData.updatedAt = Date.now();
         exerciseData.rejectionReason = initialExercise!.rejectionReason || '';
@@ -1092,7 +1096,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
         exerciseData,
         { uid: user?.uid || 'anonymous', email: user?.email || '' },
         isAdmin,
-        { clubId, clubName, isClubAdmin }
+        { clubId: effectiveClubId || undefined, clubName: effectiveClubName || undefined, isClubAdmin }
       );
       exerciseData.id = savedId;
 

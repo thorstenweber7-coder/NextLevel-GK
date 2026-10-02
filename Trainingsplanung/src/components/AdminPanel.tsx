@@ -89,6 +89,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
   const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active_sub' | 'trial' | 'club' | 'expired' | 'expired_trial_21' | 'expired_single_23' | 'blocked'>('all');
   const [searchExercise, setSearchExercise] = useState<string>('');
   const [exerciseSubTab, setExerciseSubTab] = useState<'active' | 'archived'>('active');
+  const [exerciseStatusFilter, setExerciseStatusFilter] = useState<'all' | 'pending' | 'published'>('all');
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -808,6 +809,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
     const activeExercisesCount = exercises.filter(e => !e.isArchived).length;
     const archivedExercisesCount = exercises.filter(e => Boolean(e.isArchived)).length;
     const publishedExercises = exercises.filter(e => e.isPublished && !e.isArchived).length;
+    const pendingExercisesCount = exercises.filter(e => !e.isPublished && !e.isArchived).length;
 
     return { 
       totalUsers, 
@@ -820,6 +822,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
       expiredSingle23,
       roleCounts,
       publishedExercises,
+      pendingExercisesCount,
       activeExercisesCount,
       archivedExercisesCount 
     };
@@ -882,7 +885,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
 
   const filteredExercises = useMemo(() => {
     const q = searchExercise.toLowerCase().trim();
-    const list = exercises.filter(e => {
+    let list = exercises.filter(e => {
       if (exerciseSubTab === 'active') {
         return !e.isArchived;
       } else {
@@ -890,13 +893,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
       }
     });
 
+    if (exerciseSubTab === 'active' && exerciseStatusFilter !== 'all') {
+      if (exerciseStatusFilter === 'pending') {
+        list = list.filter(e => !e.isPublished);
+      } else if (exerciseStatusFilter === 'published') {
+        list = list.filter(e => Boolean(e.isPublished));
+      }
+    }
+
     if (!q) return list;
     return list.filter(e => 
       e.title.toLowerCase().includes(q) ||
       (e.ownerEmail && e.ownerEmail.toLowerCase().includes(q)) ||
+      (e.clubName && e.clubName.toLowerCase().includes(q)) ||
       e.category.toLowerCase().includes(q)
     );
-  }, [exercises, exerciseSubTab, searchExercise]);
+  }, [exercises, exerciseSubTab, exerciseStatusFilter, searchExercise]);
 
   const filteredClubs = useMemo(() => {
     const q = clubSearchQuery.toLowerCase().trim();
@@ -2023,40 +2035,97 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
           )}
 
           {/* Sub-Navigation: Aktive Übungen vs. Archivierte Übungen */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setExerciseSubTab('active')}
-              className={cn(
-                "px-4 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-2 border",
-                exerciseSubTab === 'active'
-                  ? "bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-950/50"
-                  : "bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
-              )}
-            >
-              <Globe className="w-3.5 h-3.5" />
-              <span>Aktive Übungen (Zur Freigabe)</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-950 text-purple-300 border border-purple-800/80">
-                {stats.activeExercisesCount}
-              </span>
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setExerciseSubTab('active')}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-2 border cursor-pointer",
+                  exerciseSubTab === 'active'
+                    ? "bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-950/50"
+                    : "bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
+                )}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>Aktive Übungen (Zur Freigabe)</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-950 text-purple-300 border border-purple-800/80">
+                  {stats.activeExercisesCount}
+                </span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setExerciseSubTab('archived')}
-              className={cn(
-                "px-4 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-2 border",
-                exerciseSubTab === 'archived'
-                  ? "bg-rose-900/80 text-rose-200 border-rose-600 shadow-md shadow-rose-950/50"
-                  : "bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
-              )}
-            >
-              <Archive className="w-3.5 h-3.5 text-rose-400" />
-              <span>Archivierte / Abgelehnte Übungen</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-950 text-rose-300 border border-rose-800/80">
-                {stats.archivedExercisesCount}
-              </span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setExerciseSubTab('archived')}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-2 border cursor-pointer",
+                  exerciseSubTab === 'archived'
+                    ? "bg-rose-900/80 text-rose-200 border-rose-600 shadow-md shadow-rose-950/50"
+                    : "bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
+                )}
+              >
+                <Archive className="w-3.5 h-3.5 text-rose-400" />
+                <span>Archivierte / Abgelehnte Übungen</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-950 text-rose-300 border border-rose-800/80">
+                  {stats.archivedExercisesCount}
+                </span>
+              </button>
+            </div>
+
+            {/* Quick Status Filters for Active Subtab */}
+            {exerciseSubTab === 'active' && (
+              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setExerciseStatusFilter('all')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5",
+                    exerciseStatusFilter === 'all'
+                      ? "bg-purple-900/80 text-purple-200 border border-purple-600 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  )}
+                >
+                  <span>Alle</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] bg-slate-900 text-slate-300 font-mono">
+                    {stats.activeExercisesCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExerciseStatusFilter('pending')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5",
+                    exerciseStatusFilter === 'pending'
+                      ? "bg-amber-950 text-amber-300 border border-amber-600 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  )}
+                >
+                  <EyeOff className="w-3 h-3 text-amber-400" />
+                  <span>Ausstehend (Privat)</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-950 text-amber-300 font-mono border border-amber-800">
+                    {stats.pendingExercisesCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExerciseStatusFilter('published')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5",
+                    exerciseStatusFilter === 'published'
+                      ? "bg-emerald-950 text-emerald-300 border border-emerald-600 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  )}
+                >
+                  <Globe className="w-3 h-3 text-emerald-400" />
+                  <span>Öffentlich freigegeben</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] bg-emerald-950 text-emerald-300 font-mono border border-emerald-800">
+                    {stats.publishedExercises}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
 
           {exerciseSubTab === 'archived' && (
