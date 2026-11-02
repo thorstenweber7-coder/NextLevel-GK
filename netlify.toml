@@ -21,32 +21,22 @@
 [[redirects]]
   from = "/login-torhueter"
   to = "/app/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/login-keeper"
   to = "/app/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/keeper-login"
   to = "/app/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/keeper"
   to = "/app/"
-  status = 301
-  force = true
-
-[[redirects]]
-  from = "/app"
-  to = "/app/"
-  status = 301
-  force = true
+  status = 302
 
 # ==============================================================================
 # 2. DIRECT LOGIN LINKS FOR TORWARTTRAINERINNEN & TORWARTTRAINER (Coach Suite -> /trainingsplanung/)
@@ -54,116 +44,103 @@
 [[redirects]]
   from = "/login-torwarttrainer"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/login-trainer"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coach-login"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/trainer-login"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coaching-suite-login"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coach-suite-login"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coaching-suite"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coaching-suite/*"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coach-suite"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coach-suite/*"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coaching"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coaching/*"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coach"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/coach/*"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/trainer"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/trainer/*"
   to = "/trainingsplanung/"
-  status = 301
-  force = true
+  status = 302
 
 [[redirects]]
   from = "/Trainingsplanung"
   to = "/trainingsplanung/"
   status = 301
-  force = true
 
 [[redirects]]
   from = "/Trainingsplanung/*"
   to = "/trainingsplanung/:splat"
   status = 301
-  force = true
+
+# Legacy redirects from Keepersoftware folder
+[[redirects]]
+  from = "/Keepersoftware/*"
+  to = "/app/:splat"
+  status = 301
 
 [[redirects]]
-  from = "/trainingsplanung"
-  to = "/trainingsplanung/"
+  from = "/Keepersoftware"
+  to = "/app/"
   status = 301
-  force = true
 
 # ==============================================================================
 # 3. SPA CLIENT-SIDE ROUTING
@@ -177,22 +154,6 @@
   from = "/trainingsplanung/*"
   to = "/trainingsplanung/index.html"
   status = 200
-
-[[redirects]]
-  from = "/coach/*"
-  to = "/coach/index.html"
-  status = 200
-
-# Legacy redirects from Keepersoftware folder
-[[redirects]]
-  from = "/Keepersoftware/*"
-  to = "/app/:splat"
-  status = 301
-
-[[redirects]]
-  from = "/Keepersoftware"
-  to = "/app/"
-  status = 301
 
 # Cache headers for optimal asset performance
 [[headers]]
