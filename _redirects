@@ -1,0 +1,36 @@
+# Central Login Hub
+/login /login.html 200
+
+# Direct links for Torhüter (Keeper Portal -> /app/)
+/login-torhueter /app/ 302
+/login-keeper /app/ 302
+/keeper-login /app/ 302
+/keeper /app/ 302
+
+# Direct links for Torwarttrainer (Coach Suite -> /trainingsplanung/)
+/login-torwarttrainer /trainingsplanung/ 302
+/login-trainer /trainingsplanung/ 302
+/coach-login /trainingsplanung/ 302
+/trainer-login /trainingsplanung/ 302
+/coaching-suite-login /trainingsplanung/ 302
+/coach-suite-login /trainingsplanung/ 302
+/coaching-suite/* /trainingsplanung/ 302
+/coaching-suite /trainingsplanung/ 302
+/coach-suite/* /trainingsplanung/ 302
+/coach-suite /trainingsplanung/ 302
+/coaching/* /trainingsplanung/ 302
+/coaching /trainingsplanung/ 302
+/coach/* /trainingsplanung/ 302
+/coach /trainingsplanung/ 302
+/trainer/* /trainingsplanung/ 302
+/trainer /trainingsplanung/ 302
+/Trainingsplanung /trainingsplanung/ 301
+/Trainingsplanung/* /trainingsplanung/:splat 301
+
+# Legacy redirects from Keepersoftware folder
+/Keepersoftware/* /app/:splat 301
+/Keepersoftware /app/ 301
+
+# SPA client-side routing
+/app/* /app/index.html 200
+/trainingsplanung/* /trainingsplanung/index.html 200
