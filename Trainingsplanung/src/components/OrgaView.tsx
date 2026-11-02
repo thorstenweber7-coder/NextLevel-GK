@@ -2199,20 +2199,20 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
             onClick={() => setActiveSubTab('dataEntry')}
             className={cn(
               "p-3.5 sm:p-4 rounded-2xl border text-left transition flex items-center gap-3 shadow-sm active:scale-98",
-              (activeSubTab === 'dataEntry' || activeSubTab === 'absences')
+              (activeSubTab === 'dataEntry' || activeSubTab === 'absences' || activeSubTab === 'playtimes')
                 ? "bg-emerald-600 border-emerald-500 text-white shadow-emerald-950/50 shadow-lg font-extrabold"
                 : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-850 hover:border-slate-700"
             )}
           >
             <div className={cn(
               "p-2 rounded-xl border flex items-center justify-center flex-shrink-0",
-              (activeSubTab === 'dataEntry' || activeSubTab === 'absences') ? "bg-emerald-700/80 border-emerald-400/40 text-white" : "bg-slate-900 border-slate-800 text-slate-400"
+              (activeSubTab === 'dataEntry' || activeSubTab === 'absences' || activeSubTab === 'playtimes') ? "bg-emerald-700/80 border-emerald-400/40 text-white" : "bg-slate-900 border-slate-800 text-slate-400"
             )}>
               <Database className="w-5 h-5" />
             </div>
             <div className="min-w-0 flex-1">
               <span className="block text-xs sm:text-sm font-bold truncate">Dateneingabe</span>
-              <span className={cn("text-[10px] block truncate", (activeSubTab === 'dataEntry' || activeSubTab === 'absences') ? "text-emerald-100" : "text-slate-500")}>
+              <span className={cn("text-[10px] block truncate", (activeSubTab === 'dataEntry' || activeSubTab === 'absences' || activeSubTab === 'playtimes') ? "text-emerald-100" : "text-slate-500")}>
                 Skills & Fehlzeiten
               </span>
             </div>
@@ -2551,7 +2551,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       {/* --------------------------------------------------------------------- */}
       {/* SUB-TAB 3: DATENEINGABE (Fehlzeiten + Technik, Taktik, Athletik, Mental) */}
       {/* --------------------------------------------------------------------- */}
-      {(activeSubTab === 'dataEntry' || activeSubTab === 'absences') && (
+      {(activeSubTab === 'dataEntry' || activeSubTab === 'absences' || activeSubTab === 'playtimes') && (
         <div className="space-y-6">
           {/* Dateneingabe 7-Sub-Point Top Navigation */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-3 sm:p-4 shadow-xl">

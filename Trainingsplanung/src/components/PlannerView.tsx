@@ -67,6 +67,7 @@ import {
   CheckCircle2, 
   Tag, 
   Trophy,
+  Timer,
   Users,
   Sparkles,
   Activity,
@@ -1459,22 +1460,30 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
             )}
           </div>
 
-          {/* 3. Trainingsgruppe (inkl. 'verwalten' Button) */}
+          {/* 3. Trainingsgruppe (inkl. 'Trainingsgruppe' Button) */}
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-1">
-              <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+              <label 
+                onClick={() => onNavigateToOrga && onNavigateToOrga('groups')}
+                className={cn(
+                  "text-[11px] font-bold text-slate-400 flex items-center gap-1.5",
+                  onNavigateToOrga && "cursor-pointer hover:text-emerald-400 transition"
+                )}
+                title="Zu Orga > Trainingsgruppe wechseln"
+              >
                 <Users className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Trainingsgruppe</span>
+                <span className="hidden xl:inline">Trainingsgruppe</span>
+                <span className="xl:hidden">Gruppe</span>
               </label>
               {onNavigateToOrga && (
                 <button
                   type="button"
                   onClick={() => onNavigateToOrga('groups')}
-                  className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-1.5 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
-                  title="Zu Orga > Trainingsgruppen wechseln"
+                  className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-2 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  title="Zu Orga > Trainingsgruppe wechseln"
                 >
-                  <ExternalLink className="w-3 h-3 text-emerald-400" />
-                  <span>verwalten</span>
+                  <Users className="w-3 h-3 text-emerald-400" />
+                  <span>Trainingsgruppe</span>
                 </button>
               )}
             </div>
@@ -1494,7 +1503,14 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           {/* 4. Torhüteranzahl (1 bis 8 + Anwesenheits-Button) */}
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-1">
-              <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+              <label 
+                onClick={() => onNavigateToOrga && onNavigateToOrga('absences')}
+                className={cn(
+                  "text-[11px] font-bold text-slate-400 flex items-center gap-1.5",
+                  onNavigateToOrga && "cursor-pointer hover:text-emerald-400 transition"
+                )}
+                title="Zu Orga > Dateneingabe > Fehlzeiten wechseln"
+              >
                 <Users className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Anzahl TW</span>
               </label>
@@ -1502,7 +1518,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigateToOrga('absences')}
-                  className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-1.5 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-2 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
                   title="Zu Orga > Dateneingabe > Fehlzeiten wechseln"
                 >
                   <UserCheck className="w-3 h-3 text-emerald-400" />
@@ -1547,7 +1563,11 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                 </div>
               </div>
             ) : attendanceBreakdown.activePlayers.length > 0 ? (
-              <div className="mt-1 px-1.5 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 text-[9.5px] font-medium flex items-center justify-between">
+              <div 
+                onClick={() => onNavigateToOrga?.('absences')}
+                className="mt-1 px-1.5 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 text-[9.5px] font-medium flex items-center justify-between cursor-pointer hover:bg-emerald-950/70 transition"
+                title="Klicken, um Fehlzeiten in der Organisation zu öffnen"
+              >
                 <span>Alle {attendanceBreakdown.activePlayers.length} TW anwesend (0 Fehlzeiten)</span>
                 {manualKeepersOverride !== null && (
                   <button
@@ -1579,7 +1599,14 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           {/* 5. Platzbelag (Standard Kunstrasen) + Spielzeiten-Button */}
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-1">
-              <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+              <label 
+                onClick={() => onNavigateToOrga && onNavigateToOrga('playtimes')}
+                className={cn(
+                  "text-[11px] font-bold text-slate-400 flex items-center gap-1.5",
+                  onNavigateToOrga && "cursor-pointer hover:text-teal-400 transition"
+                )}
+                title="Zu Orga > Dateneingabe > Spielzeiten wechseln"
+              >
                 <Activity className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Platzbelag</span>
               </label>
@@ -1587,10 +1614,10 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigateToOrga('playtimes')}
-                  className="text-[10px] font-bold text-amber-300 hover:text-white bg-amber-950/80 hover:bg-amber-900 px-1.5 py-0.5 rounded border border-amber-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  className="text-[10px] font-bold text-teal-400 hover:text-white bg-teal-950/80 hover:bg-teal-900 px-2 py-0.5 rounded border border-teal-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
                   title="Zu Orga > Dateneingabe > Spielzeiten wechseln"
                 >
-                  <Trophy className="w-3 h-3 text-amber-400" />
+                  <Timer className="w-3 h-3 text-teal-400" />
                   <span>Spielzeiten</span>
                 </button>
               )}
