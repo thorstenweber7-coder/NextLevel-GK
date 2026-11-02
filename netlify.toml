@@ -142,11 +142,31 @@
   status = 301
 
 # ==============================================================================
-# 3. SPA CLIENT-SIDE ROUTING
+# 3. SPA CLIENT-SIDE REWRITES (200 OK, never loops!)
 # ==============================================================================
+[[redirects]]
+  from = "/app"
+  to = "/app/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/app/"
+  to = "/app/index.html"
+  status = 200
+
 [[redirects]]
   from = "/app/*"
   to = "/app/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/trainingsplanung"
+  to = "/trainingsplanung/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/trainingsplanung/"
+  to = "/trainingsplanung/index.html"
   status = 200
 
 [[redirects]]

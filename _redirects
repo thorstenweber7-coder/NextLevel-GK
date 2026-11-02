@@ -24,13 +24,17 @@
 /coach /trainingsplanung/ 302
 /trainer/* /trainingsplanung/ 302
 /trainer /trainingsplanung/ 302
-/Trainingsplanung /trainingsplanung/ 301
-/Trainingsplanung/* /trainingsplanung/:splat 301
+/Trainingsplanung /trainingsplanung/ 302
+/Trainingsplanung/* /trainingsplanung/:splat 302
 
-# Legacy redirects from Keepersoftware folder
+# Legacy Keepersoftware redirects
 /Keepersoftware/* /app/:splat 301
 /Keepersoftware /app/ 301
 
-# SPA client-side routing
+# SPA Rewrites (200 OK, never loops!)
+/app /app/index.html 200
+/app/ /app/index.html 200
 /app/* /app/index.html 200
+/trainingsplanung /trainingsplanung/index.html 200
+/trainingsplanung/ /trainingsplanung/index.html 200
 /trainingsplanung/* /trainingsplanung/index.html 200
