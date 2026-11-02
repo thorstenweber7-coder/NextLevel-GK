@@ -2,15 +2,16 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, Plugin} from 'vite';
-import {handleApiRoute} from './apiHandler';
 
 function apiMiddlewarePlugin(): Plugin {
   return {
     name: 'api-middleware-plugin',
+    apply: 'serve',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         if (req.url && req.url.startsWith('/api/')) {
           try {
+            const { handleApiRoute } = await import('./apiHandler');
             const handled = await handleApiRoute(req, res);
             if (handled) return;
           } catch (err: any) {
@@ -34,6 +35,11 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+      },
+    },
+    build: {
+      rollupOptions: {
+        external: ['firebase-admin', '@google-cloud/firestore'],
       },
     },
     server: {
