@@ -125,6 +125,10 @@ export interface ExerciseMetaFormProps {
   materials: MaterialType[];
   setMaterials: React.Dispatch<React.SetStateAction<MaterialType[]>>;
   onToggleMaterial?: (mat: MaterialType) => void;
+  hasCustomMaterials?: boolean;
+  setHasCustomMaterials?: (val: boolean) => void;
+  customMaterials?: string;
+  setCustomMaterials?: (val: string) => void;
   videoUrl: string;
   setVideoUrl: (val: string) => void;
   ablauf: string;
@@ -198,6 +202,10 @@ export const ExerciseMetaForm: React.FC<ExerciseMetaFormProps> = ({
   materials,
   setMaterials,
   onToggleMaterial,
+  hasCustomMaterials = false,
+  setHasCustomMaterials,
+  customMaterials = '',
+  setCustomMaterials,
   videoUrl,
   setVideoUrl,
   ablauf,
@@ -909,6 +917,50 @@ export const ExerciseMetaForm: React.FC<ExerciseMetaFormProps> = ({
             );
           })}
         </div>
+
+        {/* Optional: Händisch eigene Materialien eintragen */}
+        {setHasCustomMaterials && setCustomMaterials && (
+          <div className="pt-1 space-y-2">
+            <button
+              type="button"
+              onClick={() => setHasCustomMaterials(!hasCustomMaterials)}
+              className={cn(
+                "w-full min-h-[44px] px-3 py-2 rounded-2xl text-[11px] sm:text-xs font-bold border transition flex items-center gap-2.5 cursor-pointer select-none text-left",
+                hasCustomMaterials
+                  ? "bg-amber-500/15 border-amber-500 text-amber-200 shadow-md shadow-amber-950/40 ring-1 ring-amber-500/30"
+                  : "bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700 hover:bg-slate-900"
+              )}
+            >
+              <div className={cn(
+                "w-4 h-4 rounded-md border flex items-center justify-center flex-shrink-0 transition",
+                hasCustomMaterials
+                  ? "bg-amber-500 border-amber-400 text-slate-950"
+                  : "border-slate-700 bg-slate-900"
+              )}>
+                {hasCustomMaterials && <Check className="w-3 h-3 stroke-[3]" />}
+              </div>
+              <span className="flex-1 min-w-0">Eigene Materialien händisch eintragen</span>
+              <span className="text-[10px] font-medium text-slate-500 hidden sm:inline">
+                Nur für Trainingsdokument
+              </span>
+            </button>
+
+            {hasCustomMaterials && (
+              <div className="space-y-1 animate-in fade-in duration-150">
+                <input
+                  type="text"
+                  value={customMaterials}
+                  onChange={e => setCustomMaterials(e.target.value)}
+                  placeholder="z.B. Koordinationsleiter, Tennisbälle, Reaktionswand (kommagetrennt)"
+                  className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 font-medium"
+                />
+                <p className="text-[10.5px] text-slate-400 px-1">
+                  Erscheint auf dem Trainingsdokument &amp; im Live-Modus (nicht in der Datenauswertung oder Planer-Suche).
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 6. VIDEO LINK & PREVIEW (COLLAPSIBLE CARD) */}

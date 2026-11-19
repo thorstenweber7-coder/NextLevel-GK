@@ -1,5 +1,5 @@
 import type { Exercise, ExerciseCategory, TrainingPlan, TrainingGroup, TrainingStructure } from '../types';
-import { DEFAULT_TRAINING_STRUCTURE } from '../types';
+import { DEFAULT_TRAINING_STRUCTURE, getExerciseAllMaterials } from '../types';
 import { loadImageAsDataUrl } from './imageUtils';
 
 export interface ExportPhaseItem {
@@ -256,13 +256,9 @@ export async function generateTrainingPlanPDF(
     list.forEach(ex => {
       totalDuration += ex.durationMinutes || 15;
       totalExercises += 1;
-      if (Array.isArray(ex.materials)) {
-        ex.materials.forEach(m => {
-          if (m && typeof m === 'string' && m.trim()) {
-            allUniqueMaterials.add(m.trim());
-          }
-        });
-      }
+      getExerciseAllMaterials(ex).forEach(m => {
+        allUniqueMaterials.add(m);
+      });
     });
   });
 
@@ -517,8 +513,9 @@ export async function generateTrainingPlanPDF(
     let rightTextH = 10.0; // Title & Badge top margin + free line space after title
 
     // 1. Material
-    if (exercise.materials && exercise.materials.length > 0) {
-      const splitMat = doc.splitTextToSize(exercise.materials.join(', '), rightWidth);
+    const cardMaterials = getExerciseAllMaterials(exercise);
+    if (cardMaterials.length > 0) {
+      const splitMat = doc.splitTextToSize(cardMaterials.join(', '), rightWidth);
       rightTextH += 4.8 + splitMat.length * 3.2;
     }
 
@@ -757,7 +754,8 @@ export async function generateTrainingPlanPDF(
       rightY += 10.0;
 
       // 1. Material
-      if (exercise.materials && exercise.materials.length > 0) {
+      const renderedMaterials = getExerciseAllMaterials(exercise);
+      if (renderedMaterials.length > 0) {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8.0);
         doc.setTextColor(30, 41, 59);
@@ -766,7 +764,7 @@ export async function generateTrainingPlanPDF(
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
         doc.setTextColor(51, 65, 85);
-        const splitMat = doc.splitTextToSize(exercise.materials.join(', '), rightWidth);
+        const splitMat = doc.splitTextToSize(renderedMaterials.join(', '), rightWidth);
         doc.text(splitMat, rightX, rightY + 3.6);
         rightY += 4.8 + splitMat.length * 3.2;
       }
@@ -934,13 +932,9 @@ export async function generateCompactTrainingPlanPDF(
     list.forEach(ex => {
       totalDuration += ex.durationMinutes || 15;
       totalExercises += 1;
-      if (Array.isArray(ex.materials)) {
-        ex.materials.forEach(m => {
-          if (m && typeof m === 'string' && m.trim()) {
-            allUniqueMaterials.add(m.trim());
-          }
-        });
-      }
+      getExerciseAllMaterials(ex).forEach(m => {
+        allUniqueMaterials.add(m);
+      });
     });
   });
 
@@ -1228,7 +1222,8 @@ export async function generateCompactTrainingPlanPDF(
 
       // Col 1: Material & Ablauf
       let col1Y = currentY + 6.8;
-      if (ex.materials && ex.materials.length > 0) {
+      const compactCardMaterials = getExerciseAllMaterials(ex);
+      if (compactCardMaterials.length > 0) {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(5.8);
         doc.setTextColor(30, 41, 59);
@@ -1237,7 +1232,7 @@ export async function generateCompactTrainingPlanPDF(
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(5.5);
         doc.setTextColor(51, 65, 85);
-        const matStr = ex.materials.join(', ');
+        const matStr = compactCardMaterials.join(', ');
         const splitMat = doc.splitTextToSize(matStr, col1W - 14);
         doc.text(splitMat[0] || matStr, col1X + 13, col1Y);
         col1Y += 3.2;

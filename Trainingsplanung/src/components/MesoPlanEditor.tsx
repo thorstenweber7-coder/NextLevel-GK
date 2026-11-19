@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { 
   Plus, 
   Trash2, 
@@ -28,12 +28,14 @@ import {
   type AthleticStimulusOption, 
   DEFAULT_WEEK_SETTINGS, 
   TARGET_DEFENSE_TECHNIQUES, 
-  SPACE_DEFENSE_TECHNIQUES 
+  SPACE_DEFENSE_TECHNIQUES,
+  WARMUP_MESO_FOCUS_OPTIONS
 } from '../types';
 
 interface MesoPlanEditorProps {
   selectedHalfYear: 1 | 2;
   currentMesoPlans: MesoPlan[];
+  allSeasonMesoPlans?: MesoPlan[];
   selectedMesoId: string;
   setSelectedMesoId: (id: string) => void;
   activeMesoPlan: MesoPlan | null;
@@ -55,6 +57,7 @@ interface MesoPlanEditorProps {
   setDraggedBlock: (block: BuildingBlockType | null) => void;
   athleticStimuli: AthleticStimulusOption[];
   handleUpdateMesoAthleticFocus: (focus: string) => void;
+  handleUpdateMesoWarmUpFocus: (focus: string) => void;
   handleToggleForAdults: (checked: boolean) => void;
   setIsCustomizingStimuli: (val: boolean) => void;
   isMesoSaved: boolean;
@@ -128,6 +131,7 @@ const getSmoothAreaPath = (points: { x: number; y: number }[], bottomY: number):
 export const MesoPlanEditor: React.FC<MesoPlanEditorProps> = ({
   selectedHalfYear,
   currentMesoPlans,
+  allSeasonMesoPlans = [],
   selectedMesoId,
   setSelectedMesoId,
   activeMesoPlan,
@@ -149,6 +153,7 @@ export const MesoPlanEditor: React.FC<MesoPlanEditorProps> = ({
   setDraggedBlock,
   athleticStimuli,
   handleUpdateMesoAthleticFocus,
+  handleUpdateMesoWarmUpFocus,
   handleToggleForAdults,
   setIsCustomizingStimuli,
   isMesoSaved,
@@ -176,6 +181,47 @@ export const MesoPlanEditor: React.FC<MesoPlanEditorProps> = ({
   getMesoPlanStatus,
   readOnly = false
 }) => {
+  // Compute season-wide usage count and last Mesoplan index for each athletic stimulus and WarmUp focus
+  const { athleticStimulusStats, warmUpFocusStats } = useMemo(() => {
+    const sourcePlans = (allSeasonMesoPlans && allSeasonMesoPlans.length > 0)
+      ? allSeasonMesoPlans
+      : currentMesoPlans;
+
+    const sortedSavedPlans = [...sourcePlans]
+      .filter(m => getMesoPlanStatus(m) !== 'in Planung')
+      .sort((a, b) => {
+        const dateCmp = (a.startDate || '').localeCompare(b.startDate || '');
+        if (dateCmp !== 0) return dateCmp;
+        if (a.mesoIndex !== b.mesoIndex) return a.mesoIndex - b.mesoIndex;
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      });
+
+    const athleticStats: Record<string, { count: number; lastMesoIndex: number }> = {};
+    const warmUpStats: Record<string, { count: number; lastMesoIndex: number }> = {};
+
+    for (const plan of sortedSavedPlans) {
+      if (!plan.forAdults && plan.athleticFocus) {
+        const focus = plan.athleticFocus;
+        if (!athleticStats[focus]) {
+          athleticStats[focus] = { count: 0, lastMesoIndex: plan.mesoIndex };
+        }
+        athleticStats[focus].count += 1;
+        athleticStats[focus].lastMesoIndex = plan.mesoIndex;
+      }
+
+      if (plan.warmUpFocus) {
+        const wFocus = plan.warmUpFocus;
+        if (!warmUpStats[wFocus]) {
+          warmUpStats[wFocus] = { count: 0, lastMesoIndex: plan.mesoIndex };
+        }
+        warmUpStats[wFocus].count += 1;
+        warmUpStats[wFocus].lastMesoIndex = plan.mesoIndex;
+      }
+    }
+
+    return { athleticStimulusStats: athleticStats, warmUpFocusStats: warmUpStats };
+  }, [allSeasonMesoPlans, currentMesoPlans, getMesoPlanStatus]);
+
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-xl space-y-6 animate-in fade-in">
       {/* Header & New Meso Plan Button */}
@@ -501,77 +547,116 @@ export const MesoPlanEditor: React.FC<MesoPlanEditorProps> = ({
                   </span>
                 </div>
 
-                {/* Dropdown: Athletischer Entwicklungsreiz & Checkbox für Erwachsene */}
-                <div className="flex flex-wrap items-center gap-2.5 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
-                  <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
-                    <span>Athletischer Entwicklungsreiz:</span>
-                    <span className="text-rose-400 font-bold">*</span>
-                  </label>
+                {/* Dropdowns: Athletischer Entwicklungsreiz & Dauerhafter WarmUp Schwerpunkt */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-2.5 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                      <span>Athletischer Entwicklungsreiz:</span>
+                      <span className="text-rose-400 font-bold">*</span>
+                    </label>
                     <div className="flex items-center gap-1.5">
-                    <select
-                      value={activeMesoPlan.athleticFocus || 'unspezifisch'}
-                      disabled={readOnly || Boolean(activeMesoPlan.forAdults)}
-                      onChange={e => handleUpdateMesoAthleticFocus(e.target.value)}
-                      className={cn(
-                        "bg-slate-950 border rounded-lg px-2.5 py-1 text-xs font-bold transition focus:outline-none",
-                        activeMesoPlan.forAdults || readOnly
-                          ? "border-slate-800 text-slate-600 bg-slate-950/40 cursor-not-allowed opacity-50"
-                          : "border-indigo-500/50 text-indigo-200 hover:border-indigo-400 cursor-pointer"
-                      )}
-                      title={
-                        activeMesoPlan.forAdults
-                          ? "Im Erwachsenen-Modus deaktiviert (Microdosing erfolgt tageweise in der Mikroplanung)"
-                          : athleticStimuli.find(s => s.name === (activeMesoPlan.athleticFocus || 'unspezifisch'))?.focus
-                      }
-                    >
-                      {athleticStimuli.map(opt => (
-                        <option key={opt.id} value={opt.name} title={opt.focus}>
-                          {opt.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    {!readOnly && (
-                      <button
-                        type="button"
-                        onClick={() => setIsCustomizingStimuli(true)}
-                        className="p-1 rounded-md text-slate-400 hover:text-indigo-300 hover:bg-slate-800 transition cursor-pointer"
-                        title="Athletische Entwicklungsreize individuell anpassen"
+                      <select
+                        value={activeMesoPlan.athleticFocus || 'unspezifisch'}
+                        disabled={readOnly || Boolean(activeMesoPlan.forAdults)}
+                        onChange={e => handleUpdateMesoAthleticFocus(e.target.value)}
+                        className={cn(
+                          "bg-slate-950 border rounded-lg px-2.5 py-1 text-xs font-bold transition focus:outline-none",
+                          activeMesoPlan.forAdults || readOnly
+                            ? "border-slate-800 text-slate-600 bg-slate-950/40 cursor-not-allowed opacity-50"
+                            : "border-indigo-500/50 text-indigo-200 hover:border-indigo-400 cursor-pointer"
+                        )}
+                        title={
+                          activeMesoPlan.forAdults
+                            ? "Im Erwachsenen-Modus deaktiviert (Microdosing erfolgt tageweise in der Mikroplanung)"
+                            : athleticStimuli.find(s => s.name === (activeMesoPlan.athleticFocus || 'unspezifisch'))?.focus
+                        }
                       >
-                        <Settings className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                        {athleticStimuli.map(opt => {
+                          const stat = athleticStimulusStats[opt.name];
+                          const optionLabel = stat && stat.count > 0
+                            ? `${opt.name} (${stat.count}; MP ${stat.lastMesoIndex})`
+                            : `${opt.name} (0)`;
+                          return (
+                            <option key={opt.id} value={opt.name} title={opt.focus}>
+                              {optionLabel}
+                            </option>
+                          );
+                        })}
+                      </select>
+
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCustomizingStimuli(true)}
+                          className="p-1 rounded-md text-slate-400 hover:text-indigo-300 hover:bg-slate-800 transition cursor-pointer"
+                          title="Athletische Entwicklungsreize individuell anpassen"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Checkbox "für Erwachsene" mit Hover-Tooltip */}
+                    <div className="relative group/adults flex items-center">
+                      <label 
+                        className="flex items-center gap-1.5 cursor-pointer select-none pl-2 border-l border-slate-800"
+                        title="Athletischer Entwicklungsreiz wird in jedem Training microdosiert integriert und kann in der Mikroplanung ausgewählt werden."
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={readOnly}
+                          checked={Boolean(activeMesoPlan.forAdults)}
+                          onChange={e => handleToggleForAdults(e.target.checked)}
+                          className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-950 cursor-pointer disabled:opacity-50"
+                        />
+                        <span className={cn("text-xs font-bold transition", activeMesoPlan.forAdults ? "text-amber-300" : "text-slate-400")}>
+                          für Erwachsene
+                        </span>
+                        <Info className="w-3.5 h-3.5 text-slate-500 group-hover/adults:text-amber-400 transition" />
+                      </label>
+
+                      {/* Hover Tooltip Box */}
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-[11px] leading-snug shadow-2xl opacity-0 group-hover/adults:opacity-100 pointer-events-none transition-all duration-200 z-50 transform translate-y-1 group-hover/adults:translate-y-0">
+                        <div className="flex items-start gap-1.5">
+                          <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                          <span>
+                            Athletischer Entwicklungsreiz wird in jedem Training microdosiert integriert und kann in der Mikroplanung ausgewählt werden.
+                          </span>
+                        </div>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-px border-4 border-transparent border-b-slate-700" />
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Checkbox "für Erwachsene" mit Hover-Tooltip */}
-                  <div className="relative group/adults flex items-center">
-                    <label 
-                      className="flex items-center gap-1.5 cursor-pointer select-none pl-2 border-l border-slate-800"
-                      title="Athletischer Entwicklungsreiz wird in jedem Training microdosiert integriert und kann in der Mikroplanung ausgewählt werden."
-                    >
-                      <input
-                        type="checkbox"
-                        disabled={readOnly}
-                        checked={Boolean(activeMesoPlan.forAdults)}
-                        onChange={e => handleToggleForAdults(e.target.checked)}
-                        className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-950 cursor-pointer disabled:opacity-50"
-                      />
-                      <span className={cn("text-xs font-bold transition", activeMesoPlan.forAdults ? "text-amber-300" : "text-slate-400")}>
-                        für Erwachsene
-                      </span>
-                      <Info className="w-3.5 h-3.5 text-slate-500 group-hover/adults:text-amber-400 transition" />
+                  {/* Direkt darunter: Dauerhafter WarmUp Schwerpunkt */}
+                  <div className="flex flex-wrap items-center gap-2.5 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                      <span>Dauerhafter WarmUp Schwerpunkt:</span>
                     </label>
-
-                    {/* Hover Tooltip Box */}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-[11px] leading-snug shadow-2xl opacity-0 group-hover/adults:opacity-100 pointer-events-none transition-all duration-200 z-50 transform translate-y-1 group-hover/adults:translate-y-0">
-                      <div className="flex items-start gap-1.5">
-                        <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                        <span>
-                          Athletischer Entwicklungsreiz wird in jedem Training microdosiert integriert und kann in der Mikroplanung ausgewählt werden.
-                        </span>
-                      </div>
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-px border-4 border-transparent border-b-slate-700" />
-                    </div>
+                    <select
+                      value={activeMesoPlan.warmUpFocus || ''}
+                      disabled={readOnly}
+                      onChange={e => handleUpdateMesoWarmUpFocus(e.target.value)}
+                      className={cn(
+                        "bg-slate-950 border rounded-lg px-2.5 py-1 text-xs font-bold transition focus:outline-none",
+                        readOnly
+                          ? "border-slate-800 text-slate-600 bg-slate-950/40 cursor-not-allowed opacity-50"
+                          : "border-amber-500/50 text-amber-200 hover:border-amber-400 cursor-pointer"
+                      )}
+                    >
+                      <option value="">-- Schwerpunkt wählen --</option>
+                      {WARMUP_MESO_FOCUS_OPTIONS.map(opt => {
+                        const stat = warmUpFocusStats[opt];
+                        const optionLabel = stat && stat.count > 0
+                          ? `${opt} (${stat.count}; MP ${stat.lastMesoIndex})`
+                          : `${opt} (0)`;
+                        return (
+                          <option key={opt} value={opt}>
+                            {optionLabel}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
                 </div>
               </div>

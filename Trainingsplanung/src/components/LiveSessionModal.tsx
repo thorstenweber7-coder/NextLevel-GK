@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { TrainingPlan, Exercise, TrainingStructure, TrainingGroup, CompetitionRound } from '../types';
+import { getExerciseAllMaterials } from '../types';
 import { VideoEmbedPlayer } from './VideoEmbedPlayer';
 import { 
   X, 
@@ -102,13 +103,9 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
   const allUniqueMaterials = useMemo(() => {
     const set = new Set<string>();
     flattenedExercises.forEach(item => {
-      if (Array.isArray(item.exercise.materials)) {
-        item.exercise.materials.forEach(m => {
-          if (m && typeof m === 'string' && m.trim()) {
-            set.add(m.trim());
-          }
-        });
-      }
+      getExerciseAllMaterials(item.exercise).forEach(m => {
+        set.add(m);
+      });
     });
     return Array.from(set);
   }, [flattenedExercises]);

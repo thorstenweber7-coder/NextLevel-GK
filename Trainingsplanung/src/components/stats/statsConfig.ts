@@ -153,6 +153,15 @@ export const MATERIAL_CONFIG: Record<string, { label: string; hex: string; bg: s
     badge: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
     gradient: 'from-blue-500 to-blue-600'
   },
+  'Matte': {
+    label: 'Matte',
+    hex: '#0ea5e9',
+    bg: 'bg-sky-500/15',
+    text: 'text-sky-400',
+    border: 'border-sky-500/40',
+    badge: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+    gradient: 'from-sky-500 to-sky-600'
+  },
   'Strobobrille': {
     label: 'Strobobrille',
     hex: '#a855f7',

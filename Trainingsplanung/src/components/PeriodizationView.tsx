@@ -1758,6 +1758,18 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
     setMesoPlans(prev => prev.map(m => m.id === activeMesoPlan.id ? updatedMeso : m));
   };
 
+  const handleUpdateMesoWarmUpFocus = (warmUpFocus: string) => {
+    if (!activeMesoPlan) return;
+    if (mesoValidationError) setMesoValidationError(null);
+    const updatedMeso: MesoPlan = {
+      ...activeMesoPlan,
+      warmUpFocus,
+      isCompleted: false,
+      updatedAt: Date.now()
+    };
+    setMesoPlans(prev => prev.map(m => m.id === activeMesoPlan.id ? updatedMeso : m));
+  };
+
   const handleToggleForAdults = (forAdults: boolean) => {
     if (!activeMesoPlan) return;
     if (mesoValidationError) setMesoValidationError(null);
@@ -2625,6 +2637,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
               readOnly={!canEditPeriodization}
               selectedHalfYear={selectedHalfYear}
               currentMesoPlans={currentMesoPlans}
+              allSeasonMesoPlans={allGroupMesoPlans}
               selectedMesoId={selectedMesoId}
               setSelectedMesoId={setSelectedMesoId}
               activeMesoPlan={activeMesoPlan}
@@ -2646,6 +2659,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
               setDraggedBlock={setDraggedBlock}
               athleticStimuli={athleticStimuli}
               handleUpdateMesoAthleticFocus={handleUpdateMesoAthleticFocus}
+              handleUpdateMesoWarmUpFocus={handleUpdateMesoWarmUpFocus}
               handleToggleForAdults={handleToggleForAdults}
               setIsCustomizingStimuli={setIsCustomizingStimuli}
               isMesoSaved={isMesoSaved}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Exercise, TrainingPlan } from '../types';
-import { CATEGORY_COLORS, METHODISCHE_REIHE_LABELS } from '../types';
+import { CATEGORY_COLORS, METHODISCHE_REIHE_LABELS, getExerciseAllMaterials } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { 
   X, 
@@ -463,26 +463,31 @@ export const ExerciseModal: React.FC<ExerciseModalProps> = ({
               </div>
 
               {/* Material List (Read-Only) */}
-              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block">
-                  Material ({exercise.materials?.length || 0})
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {exercise.materials && exercise.materials.length > 0 ? (
-                    exercise.materials.map(m => (
-                      <span
-                        key={m}
-                        className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-slate-200 border border-slate-800 flex items-center gap-1"
-                      >
-                        <CheckSquare className="w-3 h-3 text-emerald-400" />
-                        <span>{m}</span>
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-500">Keine speziellen Materialien</span>
-                  )}
-                </div>
-              </div>
+              {(() => {
+                const displayMaterials = getExerciseAllMaterials(exercise);
+                return (
+                  <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block">
+                      Material ({displayMaterials.length})
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {displayMaterials.length > 0 ? (
+                        displayMaterials.map(m => (
+                          <span
+                            key={m}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-slate-200 border border-slate-800 flex items-center gap-1"
+                          >
+                            <CheckSquare className="w-3 h-3 text-emerald-400" />
+                            <span>{m}</span>
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-500">Keine speziellen Materialien</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

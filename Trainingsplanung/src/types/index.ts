@@ -309,6 +309,7 @@ export type MaterialType =
   | 'Hemdchen'
   | 'Hürden'
   | 'Hütchen'
+  | 'Matte'
   | 'Medizinball'
   | 'Minitore'
   | 'Plyobox'
@@ -328,6 +329,7 @@ export const ALL_MATERIALS: MaterialType[] = [
   'Hemdchen',
   'Hürden',
   'Hütchen',
+  'Matte',
   'Medizinball',
   'Minitore',
   'Plyobox',
@@ -618,6 +620,8 @@ export interface Exercise {
   title: string;
   category: ExerciseCategory;
   materials: MaterialType[];
+  hasCustomMaterials?: boolean;
+  customMaterials?: string;
   ablauf: string;
   durationMinutes?: number;
   coachingPoints?: string;
@@ -710,6 +714,42 @@ export function createPlaceholderExercise(id: string, customTitle?: string): Exe
     isPublished: false,
     createdAt: Date.now()
   };
+}
+
+/**
+ * Combines predefined materials with optional manually entered custom materials
+ * for training documents, PDFs, and live session display.
+ */
+export function getExerciseAllMaterials(
+  exercise: Pick<Exercise, 'materials' | 'hasCustomMaterials' | 'customMaterials'>
+): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  if (Array.isArray(exercise.materials)) {
+    for (const m of exercise.materials) {
+      const trimmed = typeof m === 'string' ? m.trim() : '';
+      if (trimmed && !seen.has(trimmed.toLowerCase())) {
+        seen.add(trimmed.toLowerCase());
+        result.push(trimmed);
+      }
+    }
+  }
+
+  if (exercise.hasCustomMaterials !== false && typeof exercise.customMaterials === 'string' && exercise.customMaterials.trim()) {
+    const parts = exercise.customMaterials
+      .split(/[,;\n]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    for (const part of parts) {
+      if (!seen.has(part.toLowerCase())) {
+        seen.add(part.toLowerCase());
+        result.push(part);
+      }
+    }
+  }
+
+  return result;
 }
 
 export interface CompetitionRound {
@@ -1663,6 +1703,15 @@ export interface AthleticStimulusOption {
   focus: string;
 }
 
+export const WARMUP_MESO_FOCUS_OPTIONS = [
+  'Reaktion',
+  'Kognition',
+  'Koordination',
+  'Visuell'
+] as const;
+
+export type WarmUpMesoFocus = typeof WARMUP_MESO_FOCUS_OPTIONS[number];
+
 export const DEFAULT_ATHLETIC_STIMULI: AthleticStimulusOption[] = [
   {
     id: 'unspecific',
@@ -1845,6 +1894,7 @@ export interface MesoPlan {
   startDate: string; // YYYY-MM-DD (Erster Montag)
   endDate: string; // YYYY-MM-DD (Sonntag nach 6 Wochen)
   athleticFocus?: string; // Standard für Jugend/Gesamtzyklus
+  warmUpFocus?: string; // Dauerhafter WarmUp Schwerpunkt (Reaktion, Kognition, Koordination, Visuell)
   forAdults?: boolean; // Checkbox "für Erwachsene"
   targetDefenseGoals?: string; // Konkrete Entwicklungsziele in der Zielverteidigung
   targetDefenseTechnique1?: string; // Technikfokus ZV 1

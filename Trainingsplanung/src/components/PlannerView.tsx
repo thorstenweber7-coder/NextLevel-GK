@@ -1334,31 +1334,31 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
         {/* Form Inputs Grid (5 Spalten: Datum ganz links, Thema Dropdown, Trainingsgruppe, Anzahl TW 1-8 + Anwesenheit, Platzbelag) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
           {/* 1. Datum (ganz links mit Kalenderpicker, Übersicht-Button & Periodisierungs-Button) */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between gap-1">
-              <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Datum</span>
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 min-w-0">
+              <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1 min-w-0 flex-shrink-0">
+                <Calendar className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="truncate">Datum</span>
               </label>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
                 <button
                   type="button"
                   onClick={() => setIsCalendarOverviewOpen(true)}
-                  className="text-[10px] font-black text-slate-950 bg-amber-500 hover:bg-amber-400 px-2 py-0.5 rounded border border-amber-400/60 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  className="text-[10px] font-black text-slate-950 bg-amber-500 hover:bg-amber-400 px-1.5 py-0.5 rounded border border-amber-400/60 transition cursor-pointer flex items-center gap-1 shadow-sm min-w-0 overflow-hidden"
                   title="Monatsübersicht (Kalender & Mikroplanung) öffnen"
                 >
-                  <Calendar className="w-3 h-3 text-slate-950" />
-                  <span>Übersicht</span>
+                  <Calendar className="w-3 h-3 text-slate-950 flex-shrink-0" />
+                  <span className="truncate">Übersicht</span>
                 </button>
                 {onNavigateToOrga && (
                   <button
                     type="button"
                     onClick={() => onNavigateToOrga('macro')}
-                    className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-1.5 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                    className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-1.5 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm min-w-0 overflow-hidden"
                     title="Zu Orga > Periodisierung > Makroplanung wechseln"
                   >
-                    <ExternalLink className="w-3 h-3 text-emerald-400" />
-                    <span>Periodisierung</span>
+                    <ExternalLink className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                    <span className="truncate">Periodisierung</span>
                   </button>
                 )}
               </div>
@@ -1373,16 +1373,19 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           </div>
 
           {/* 2. Thema (Übernahme aus Mikroplanung / Checkbox Mikroplanung ignorieren) */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between gap-1 flex-wrap">
-              <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Thema</span>
-                <span className="text-rose-400 text-xs font-black" title="Pflichtfeld">*</span>
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 min-w-0">
+              <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1 min-w-0 flex-shrink-0">
+                <Tag className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="truncate">Thema</span>
+                <span className="text-rose-400 text-xs font-black flex-shrink-0" title="Pflichtfeld">*</span>
               </label>
 
               {/* Checkbox: Mikroplanung ignorieren */}
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer select-none">
+              <label
+                className="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer select-none min-w-0 overflow-hidden"
+                title="Mikroplanung ignorieren"
+              >
                 <input
                   type="checkbox"
                   checked={ignoreMicroplanningTopic}
@@ -1397,9 +1400,9 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                       }
                     }
                   }}
-                  className="w-3 h-3 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-emerald-500 focus:ring-offset-slate-900 cursor-pointer"
+                  className="w-3 h-3 flex-shrink-0 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-emerald-500 focus:ring-offset-slate-900 cursor-pointer"
                 />
-                <span>Mikroplanung ignorieren</span>
+                <span className="truncate">Mikroplanung ignorieren</span>
               </label>
             </div>
 
@@ -1461,29 +1464,29 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           </div>
 
           {/* 3. Trainingsgruppe (inkl. 'Trainingsgruppe' Button) */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between gap-1">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 min-w-0">
               <label 
                 onClick={() => onNavigateToOrga && onNavigateToOrga('groups')}
                 className={cn(
-                  "text-[11px] font-bold text-slate-400 flex items-center gap-1.5",
+                  "text-[11px] font-bold text-slate-400 flex items-center gap-1 min-w-0 flex-shrink-0",
                   onNavigateToOrga && "cursor-pointer hover:text-emerald-400 transition"
                 )}
                 title="Zu Orga > Trainingsgruppe wechseln"
               >
-                <Users className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden xl:inline">Trainingsgruppe</span>
-                <span className="xl:hidden">Gruppe</span>
+                <Users className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="hidden xl:inline truncate">Trainingsgruppe</span>
+                <span className="xl:hidden truncate">Gruppe</span>
               </label>
               {onNavigateToOrga && (
                 <button
                   type="button"
                   onClick={() => onNavigateToOrga('groups')}
-                  className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-2 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-1.5 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm min-w-0 overflow-hidden"
                   title="Zu Orga > Trainingsgruppe wechseln"
                 >
-                  <Users className="w-3 h-3 text-emerald-400" />
-                  <span>Trainingsgruppe</span>
+                  <Users className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                  <span className="truncate">Trainingsgruppe</span>
                 </button>
               )}
             </div>
@@ -1501,28 +1504,28 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           </div>
 
           {/* 4. Torhüteranzahl (1 bis 8 + Anwesenheits-Button) */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between gap-1">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 min-w-0">
               <label 
                 onClick={() => onNavigateToOrga && onNavigateToOrga('absences')}
                 className={cn(
-                  "text-[11px] font-bold text-slate-400 flex items-center gap-1.5",
+                  "text-[11px] font-bold text-slate-400 flex items-center gap-1 min-w-0 flex-shrink-0",
                   onNavigateToOrga && "cursor-pointer hover:text-emerald-400 transition"
                 )}
                 title="Zu Orga > Dateneingabe > Fehlzeiten wechseln"
               >
-                <Users className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Anzahl TW</span>
+                <Users className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="truncate">Anzahl TW</span>
               </label>
               {onNavigateToOrga && (
                 <button
                   type="button"
                   onClick={() => onNavigateToOrga('absences')}
-                  className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-2 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  className="text-[10px] font-bold text-emerald-400 hover:text-white bg-emerald-950/80 hover:bg-emerald-900 px-1.5 py-0.5 rounded border border-emerald-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm min-w-0 overflow-hidden"
                   title="Zu Orga > Dateneingabe > Fehlzeiten wechseln"
                 >
-                  <UserCheck className="w-3 h-3 text-emerald-400" />
-                  <span>Anwesenheit</span>
+                  <UserCheck className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                  <span className="truncate">Anwesenheit</span>
                 </button>
               )}
             </div>
@@ -1597,35 +1600,35 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           </div>
 
           {/* 5. Platzbelag (Standard Kunstrasen) + Spielzeiten-Button */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between gap-1">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 min-w-0">
               <label 
                 onClick={() => onNavigateToOrga && onNavigateToOrga('playtimes')}
                 className={cn(
-                  "text-[11px] font-bold text-slate-400 flex items-center gap-1.5",
+                  "text-[11px] font-bold text-slate-400 flex items-center gap-1 min-w-0 flex-shrink-0",
                   onNavigateToOrga && "cursor-pointer hover:text-teal-400 transition"
                 )}
                 title="Zu Orga > Dateneingabe > Spielzeiten wechseln"
               >
-                <Activity className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Platzbelag</span>
+                <Activity className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="truncate">Platzbelag</span>
               </label>
               {onNavigateToOrga && (
                 <button
                   type="button"
                   onClick={() => onNavigateToOrga('playtimes')}
-                  className="text-[10px] font-bold text-teal-400 hover:text-white bg-teal-950/80 hover:bg-teal-900 px-2 py-0.5 rounded border border-teal-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  className="text-[10px] font-bold text-teal-400 hover:text-white bg-teal-950/80 hover:bg-teal-900 px-1.5 py-0.5 rounded border border-teal-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm min-w-0 overflow-hidden"
                   title="Zu Orga > Dateneingabe > Spielzeiten wechseln"
                 >
-                  <Timer className="w-3 h-3 text-teal-400" />
-                  <span>Spielzeiten</span>
+                  <Timer className="w-3 h-3 text-teal-400 flex-shrink-0" />
+                  <span className="truncate">Spielzeiten</span>
                 </button>
               )}
             </div>
             <select
               value={pitchSurface}
               onChange={e => handlePitchSurfaceChange(e.target.value as PitchSurface)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition font-medium"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition font-medium truncate"
             >
               {PITCH_SURFACE_OPTIONS.map(opt => (
                 <option key={opt.id} value={opt.id} className="bg-slate-900 text-white">{opt.label}</option>

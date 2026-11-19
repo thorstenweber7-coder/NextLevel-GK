@@ -112,6 +112,10 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
   const [minAgeGroup, setMinAgeGroup] = useState<AgeGroup>(initialExercise?.minAgeGroup || 'immer');
   const [durationMinutes, setDurationMinutes] = useState<number>(initialExercise?.durationMinutes || 15);
   const [materials, setMaterials] = useState<MaterialType[]>(initialExercise?.materials || []);
+  const [hasCustomMaterials, setHasCustomMaterials] = useState<boolean>(
+    Boolean(initialExercise?.hasCustomMaterials || initialExercise?.customMaterials?.trim())
+  );
+  const [customMaterials, setCustomMaterials] = useState<string>(initialExercise?.customMaterials || '');
   const [videoUrl, setVideoUrl] = useState<string>(initialExercise?.videoUrl || '');
   const [coachingPoints, setCoachingPoints] = useState<string>(initialExercise?.coachingPoints || '');
   const [isPublished, setIsPublished] = useState<boolean>(initialExercise?.isPublished ?? false);
@@ -223,6 +227,8 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     setMinAgeGroup(templateExercise.minAgeGroup || 'immer');
     setDurationMinutes(templateExercise.durationMinutes || 15);
     setMaterials(templateExercise.materials || []);
+    setHasCustomMaterials(Boolean(templateExercise.hasCustomMaterials || templateExercise.customMaterials?.trim()));
+    setCustomMaterials(templateExercise.customMaterials || '');
     setVideoUrl(templateExercise.videoUrl || '');
     setCoachingPoints(templateExercise.coachingPoints || '');
     setIsPublished(false);
@@ -556,6 +562,8 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
       setMinAgeGroup(initialExercise.minAgeGroup || 'immer');
       setDurationMinutes(initialExercise.durationMinutes || 15);
       setMaterials(initialExercise.materials || []);
+      setHasCustomMaterials(Boolean(initialExercise.hasCustomMaterials || initialExercise.customMaterials?.trim()));
+      setCustomMaterials(initialExercise.customMaterials || '');
       setVideoUrl(initialExercise.videoUrl || '');
       setCoachingPoints(initialExercise.coachingPoints || '');
 
@@ -600,6 +608,8 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
       setMinAgeGroup('immer');
       setDurationMinutes(15);
       setMaterials([]);
+      setHasCustomMaterials(false);
+      setCustomMaterials('');
       setVideoUrl('');
       setCoachingPoints('');
       setIsPublished(false);
@@ -682,6 +692,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
       if (minAgeGroup !== 'immer') return true;
       if (durationMinutes !== 15) return true;
       if (materials.length > 0) return true;
+      if (hasCustomMaterials || customMaterials.trim() !== '') return true;
       if (videoUrl.trim() !== '') return true;
       if (coachingPoints.trim() !== '') return true;
 
@@ -727,6 +738,9 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     const initialMats = [...(initialExercise.materials || [])].sort().join(',');
     const currentMats = [...materials].sort().join(',');
     if (initialMats !== currentMats) return true;
+    const initialHasCustom = Boolean(initialExercise.hasCustomMaterials || initialExercise.customMaterials?.trim());
+    if (hasCustomMaterials !== initialHasCustom) return true;
+    if ((hasCustomMaterials ? customMaterials.trim() : '') !== (initialExercise.customMaterials || '').trim()) return true;
 
     // WarmUp
     if (atSchwerpunkt !== ((initialExercise.atSchwerpunkt as string) || 'unspezifisch')) return true;
@@ -778,6 +792,8 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     minAgeGroup,
     durationMinutes,
     materials,
+    hasCustomMaterials,
+    customMaterials,
     videoUrl,
     coachingPoints,
     atSchwerpunkt,
@@ -1030,6 +1046,8 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
         title: effectiveTitle,
         category,
         materials,
+        hasCustomMaterials: hasCustomMaterials && Boolean(customMaterials.trim()),
+        customMaterials: hasCustomMaterials ? customMaterials.trim() : '',
         videoUrl: videoUrl.trim(),
         ablauf: effectiveAblauf,
         minKeepers,
@@ -1115,6 +1133,8 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
         setTitle('');
         setAblauf('');
         setMaterials([]);
+        setHasCustomMaterials(false);
+        setCustomMaterials('');
         setVideoUrl('');
         setCoachingPoints('');
         setSiegbedingung('');
@@ -1246,6 +1266,10 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
             materials={materials}
             setMaterials={setMaterials}
             onToggleMaterial={handleToggleMaterial}
+            hasCustomMaterials={hasCustomMaterials}
+            setHasCustomMaterials={setHasCustomMaterials}
+            customMaterials={customMaterials}
+            setCustomMaterials={setCustomMaterials}
             videoUrl={videoUrl}
             setVideoUrl={setVideoUrl}
             ablauf={ablauf}

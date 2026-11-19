@@ -279,6 +279,7 @@ export function normalizeMesoPlan(raw: any): MesoPlan {
     mesoIndex: Number(raw.mesoIndex) || 0,
     weeksCount: Number(raw.weeksCount) || 6,
     weeks: normalizedWeeks,
+    warmUpFocus: raw.warmUpFocus ? String(raw.warmUpFocus) : undefined,
     feedbacks: Array.isArray(raw.feedbacks) ? raw.feedbacks : [],
     isCompleted: Boolean(raw.isCompleted),
     createdAt: Number(raw.createdAt) || Date.now(),
