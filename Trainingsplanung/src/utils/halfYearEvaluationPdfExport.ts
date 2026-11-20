@@ -1,3 +1,5 @@
+import { loadNextLevelLogoBase64, drawNextLevelFooterLogo } from './pdfBranding';
+
 export interface HalfYearTopicComparison {
   id: string;
   topicLabel: string;
@@ -109,6 +111,7 @@ export async function generateHalfYearEvaluationPDF(data: HalfYearEvaluationPdfE
 
   let currentY = margin;
   const logoBase64 = await loadLogoBase64(data.clubLogoUrl);
+  const nextLevelFooterLogo = data.clubLogoUrl ? await loadNextLevelLogoBase64() : '';
   const todayStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   // Function to draw header on each page
@@ -522,7 +525,11 @@ export async function generateHalfYearEvaluationPDF(data: HalfYearEvaluationPdfE
     doc.text(`Stand: ${todayStr}`, pageWidth / 2, footerY, { align: 'center' });
 
     // Right
-    doc.text(`Seite ${p} von ${totalPages}`, pageWidth - margin, footerY, { align: 'right' });
+    const hyRightX = nextLevelFooterLogo ? pageWidth - margin - 7.5 : pageWidth - margin;
+    doc.text(`Seite ${p} von ${totalPages}`, hyRightX, footerY, { align: 'right' });
+    if (nextLevelFooterLogo) {
+      drawNextLevelFooterLogo(doc, nextLevelFooterLogo, pageWidth, margin, footerY - 3.2, 5.5);
+    }
   }
 
   // Save PDF

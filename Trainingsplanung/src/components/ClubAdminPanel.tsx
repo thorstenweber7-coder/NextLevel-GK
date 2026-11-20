@@ -21,7 +21,8 @@ import {
   subscribeUserTrainingGroups,
   saveTrainingGroupToFirestore,
   deleteTrainingGroupFromFirestore,
-  subscribeUserEvaluations
+  subscribeUserEvaluations,
+  syncAllClubGroupAcls
 } from '../firebase/firestoreService';
 import type { 
   Exercise, 
@@ -114,6 +115,7 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
   const [allClubs, setAllClubs] = useState<Club[]>([]);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isSyncingAcls, setIsSyncingAcls] = useState<boolean>(false);
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
 
   // Methodical Progressions (Technikprinzipien & Vereins-Standards) state
@@ -1191,6 +1193,22 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
     }
   };
 
+  const filteredClubExercises = useMemo(() => {
+    let list = exercises;
+    if (exerciseFilterStatus === 'pending') {
+      list = list.filter(e => !e.isClubPublished && !e.isPublished);
+    } else if (exerciseFilterStatus === 'approved') {
+      list = list.filter(e => Boolean(e.isClubPublished || e.isPublished));
+    }
+    const q = exerciseSearchQuery.toLowerCase().trim();
+    if (!q) return list;
+    return list.filter(e =>
+      e.title.toLowerCase().includes(q) ||
+      (e.ownerEmail && e.ownerEmail.toLowerCase().includes(q)) ||
+      (e.category && e.category.toLowerCase().includes(q))
+    );
+  }, [exercises, exerciseFilterStatus, exerciseSearchQuery]);
+
   if (!currentClub) {
     return (
       <div className="max-w-4xl mx-auto p-8 sm:p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-6 shadow-2xl">
@@ -1247,22 +1265,6 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
   const quotaPercent = Math.min(100, Math.round((assignedCoachesCount / maxAllowedCoaches) * 100));
   const pendingCount = exercises.filter(e => !e.isClubPublished && !e.isPublished).length;
   const approvedCount = exercises.filter(e => Boolean(e.isClubPublished || e.isPublished)).length;
-
-  const filteredClubExercises = useMemo(() => {
-    let list = exercises;
-    if (exerciseFilterStatus === 'pending') {
-      list = list.filter(e => !e.isClubPublished && !e.isPublished);
-    } else if (exerciseFilterStatus === 'approved') {
-      list = list.filter(e => Boolean(e.isClubPublished || e.isPublished));
-    }
-    const q = exerciseSearchQuery.toLowerCase().trim();
-    if (!q) return list;
-    return list.filter(e =>
-      e.title.toLowerCase().includes(q) ||
-      (e.ownerEmail && e.ownerEmail.toLowerCase().includes(q)) ||
-      (e.category && e.category.toLowerCase().includes(q))
-    );
-  }, [exercises, exerciseFilterStatus, exerciseSearchQuery]);
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
@@ -1345,6 +1347,28 @@ export const ClubAdminPanel: React.FC<ClubAdminPanelProps> = ({
               <span className="text-base font-black text-amber-300">{pendingCount}</span>
             </div>
           )}
+          <button
+            type="button"
+            disabled={isSyncingAcls || !effectiveClubId || trainingGroups.length === 0}
+            onClick={async () => {
+              if (!effectiveClubId) return;
+              setIsSyncingAcls(true);
+              try {
+                const res = await syncAllClubGroupAcls(effectiveClubId, trainingGroups);
+                showToast(`Gruppen-Zugriffsrechte (ACL) für ${res.groupsProcessed} Gruppen (${res.updatedDocs} Dokumente) synchronisiert!`);
+              } catch (err) {
+                console.error('ACL sync failed:', err);
+                showToast('Fehler beim Synchronisieren der Gruppen-ACLs.', 'error');
+              } finally {
+                setIsSyncingAcls(false);
+              }
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-emerald-500/50 text-xs font-bold text-slate-300 hover:text-emerald-300 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="Aktualisiert serverseitige Gruppen-Zugriffsrechte (allowedCoachUids) für alle Bestandsdokumente dieses Vereins"
+          >
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>{isSyncingAcls ? 'Synchronisiere...' : 'Gruppen-ACL sync'}</span>
+          </button>
         </div>
       </div>
 

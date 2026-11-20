@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import logoImg from '../assets/Logo.png';
+import { LegalModal, type LegalTab } from './LegalModal';
 
 type AuthMode = 'login' | 'register' | 'forgot_password';
 
@@ -26,8 +27,10 @@ export const AuthScreen: React.FC = () => {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [passwordConfirm, setPasswordConfirm] = useState<string>('');
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [legalTab, setLegalTab] = useState<LegalTab | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const isPreFilledAdmin = email.toLowerCase().trim() === MAIN_ADMIN_EMAIL.toLowerCase();
@@ -78,6 +81,10 @@ export const AuthScreen: React.FC = () => {
         setErrorMsg('Die eingegebenen Passwörter stimmen nicht überein.');
         return;
       }
+      if (!acceptedPrivacy) {
+        setErrorMsg('Bitte bestätige die Datenschutzerklärung (DSGVO) und die Nutzungsbedingungen.');
+        return;
+      }
 
       try {
         setLoading(true);
@@ -111,7 +118,7 @@ export const AuthScreen: React.FC = () => {
       if (err.code === 'auth/configuration-not-found' || err.code === 'auth/operation-not-allowed') {
         setErrorMsg('Firebase Authentication ist in deiner Firebase-Konsole noch nicht aktiviert. Bitte aktiviere "E-Mail/Passwort" unter Authentication -> Sign-in method.');
       } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setErrorMsg('Ungültige Anmeldedaten. Wenn du noch kein Passwort hast, klicke oben auf "7 Tage testen", um dich einmalig zu registrieren.');
+        setErrorMsg('Ungültige Anmeldedaten. Wenn du noch kein Passwort hast, klicke oben auf "14 Tage testen", um dich einmalig zu registrieren.');
       } else if (err.code === 'auth/too-many-requests') {
         setErrorMsg('Zu viele fehlgeschlagene Versuche. Bitte warte einen Moment.');
       } else {
@@ -298,19 +305,49 @@ export const AuthScreen: React.FC = () => {
           )}
 
           {mode === 'register' && (
-            <div>
-              <label className="block text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5" />
-                <span>Passwort wiederholen</span>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Passwort wiederholen</span>
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={passwordConfirm}
+                  onChange={e => setPasswordConfirm(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <label className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-300 leading-relaxed cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={acceptedPrivacy}
+                  onChange={e => setAcceptedPrivacy(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 flex-shrink-0 cursor-pointer"
+                />
+                <span>
+                  Ich akzeptiere die{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setLegalTab('datenschutz'); }}
+                    className="text-emerald-400 hover:underline font-semibold cursor-pointer"
+                  >
+                    Datenschutzerklärung (DSGVO)
+                  </button>{' '}
+                  und die{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setLegalTab('agb'); }}
+                    className="text-emerald-400 hover:underline font-semibold cursor-pointer"
+                  >
+                    Nutzungsbedingungen
+                  </button>{' '}
+                  und bestätige, dass für die Verarbeitung sportlicher &amp; gesundheitsbezogener Spielerdaten (Art. 9 DSGVO) im Verein die erforderliche Einwilligung vorliegt.
+                </span>
               </label>
-              <input
-                type="password"
-                required
-                value={passwordConfirm}
-                onChange={e => setPasswordConfirm(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-              />
             </div>
           )}
 
@@ -352,7 +389,26 @@ export const AuthScreen: React.FC = () => {
             </button>
           </div>
         )}
+
+        {/* Legal / DSGVO Links */}
+        <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] text-slate-500">
+          <button type="button" onClick={() => setLegalTab('datenschutz')} className="hover:text-emerald-400 transition cursor-pointer">
+            Datenschutz (DSGVO)
+          </button>
+          <button type="button" onClick={() => setLegalTab('impressum')} className="hover:text-emerald-400 transition cursor-pointer">
+            Impressum
+          </button>
+          <button type="button" onClick={() => setLegalTab('agb')} className="hover:text-emerald-400 transition cursor-pointer">
+            Nutzungsbedingungen
+          </button>
+        </div>
       </div>
+
+      <LegalModal
+        isOpen={legalTab !== null}
+        initialTab={legalTab || 'datenschutz'}
+        onClose={() => setLegalTab(null)}
+      />
     </div>
   );
 };

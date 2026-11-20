@@ -1,5 +1,6 @@
 import type { GeneralWeekTemplateDay, MesoWeekItem } from '../types';
 import { BUILDING_BLOCK_CONFIGS, DEFAULT_WEEK_SETTINGS } from '../types';
+import { loadNextLevelLogoBase64, drawNextLevelFooterLogo } from './pdfBranding';
 
 export interface MesoPlanPdfExportData {
   seasonName: string;
@@ -13,6 +14,7 @@ export interface MesoPlanPdfExportData {
   startDate: string;
   endDate: string;
   athleticFocus?: string;
+  warmUpFocus?: string;
   forAdults?: boolean;
   targetDefenseGoals?: string;
   targetDefenseTechnique1?: string;
@@ -172,6 +174,7 @@ export async function generateMesoPlanPDF(data: MesoPlanPdfExportData): Promise<
 
   let currentY = margin;
   const logoBase64 = await loadLogoBase64(data.clubLogoUrl);
+  const nextLevelFooterLogo = data.clubLogoUrl ? await loadNextLevelLogoBase64() : '';
   const todayStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   const formatDate = (dStr?: string) => {
@@ -259,8 +262,8 @@ export async function generateMesoPlanPDF(data: MesoPlanPdfExportData): Promise<
       color: [14, 165, 233] // sky-500
     },
     {
-      label: 'ATHLETISCHER REIZ',
-      sub: data.forAdults ? 'Microdosing in Mikroplanung' : 'Schwerpunkt Zyklus',
+      label: 'ATHLETISCHER REIZ & WARMUP',
+      sub: data.warmUpFocus ? `WarmUp: ${data.warmUpFocus}` : (data.forAdults ? 'Microdosing (Mikroplanung)' : 'Schwerpunkt Zyklus'),
       val: data.forAdults ? 'Für Erwachsene' : (data.athleticFocus || 'unspezifisch'),
       color: [16, 185, 129] // emerald-600
     }
@@ -780,7 +783,11 @@ export async function generateMesoPlanPDF(data: MesoPlanPdfExportData): Promise<
   doc.setFontSize(5.8);
   doc.setTextColor(148, 163, 184);
   doc.text('NEXTLEVEL GOALKEEPING ACADEMY  •  PROFESSIONELLE TORWART-TRAININGSPLANUNG & PERIODISIERUNG', margin, footerY + 1.5);
-  doc.text(`Dokument generiert am ${todayStr}  |  Seite 1 von 1`, pageWidth - margin, footerY + 1.5, { align: 'right' });
+  const mesoRightX = nextLevelFooterLogo ? pageWidth - margin - 7.5 : pageWidth - margin;
+  doc.text(`Dokument generiert am ${todayStr}  |  Seite 1 von 1`, mesoRightX, footerY + 1.5, { align: 'right' });
+  if (nextLevelFooterLogo) {
+    drawNextLevelFooterLogo(doc, nextLevelFooterLogo, pageWidth, margin, footerY - 1.5, 5.5);
+  }
 
   // --------------------------------------------------------------------------
   // 8. SAVE / DOWNLOAD PDF

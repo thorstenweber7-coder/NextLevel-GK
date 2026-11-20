@@ -1,5 +1,6 @@
 import type { PeriodizationTopicDefinition } from '../types';
 import { PERIODIZATION_TOPICS } from '../types';
+import { loadNextLevelLogoBase64, drawNextLevelFooterLogo } from './pdfBranding';
 
 export interface MacroPlanPdfExportData {
   seasonName: string;
@@ -95,6 +96,7 @@ export async function generateMacroPlanPDF(data: MacroPlanPdfExportData): Promis
 
   let currentY = margin;
   const logoBase64 = await loadLogoBase64(data.clubLogoUrl);
+  const nextLevelFooterLogo = data.clubLogoUrl ? await loadNextLevelLogoBase64() : '';
   const todayStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   // --------------------------------------------------------------------------
@@ -501,7 +503,11 @@ export async function generateMacroPlanPDF(data: MacroPlanPdfExportData): Promis
   doc.setFontSize(6);
   doc.setTextColor(148, 163, 184);
   doc.text('NEXTLEVEL GOALKEEPING ACADEMY  •  PROFESSIONELLE TORWART-TRAININGSPLANUNG & PERIODISIERUNG', margin, footerY + 1.5);
-  doc.text(`Dokument generiert am ${todayStr}  |  Seite 1 von 1`, pageWidth - margin, footerY + 1.5, { align: 'right' });
+  const macroRightX = nextLevelFooterLogo ? pageWidth - margin - 7.5 : pageWidth - margin;
+  doc.text(`Dokument generiert am ${todayStr}  |  Seite 1 von 1`, macroRightX, footerY + 1.5, { align: 'right' });
+  if (nextLevelFooterLogo) {
+    drawNextLevelFooterLogo(doc, nextLevelFooterLogo, pageWidth, margin, footerY - 1.5, 5.5);
+  }
 
   // --------------------------------------------------------------------------
   // 8. SAVE / DOWNLOAD PDF

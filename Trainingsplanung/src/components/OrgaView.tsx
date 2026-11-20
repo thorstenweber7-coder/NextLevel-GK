@@ -12,6 +12,7 @@ import {
   type TrainingPlan,
   type Exercise,
   type PlayerMatchPlaytime,
+  type PlayerMatchStats,
   type PlayerFeedbackTalk,
   type MatchLocation,
   type MatchType,
@@ -41,6 +42,7 @@ import {
   saveFeedbackTalkToFirestore,
   deleteFeedbackTalkFromFirestore,
   subscribeUserPlans,
+  savePlanToFirestore,
   subscribeExercises,
   getLocalTrainingGroups,
   getLocalPlayerAbsences,
@@ -58,6 +60,7 @@ import { AthleticEvaluationMatrixCard } from './AthleticEvaluationMatrixCard';
 import { PlayerEvaluationHistoryModal } from './PlayerEvaluationHistoryModal';
 import { MovePlayerModal } from './MovePlayerModal';
 import { generateAthleticTestPDF } from '../utils/athleticTestPdfExport';
+import { generatePlayerDevelopmentPDF } from '../utils/playerDevelopmentPdfExport';
 import { calculateMirwaldMaturityOffset, parseBioNumber, getClosestBiologicalEvaluation } from '../utils/biologicalMaturity';
 import { evaluateAllAthleticTests } from '../utils/athleticNormEvaluation';
 import { 
@@ -108,13 +111,17 @@ import {
   ArrowRight,
   ArrowRightLeft,
   Eye,
-  Lock
+  Lock,
+  PlayCircle
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
 export type OrgaSubTab = 'periodization' | 'structure' | 'groups' | 'dataEntry' | 'stats' | 'absences' | 'playtimes' | 'evaluation' | 'feedbackTalks' | 'macro' | 'meso' | 'micro';
 export type DataEntrySubPoint = 'absences' | 'playtimes' | 'technik' | 'taktik' | 'athletik' | 'mental' | 'feedback_talks';
 export type AthleticSubTab = 'biological' | 'athletic' | 'criteria';
+
+// Hier deine finale YouTube-Video-ID eintragen (z. B. 'abc123XYZ')
+const ORGA_INTRO_YOUTUBE_ID = '';
 
 interface OrgaViewProps {
   initialSubTab?: OrgaSubTab;
@@ -198,6 +205,78 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
   const [exercises, setExercises] = useState<Exercise[]>([]);
 
   const [feedback, setFeedback] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Erklärvideo Modal (automatisch beim ersten Öffnen von Orga für neue User)
+  const [isIntroVideoOpen, setIsIntroVideoOpen] = useState<boolean>(false);
+  useEffect(() => {
+    if (!user?.uid) return;
+    try {
+      const seenKey = `nl_orga_intro_seen_${user.uid}`;
+      if (!localStorage.getItem(seenKey)) {
+        localStorage.setItem(seenKey, 'true');
+        setIsIntroVideoOpen(true);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [user?.uid]);
+
+  // Saisonwechsel-Assistent Modal (inkl. Drag & Drop einzelner Torhüter)
+  const [isSeasonRolloverOpen, setIsSeasonRolloverOpen] = useState<boolean>(false);
+  const [rolloverDraftGroups, setRolloverDraftGroups] = useState<Record<string, Player[]>>({});
+  const [draggedRolloverPlayer, setDraggedRolloverPlayer] = useState<{ playerId: string; fromGroupId: string } | null>(null);
+  const [rolloverArchivePlans, setRolloverArchivePlans] = useState<boolean>(true);
+  const [rolloverSeasonLabel, setRolloverSeasonLabel] = useState<string>(() => {
+    const y = new Date().getFullYear();
+    return `${y - 1}/${y}`;
+  });
+  const [isRunningRollover, setIsRunningRollover] = useState<boolean>(false);
+
+  const openSeasonRolloverModal = () => {
+    const draft: Record<string, Player[]> = {};
+    visibleGroups.forEach(g => {
+      draft[g.id] = [...(g.players || []).filter(p => !p.archived)];
+    });
+    setRolloverDraftGroups(draft);
+    setDraggedRolloverPlayer(null);
+    setIsSeasonRolloverOpen(true);
+  };
+
+  const moveRolloverPlayer = (playerId: string, fromGroupId: string, toGroupId: string) => {
+    if (!playerId || !fromGroupId || !toGroupId || fromGroupId === toGroupId) return;
+    setRolloverDraftGroups(prev => {
+      const srcList = prev[fromGroupId] || [];
+      const dstList = prev[toGroupId] || [];
+      const playerObj = srcList.find(p => p.id === playerId);
+      if (!playerObj) return prev;
+      return {
+        ...prev,
+        [fromGroupId]: srcList.filter(p => p.id !== playerId),
+        [toGroupId]: dstList.some(p => p.id === playerId) ? dstList : [...dstList, { ...playerObj, updatedAt: Date.now() }]
+      };
+    });
+  };
+
+  const handleDownloadPlayerReport = async (group: TrainingGroup, player: Player) => {
+    if (!window.confirm('Willst du den Entwicklungsbericht downloaden?')) return;
+    try {
+      await generatePlayerDevelopmentPDF({
+        player,
+        group,
+        evaluations,
+        absences,
+        matchPlaytimes,
+        feedbackTalks,
+        trainerName: user?.displayName || user?.email || 'Torwarttrainer',
+        clubName: currentClub?.name || clubName || undefined,
+        clubLogoUrl: currentClub?.logoUrl
+      });
+      setFeedback({ text: `Entwicklungsbericht für ${player.firstName} ${player.lastName} erstellt.`, type: 'success' });
+    } catch (err) {
+      console.error('Fehler beim Erstellen des Entwicklungsberichts:', err);
+      setFeedback({ text: 'Fehler beim Erstellen des Entwicklungsberichts.', type: 'error' });
+    }
+  };
 
   // Group & Player Selection for Skill Ratings
   const [selectedEvaluationGroupId, setSelectedEvaluationGroupId] = useState<string>('');
@@ -303,7 +382,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     // In a club context for a ClubCoach:
     if (isClubCoach) {
       // 1. Primary assigned coach
-      const isAssigned = (Boolean(group.assignedCoachEmail) && group.assignedCoachEmail?.toLowerCase() === userEmail) ||
+      const isAssigned = (Boolean(group.assignedCoachEmail) && group.assignedCoachEmail?.toLowerCase().trim() === userEmail) ||
                          (Boolean(group.assignedCoachId) && group.assignedCoachId === uid);
       if (isAssigned) return true;
 
@@ -312,8 +391,8 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                          (group.observerCoachIds || []).includes(uid || '');
       if (isObserver) return true;
 
-      // 3. Creator/Owner
-      if (group.ownerId === uid || (Boolean(group.ownerEmail) && group.ownerEmail?.toLowerCase() === userEmail)) {
+      // 3. Creator/Owner fallback ONLY if no other primary coach is assigned
+      if (!group.assignedCoachEmail && !group.assignedCoachId && (group.ownerId === uid || (Boolean(group.ownerEmail) && group.ownerEmail?.toLowerCase().trim() === userEmail))) {
         return true;
       }
 
@@ -368,7 +447,12 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     birthYear: '',
     jerseyNumber: '',
     mainTeam: '',
-    notes: ''
+    notes: '',
+    rtpActive: false,
+    rtpStage: 'Teilintegration' as 'Reha' | 'Teilintegration' | 'Individuell' | 'Freigabe mit Einschränkung',
+    rtpAllowedActions: '',
+    rtpMaxRpe: '',
+    rtpTargetFullReturn: ''
   });
 
   const [isBodyModalOpen, setIsBodyModalOpen] = useState(false);
@@ -405,12 +489,51 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     return getLocalFeedbackTalks(user?.uid);
   });
 
+  // Strict group-scoped data filtering for Club Coaches (only data from visibleGroups)
+  const visibleGroupIdSet = useMemo(() => new Set(visibleGroups.map(g => g.id)), [visibleGroups]);
+  const visibleGroupNameSet = useMemo(() => new Set(visibleGroups.map(g => (g.name || '').trim().toLowerCase())), [visibleGroups]);
+  const visiblePlayerIdSet = useMemo(() => {
+    const s = new Set<string>();
+    visibleGroups.forEach(g => (g.players || []).forEach(p => s.add(p.id)));
+    return s;
+  }, [visibleGroups]);
+
+  const visibleSavedPlans = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return savedPlans;
+    return savedPlans.filter(p => {
+      if (p.groupId && visibleGroupIdSet.has(p.groupId)) return true;
+      if (p.targetGroup && (visibleGroupIdSet.has(p.targetGroup) || visibleGroupNameSet.has(p.targetGroup.trim().toLowerCase()))) return true;
+      return false;
+    });
+  }, [savedPlans, isMasterAdmin, isClubAdmin, visibleGroupIdSet, visibleGroupNameSet]);
+
+  const visibleAbsences = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return absences;
+    return absences.filter(a => visibleGroupIdSet.has(a.groupId) || visiblePlayerIdSet.has(a.playerId));
+  }, [absences, isMasterAdmin, isClubAdmin, visibleGroupIdSet, visiblePlayerIdSet]);
+
+  const visibleEvaluations = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return evaluations;
+    return evaluations.filter(e => visibleGroupIdSet.has(e.groupId) || visiblePlayerIdSet.has(e.playerId));
+  }, [evaluations, isMasterAdmin, isClubAdmin, visibleGroupIdSet, visiblePlayerIdSet]);
+
+  const visibleMatchPlaytimes = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return matchPlaytimes;
+    return matchPlaytimes.filter(m => visibleGroupIdSet.has(m.groupId));
+  }, [matchPlaytimes, isMasterAdmin, isClubAdmin, visibleGroupIdSet]);
+
+  const visibleFeedbackTalks = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return feedbackTalks;
+    return feedbackTalks.filter(t => visibleGroupIdSet.has(t.groupId) || visiblePlayerIdSet.has(t.playerId));
+  }, [feedbackTalks, isMasterAdmin, isClubAdmin, visibleGroupIdSet, visiblePlayerIdSet]);
+
   // State & Filters for Spielzeiten (Match Playtimes)
   const [filterPlaytimeGroup, setFilterPlaytimeGroup] = useState<string>('ALL');
   const [filterPlaytimePlayer, setFilterPlaytimePlayer] = useState<string>('ALL');
   const [filterPlaytimeType, setFilterPlaytimeType] = useState<string>('ALL');
   const [searchPlaytime, setSearchPlaytime] = useState<string>('');
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
+  const [expandedMatchKpiPlayers, setExpandedMatchKpiPlayers] = useState<Record<string, boolean>>({});
   const [matchFormData, setMatchFormData] = useState<{
     date: string;
     team: string;
@@ -421,6 +544,9 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     playerMinutes: Record<string, number>;
     playerGrades: Record<string, number>;
     playerBenchStatus: Record<string, boolean>;
+    matchRpe: number;
+    matchJumpVolume: 'low' | 'medium' | 'high';
+    playerMatchStats: Record<string, PlayerMatchStats>;
     notes: string;
   }>({
     date: new Date().toISOString().substring(0, 10),
@@ -432,6 +558,9 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     playerMinutes: {},
     playerGrades: {},
     playerBenchStatus: {},
+    matchRpe: 8,
+    matchJumpVolume: 'medium',
+    playerMatchStats: {},
     notes: ''
   });
 
@@ -890,7 +1019,12 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       birthYear: '',
       jerseyNumber: '',
       mainTeam: '',
-      notes: ''
+      notes: '',
+      rtpActive: false,
+      rtpStage: 'Teilintegration',
+      rtpAllowedActions: '',
+      rtpMaxRpe: '',
+      rtpTargetFullReturn: ''
     });
     setIsPlayerModalOpen(true);
   };
@@ -904,7 +1038,12 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       birthYear: player.birthYear ? String(player.birthYear) : '',
       jerseyNumber: player.jerseyNumber ? String(player.jerseyNumber) : '',
       mainTeam: player.mainTeam || '',
-      notes: player.notes || ''
+      notes: player.notes || '',
+      rtpActive: Boolean(player.returnToPlay?.active),
+      rtpStage: player.returnToPlay?.stage || 'Teilintegration',
+      rtpAllowedActions: player.returnToPlay?.allowedActions || '',
+      rtpMaxRpe: player.returnToPlay?.maxRpe ? String(player.returnToPlay.maxRpe) : '',
+      rtpTargetFullReturn: player.returnToPlay?.targetFullReturn || ''
     });
     setIsPlayerModalOpen(true);
   };
@@ -919,6 +1058,16 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
 
     try {
       const currentPlayers = [...(selectedGroupForPlayer.players || [])];
+      const parsedMaxRpe = playerFormData.rtpMaxRpe.trim() ? Number(playerFormData.rtpMaxRpe) : undefined;
+      const returnToPlay = playerFormData.rtpActive
+        ? {
+            active: true,
+            stage: playerFormData.rtpStage,
+            allowedActions: playerFormData.rtpAllowedActions.trim(),
+            maxRpe: parsedMaxRpe && !isNaN(parsedMaxRpe) ? Math.min(10, Math.max(1, parsedMaxRpe)) : undefined,
+            targetFullReturn: playerFormData.rtpTargetFullReturn.trim() || undefined
+          }
+        : undefined;
       
       if (editingPlayer) {
         const idx = currentPlayers.findIndex(p => p.id === editingPlayer.id);
@@ -931,6 +1080,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
             jerseyNumber: playerFormData.jerseyNumber.trim() || undefined,
             mainTeam: playerFormData.mainTeam.trim() || undefined,
             notes: playerFormData.notes.trim() || undefined,
+            returnToPlay,
             updatedAt: Date.now()
           };
         }
@@ -943,6 +1093,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
           jerseyNumber: playerFormData.jerseyNumber.trim() || undefined,
           mainTeam: playerFormData.mainTeam.trim() || undefined,
           notes: playerFormData.notes.trim() || undefined,
+          returnToPlay,
           createdAt: Date.now()
         });
       }
@@ -1667,6 +1818,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
   // Handlers for Match Playtimes
   const handleCancelEditMatch = () => {
     setEditingMatchId(null);
+    setExpandedMatchKpiPlayers({});
     setMatchFormData({
       date: new Date().toISOString().substring(0, 10),
       team: MATCH_TEAMS[0],
@@ -1677,6 +1829,9 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       playerMinutes: {},
       playerGrades: {},
       playerBenchStatus: {},
+      matchRpe: 8,
+      matchJumpVolume: 'medium',
+      playerMatchStats: {},
       notes: ''
     });
   };
@@ -1692,9 +1847,39 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       playerMinutes: { ...match.playerMinutes },
       playerGrades: { ...(match.playerGrades || {}) },
       playerBenchStatus: { ...(match.playerBenchStatus || {}) },
+      matchRpe: match.matchRpe || 8,
+      matchJumpVolume: match.matchJumpVolume || 'medium',
+      playerMatchStats: { ...(match.playerMatchStats || {}) },
       notes: match.notes || ''
     });
+    const expanded: Record<string, boolean> = {};
+    Object.keys(match.playerMatchStats || {}).forEach(pid => { expanded[pid] = true; });
+    setExpandedMatchKpiPlayers(expanded);
     setEditingMatchId(match.id);
+  };
+
+  const updatePlayerMatchStat = (
+    playerId: string,
+    field: keyof PlayerMatchStats,
+    rawVal: string
+  ) => {
+    setMatchFormData(prev => {
+      const current = prev.playerMatchStats[playerId] || {};
+      const nextStats = { ...current };
+      if (rawVal === '') {
+        delete nextStats[field];
+      } else {
+        const num = Math.max(0, field === 'distributionPct' ? Math.min(100, Number(rawVal)) : Number(rawVal));
+        if (!isNaN(num)) nextStats[field] = num;
+      }
+      return {
+        ...prev,
+        playerMatchStats: {
+          ...prev.playerMatchStats,
+          [playerId]: nextStats
+        }
+      };
+    });
   };
 
   const handleSaveMatch = async (e: React.FormEvent) => {
@@ -1706,6 +1891,14 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
     }
 
     const group = visibleGroups.find(g => g.id === effectiveGroupId) || groups.find(g => g.id === effectiveGroupId);
+
+    // Clean empty playerMatchStats entries
+    const cleanMatchStats: Record<string, PlayerMatchStats> = {};
+    Object.entries(matchFormData.playerMatchStats || {}).forEach(([pid, st]) => {
+      if (st && Object.values(st).some(v => v !== undefined && v !== null)) {
+        cleanMatchStats[pid] = st;
+      }
+    });
 
     try {
       await saveMatchPlaytimeToFirestore({
@@ -1720,21 +1913,28 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         playerMinutes: matchFormData.playerMinutes,
         playerGrades: matchFormData.playerGrades,
         playerBenchStatus: matchFormData.playerBenchStatus,
+        matchRpe: matchFormData.matchRpe || 8,
+        matchJumpVolume: matchFormData.matchJumpVolume || 'medium',
+        playerMatchStats: cleanMatchStats,
         notes: matchFormData.notes.trim()
-      }, user);
+      }, user, clubId);
 
       showToast(editingMatchId ? 'Spielzeit erfolgreich aktualisiert!' : 'Neues Spiel erfolgreich gespeichert!');
       setEditingMatchId(null);
+      setExpandedMatchKpiPlayers({});
       setMatchFormData(prev => ({
         date: new Date().toISOString().substring(0, 10),
         team: prev.team || MATCH_TEAMS[0],
         opponent: '',
         location: 'Heimspiel',
         matchType: 'Meisterschaftsspiel',
-        groupId: prev.groupId || groups[0]?.id || '',
+        groupId: prev.groupId || visibleGroups[0]?.id || '',
         playerMinutes: {},
         playerGrades: {},
         playerBenchStatus: {},
+        matchRpe: 8,
+        matchJumpVolume: 'medium',
+        playerMatchStats: {},
         notes: ''
       }));
     } catch (err) {
@@ -2094,6 +2294,15 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
               </h1>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsIntroVideoOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-emerald-300 hover:text-white border border-slate-700 hover:border-emerald-500/50 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+            title="Erklärvideo zur Organisation ansehen"
+          >
+            <PlayCircle className="w-4 h-4 text-emerald-400" />
+            <span>Erklärvideo</span>
+          </button>
         </div>
 
         {/* Global Feedback Banner */}
@@ -2277,14 +2486,26 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                 Erstelle Trainingsgruppen für deine Altersklassen und ordne ihnen konkrete Torhüter zu.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleOpenNewGroupModal}
-              className="px-4 py-2.5 rounded-xl font-extrabold text-xs text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition shadow-lg shadow-emerald-950/60 flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Neue Trainingsgruppe anlegen</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {visibleGroups.length >= 2 && (
+                <button
+                  type="button"
+                  onClick={openSeasonRolloverModal}
+                  className="px-3.5 py-2.5 rounded-xl font-bold text-xs text-sky-300 bg-sky-950/60 hover:bg-sky-900/70 border border-sky-700/50 active:scale-95 transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Saisonwechsel</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleOpenNewGroupModal}
+                className="px-4 py-2.5 rounded-xl font-extrabold text-xs text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition shadow-lg shadow-emerald-950/60 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Neue Trainingsgruppe anlegen</span>
+              </button>
+            </div>
           </div>
 
           {/* Groups Grid */}
@@ -2436,7 +2657,12 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
 
                                     return (
                                       <div key={player.id} className="py-2.5 flex items-center justify-between gap-3 text-xs group">
-                                        <div className="flex items-center gap-2.5 min-w-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDownloadPlayerReport(group, player)}
+                                          title="Klicken für Spieler-Entwicklungsbericht (PDF)"
+                                          className="flex items-center gap-2.5 min-w-0 text-left flex-1 rounded-lg hover:bg-slate-800/40 p-1 -m-1 transition cursor-pointer"
+                                        >
                                           <div 
                                             className="w-7 h-7 rounded-full bg-slate-950 border border-slate-800 flex items-center justify-center font-black text-slate-200 text-[10.5px] flex-shrink-0 shadow-inner"
                                             title={`Initialen: ${player.firstName} ${player.lastName}`}
@@ -2445,7 +2671,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                           </div>
                                           <div className="min-w-0">
                                             <div className="flex items-center gap-1.5 flex-wrap">
-                                              <span className="font-bold text-white truncate">
+                                              <span className="font-bold text-white group-hover:text-emerald-300 transition truncate">
                                                 {player.firstName} {player.lastName}
                                               </span>
                                               {player.mainTeam && (
@@ -2453,12 +2679,20 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                                   ⚽ {player.mainTeam}
                                                 </span>
                                               )}
+                                              {player.returnToPlay?.active && (
+                                                <span
+                                                  className="text-[9.5px] font-black px-1.5 py-0.2 rounded bg-amber-950/90 text-amber-300 border border-amber-600/60 inline-flex items-center gap-1"
+                                                  title={`Return-to-Play: ${player.returnToPlay.stage}${player.returnToPlay.allowedActions ? ` – ${player.returnToPlay.allowedActions}` : ''}`}
+                                                >
+                                                  🩹 RTP ({player.returnToPlay.stage})
+                                                </span>
+                                              )}
                                             </div>
                                             <span className="text-[10px] text-slate-500 block truncate">
                                               {player.birthYear ? `Jg. ${player.birthYear}` : 'Kein Jahrgang'} {player.notes ? `• ${player.notes}` : ''}
                                             </span>
                                           </div>
-                                        </div>
+                                        </button>
 
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                           {pScore ? (
@@ -2478,6 +2712,14 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                           )}
 
                                           <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDownloadPlayerReport(group, player)}
+                                              title="Entwicklungsbericht (PDF) herunterladen"
+                                              className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-300 hover:bg-emerald-950/40 transition"
+                                            >
+                                              <FileDown className="w-3.5 h-3.5" />
+                                            </button>
                                             <button
                                               type="button"
                                               onClick={() => handleOpenMovePlayerModal(group, player)}
@@ -3671,16 +3913,64 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                       </div>
                     </div>
 
-                    {/* 3. Wichtige Szenen mit Angabe der Minute innerhalb des Spiels */}
-                    <div>
-                      <label className="block text-slate-300 font-bold mb-1">Wichtige Szenen mit Angabe der Minute innerhalb des Spiels</label>
-                      <input
-                        type="text"
-                        value={matchFormData.notes}
-                        onChange={e => setMatchFormData(prev => ({ ...prev, notes: e.target.value }))}
-                        placeholder="z. B. 23. Min: Starke 1-gg-1 Parade, 68. Min: Elfmeter pariert..."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 text-xs"
-                      />
+                    {/* 3. Wichtige Szenen & Spiel-Belastungsintensität (RPE) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                      <div className="sm:col-span-2">
+                        <label className="block text-slate-300 font-bold mb-1">Wichtige Szenen</label>
+                        <input
+                          type="text"
+                          value={matchFormData.notes}
+                          onChange={e => setMatchFormData(prev => ({ ...prev, notes: e.target.value }))}
+                          placeholder="z. B. 23. Min: Starke 1-gg-1 Parade, 68. Min: Elfmeter pariert..."
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 font-bold mb-1 flex items-center gap-1">
+                          <Activity className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Belastung</span>
+                        </label>
+                        <select
+                          value={matchFormData.matchRpe || 8}
+                          onChange={e => setMatchFormData(prev => ({ ...prev, matchRpe: Number(e.target.value) || 8 }))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 text-xs font-semibold cursor-pointer"
+                        >
+                          <option value={4}>RPE 4 - Ruhiges Spiel</option>
+                          <option value={5}>RPE 5 - Moderat</option>
+                          <option value={6}>RPE 6 - Normal</option>
+                          <option value={7}>RPE 7 - Intensiv</option>
+                          <option value={8}>RPE 8 - Standard</option>
+                          <option value={9}>RPE 9 - Sehr hoch</option>
+                          <option value={10}>RPE 10 - Maximal</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 font-bold mb-1 flex items-center gap-1">
+                          <Zap className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Spiel-Sprungvolumen</span>
+                        </label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {([
+                            { id: 'low', label: 'Niedrig', active: 'bg-emerald-600 text-white border-emerald-500' },
+                            { id: 'medium', label: 'Mittel', active: 'bg-amber-600 text-white border-amber-500' },
+                            { id: 'high', label: 'Hoch', active: 'bg-rose-600 text-white border-rose-500' }
+                          ] as const).map(opt => (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => setMatchFormData(prev => ({ ...prev, matchJumpVolume: opt.id }))}
+                              className={cn(
+                                "py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer",
+                                matchFormData.matchJumpVolume === opt.id
+                                  ? opt.active
+                                  : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
                     {/* 4. Spielzeiten der TW */}
@@ -3689,8 +3979,8 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                         Spielzeiten der TW
                       </label>
                       {(() => {
-                        const effectiveGroupId = matchFormData.groupId || groups[0]?.id;
-                        const currentGrp = groups.find(g => g.id === effectiveGroupId) || groups[0];
+                        const effectiveGroupId = matchFormData.groupId || visibleGroups[0]?.id;
+                        const currentGrp = visibleGroups.find(g => g.id === effectiveGroupId) || visibleGroups[0];
                         const players = (currentGrp?.players || []).filter(p => !p.archived);
 
                         if (players.length === 0) {
@@ -3738,7 +4028,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                         </span>
                                       ) : mins > 0 ? (
                                         <span className="text-[10px] text-emerald-400 font-medium">
-                                          Start-TW ({mins * 8} A.U.)
+                                          Start-TW ({mins * (matchFormData.matchRpe || 8)} A.U. • RPE {matchFormData.matchRpe || 8})
                                         </span>
                                       ) : null}
                                     </div>
@@ -3823,8 +4113,8 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                     </button>
                                   </div>
 
-                                  {/* Leistungsnote (ganz nach rechts) */}
-                                  <div className="flex-1 min-w-[140px] flex items-center justify-end">
+                                  {/* Note oben & KPI Button direkt darunter (platzsparend gestapelt) */}
+                                  <div className="flex flex-col items-stretch gap-1 flex-shrink-0 ml-auto w-[92px]">
                                     <select
                                       value={gradeVal || ''}
                                       onChange={e => {
@@ -3832,19 +4122,33 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                         setPlayerGrade(p.id, val);
                                       }}
                                       className={cn(
-                                        "w-full bg-slate-900 border rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500 cursor-pointer font-semibold transition",
+                                        "w-full bg-slate-900 border rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-emerald-500 cursor-pointer font-semibold transition",
                                         gradeVal
                                           ? "border-emerald-500/60 text-emerald-300 bg-emerald-950/20 font-bold"
                                           : "border-slate-800 text-slate-400 hover:border-slate-700"
                                       )}
+                                      title="Leistungsnote (1–5)"
                                     >
-                                      <option value="">Leistungsnote: Keine</option>
+                                      <option value="">Note</option>
                                       {MATCH_GRADE_OPTIONS.map(opt => (
                                         <option key={opt.grade} value={opt.grade}>
-                                          Note {opt.grade} ({opt.description})
+                                          Note {opt.grade} – {opt.description}
                                         </option>
                                       ))}
                                     </select>
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedMatchKpiPlayers(prev => ({ ...prev, [p.id]: !prev[p.id] }))}
+                                      className={cn(
+                                        "w-full px-2 py-1 rounded-lg text-[10.5px] font-bold border transition cursor-pointer text-center",
+                                        expandedMatchKpiPlayers[p.id] || Object.values(matchFormData.playerMatchStats[p.id] || {}).some(v => v !== undefined)
+                                          ? "bg-indigo-950/80 text-indigo-300 border-indigo-600/60"
+                                          : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
+                                      )}
+                                      title="Optionale Spiel-KPIs (Gegentore, Paraden, Flanken, Spieleröffnung)"
+                                    >
+                                      KPIs
+                                    </button>
                                   </div>
                                 </div>
                               );
@@ -3853,6 +4157,79 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                         );
                       })()}
                     </div>
+
+                    {/* Optionale Spiel-KPIs für aufgeklappte Torhüter */}
+                    {(() => {
+                      const effectiveGroupId = matchFormData.groupId || visibleGroups[0]?.id;
+                      const currentGrp = visibleGroups.find(g => g.id === effectiveGroupId) || visibleGroups[0];
+                      const kpiPlayers = ((currentGrp?.players || []).filter(p => !p.archived))
+                        .filter(p => expandedMatchKpiPlayers[p.id]);
+                      if (kpiPlayers.length === 0) return null;
+
+                      return (
+                        <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                          <div className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>Spiel-KPIs (optional)</span>
+                          </div>
+                          {kpiPlayers.map(p => {
+                            const st = matchFormData.playerMatchStats[p.id] || {};
+                            return (
+                              <div key={`kpi_${p.id}`} className="p-3 rounded-2xl bg-slate-950/90 border border-indigo-900/50 space-y-2">
+                                <div className="text-xs font-extrabold text-white">{p.firstName} {p.lastName}</div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 mb-0.5">Gegentore</label>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={st.goalsConceded ?? ''}
+                                      onChange={e => updatePlayerMatchStat(p.id, 'goalsConceded', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 mb-0.5">Paraden / 1v1</label>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={st.saves ?? ''}
+                                      onChange={e => updatePlayerMatchStat(p.id, 'saves', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 mb-0.5">Flanken abgef.</label>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={st.crossesClaimed ?? ''}
+                                      onChange={e => updatePlayerMatchStat(p.id, 'crossesClaimed', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 mb-0.5">Spieleröffnung %</label>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={100}
+                                      value={st.distributionPct ?? ''}
+                                      onChange={e => updatePlayerMatchStat(p.id, 'distributionPct', e.target.value)}
+                                      placeholder="z.B. 85"
+                                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
 
                     {/* Action Buttons */}
                     <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
@@ -3905,7 +4282,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                         <span>Trainingsgruppe</span>
                       </span>
                       <span className="text-[10px] text-slate-500 font-mono font-normal">
-                        {filterPlaytimeGroup === 'ALL' ? `${matchPlaytimes.length} Spiele` : `${matchPlaytimes.filter(m => m.groupId === filterPlaytimeGroup).length} Spiele`}
+                        {filterPlaytimeGroup === 'ALL' ? `${visibleMatchPlaytimes.length} Spiele` : `${visibleMatchPlaytimes.filter(m => m.groupId === filterPlaytimeGroup).length} Spiele`}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -3920,7 +4297,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                         )}
                       >
                         <span>Alle</span>
-                        <span className="text-[10px] opacity-75 font-mono">({matchPlaytimes.length})</span>
+                        <span className="text-[10px] opacity-75 font-mono">({visibleMatchPlaytimes.length})</span>
                       </button>
                       {visibleGroups.map(g => {
                         const isSelected = filterPlaytimeGroup === g.id;
@@ -4181,7 +4558,25 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                                       <span className="font-medium truncate text-[11px]">{p.firstName} {p.lastName}</span>
                                     </div>
 
-                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                    <div className="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
+                                      {(() => {
+                                        const st = match.playerMatchStats?.[p.id];
+                                        if (!st) return null;
+                                        const parts: string[] = [];
+                                        if (st.goalsConceded !== undefined) parts.push(`GT:${st.goalsConceded}`);
+                                        if (st.saves !== undefined) parts.push(`P:${st.saves}`);
+                                        if (st.crossesClaimed !== undefined) parts.push(`F:${st.crossesClaimed}`);
+                                        if (st.distributionPct !== undefined) parts.push(`E:${st.distributionPct}%`);
+                                        if (parts.length === 0) return null;
+                                        return (
+                                          <span
+                                            title="Gegentore / Paraden / Flanken / Spieleröffnung %"
+                                            className="px-1.5 py-0.5 rounded font-mono text-[9.5px] font-bold bg-indigo-950/80 text-indigo-300 border border-indigo-800/70"
+                                          >
+                                            {parts.join(' · ')}
+                                          </span>
+                                        );
+                                      })()}
                                       {gradeBadge && (
                                         <span 
                                           title={gradeBadge.full}
@@ -6759,7 +7154,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                           <span>Trainingsgruppe</span>
                         </span>
                         <span className="text-[10px] text-slate-500 font-mono font-normal">
-                          {filterFeedbackGroup === 'ALL' ? `${feedbackTalks.length} Gespräche` : `${feedbackTalks.filter(t => t.groupId === filterFeedbackGroup).length} Gespräche`}
+                          {filterFeedbackGroup === 'ALL' ? `${visibleFeedbackTalks.length} Gespräche` : `${visibleFeedbackTalks.filter(t => t.groupId === filterFeedbackGroup).length} Gespräche`}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -6774,11 +7169,11 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                           )}
                         >
                           <span>Alle</span>
-                          <span className="text-[10px] opacity-75 font-mono">({feedbackTalks.length})</span>
+                          <span className="text-[10px] opacity-75 font-mono">({visibleFeedbackTalks.length})</span>
                         </button>
                         {visibleGroups.map(g => {
                           const isSelected = filterFeedbackGroup === g.id;
-                          const count = feedbackTalks.filter(t => t.groupId === g.id).length;
+                          const count = visibleFeedbackTalks.filter(t => t.groupId === g.id).length;
                           return (
                             <button
                               key={g.id}
@@ -6981,13 +7376,13 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
       {/* --------------------------------------------------------------------- */}
       {activeSubTab === 'stats' && (
         <OrgaStatsView
-          savedPlans={savedPlans}
+          savedPlans={visibleSavedPlans}
           exercises={exercises}
           groups={visibleGroups}
-          absences={absences}
-          evaluations={evaluations}
-          matchPlaytimes={matchPlaytimes}
-          feedbackTalks={feedbackTalks}
+          absences={visibleAbsences}
+          evaluations={visibleEvaluations}
+          matchPlaytimes={visibleMatchPlaytimes}
+          feedbackTalks={visibleFeedbackTalks}
           onNavigateToPlanner={onNavigateToPlanner}
         />
       )}
@@ -7327,6 +7722,75 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
                 />
               </div>
 
+              {/* Return-to-Play (RTP) Status */}
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-amber-700/40 space-y-2.5">
+                <label className="flex items-center justify-between cursor-pointer select-none">
+                  <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <HeartPulse className="w-4 h-4 text-amber-400" />
+                    <span>Return-to-Play (RTP) aktiv</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={playerFormData.rtpActive}
+                    onChange={e => setPlayerFormData(prev => ({ ...prev, rtpActive: e.target.checked }))}
+                    className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-700 focus:ring-amber-500"
+                  />
+                </label>
+
+                {playerFormData.rtpActive && (
+                  <div className="space-y-2.5 pt-1 border-t border-slate-800/80">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1 text-[11px]">RTP-Stufe</label>
+                        <select
+                          value={playerFormData.rtpStage}
+                          onChange={e => setPlayerFormData(prev => ({ ...prev, rtpStage: e.target.value as any }))}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-100 text-xs"
+                        >
+                          <option value="Reha">Reha</option>
+                          <option value="Teilintegration">Teilintegration</option>
+                          <option value="Individuell">Individuell</option>
+                          <option value="Freigabe mit Einschränkung">Freigabe mit Einschränkung</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1 text-[11px]">Max. RPE (1–10)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={playerFormData.rtpMaxRpe}
+                          onChange={e => setPlayerFormData(prev => ({ ...prev, rtpMaxRpe: e.target.value }))}
+                          placeholder="z. B. 6"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-100 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1 text-[11px]">Einschränkungen / Erlaubte Aktionen</label>
+                      <input
+                        type="text"
+                        value={playerFormData.rtpAllowedActions}
+                        onChange={e => setPlayerFormData(prev => ({ ...prev, rtpAllowedActions: e.target.value }))}
+                        placeholder="z. B. Kein Hechten rechts, keine Sprünge"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-100 placeholder-slate-600 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1 text-[11px]">Ziel-Vollfreigabe (optional)</label>
+                      <input
+                        type="date"
+                        value={playerFormData.rtpTargetFullReturn}
+                        onChange={e => setPlayerFormData(prev => ({ ...prev, rtpTargetFullReturn: e.target.value }))}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-100 text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
                 <button
                   type="button"
@@ -7609,7 +8073,7 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         }}
         player={movingPlayer}
         sourceGroup={movingSourceGroup}
-        allGroups={groups}
+        allGroups={visibleGroups}
         onPlayerMoved={(_playerName, _targetGroupName) => {
           setGroups(getLocalTrainingGroups(user?.uid));
           setAbsences(getLocalPlayerAbsences(user?.uid));
@@ -7618,6 +8082,230 @@ export const OrgaView: React.FC<OrgaViewProps> = ({
         }}
         showToast={showToast}
       />
+
+      {/* Erklärvideo Modal (YouTube in-app) */}
+      {isIntroVideoOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 max-w-3xl w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <PlayCircle className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Erklärvideo: Organisation &amp; Trainingsverwaltung</h3>
+                  <p className="text-[11px] text-slate-400">Schnelleinstieg in Gruppen, Periodisierung &amp; Dateneingabe</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsIntroVideoOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {ORGA_INTRO_YOUTUBE_ID ? (
+              <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-slate-800 bg-black">
+                <iframe
+                  src={`https://www.youtube-nocookie.com/embed/${ORGA_INTRO_YOUTUBE_ID}?autoplay=1&rel=0`}
+                  title="Erklärvideo Organisation"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full border-0"
+                />
+              </div>
+            ) : (
+              <div className="aspect-video rounded-2xl border border-dashed border-slate-700 bg-slate-950 flex flex-col items-center justify-center p-6 text-center space-y-2">
+                <PlayCircle className="w-10 h-10 text-emerald-400" />
+                <p className="text-sm font-bold text-white">Erklärvideo-Platzhalter bereit</p>
+                <p className="text-xs text-slate-400 max-w-md">
+                  Trage in <code className="text-emerald-300">src/components/OrgaView.tsx</code> bei <code className="text-emerald-300">ORGA_INTRO_YOUTUBE_ID</code> deine YouTube-Video-ID ein, dann startet das Video hier automatisch im Player.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Saisonwechsel-Assistent Modal (Drag & Drop einzelner Torhüter + Archivierung) */}
+      {isSeasonRolloverOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-5 h-5 text-sky-400" />
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Saisonwechsel-Assistent</h3>
+                  <p className="text-[11px] text-slate-400">Einzelne Torhüter per Drag &amp; Drop in neue Gruppen ziehen &amp; Pläne archivieren</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSeasonRolloverOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {visibleGroups.map(g => {
+                  const draftPlayers = rolloverDraftGroups[g.id] || [];
+                  return (
+                    <div
+                      key={g.id}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={() => {
+                        if (draggedRolloverPlayer) {
+                          moveRolloverPlayer(draggedRolloverPlayer.playerId, draggedRolloverPlayer.fromGroupId, g.id);
+                          setDraggedRolloverPlayer(null);
+                        }
+                      }}
+                      className={cn(
+                        "p-3.5 rounded-2xl border bg-slate-950/90 space-y-2.5 transition min-h-[120px]",
+                        draggedRolloverPlayer && draggedRolloverPlayer.fromGroupId !== g.id
+                          ? "border-sky-500/60 bg-sky-950/20"
+                          : "border-slate-800"
+                      )}
+                    >
+                      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                        <span className="font-extrabold text-white text-xs">{g.name}</span>
+                        <span className="text-[10px] font-bold text-slate-400">{draftPlayers.length} TW</span>
+                      </div>
+
+                      {draftPlayers.length === 0 ? (
+                        <p className="text-[11px] text-slate-500 italic py-3 text-center">
+                          Torhüter hierher ziehen
+                        </p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {draftPlayers.map(player => (
+                            <div
+                              key={player.id}
+                              draggable
+                              onDragStart={() => setDraggedRolloverPlayer({ playerId: player.id, fromGroupId: g.id })}
+                              onDragEnd={() => setDraggedRolloverPlayer(null)}
+                              className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-sky-500/50 flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing"
+                            >
+                              <div className="min-w-0">
+                                <span className="font-bold text-slate-100 block truncate">
+                                  {player.firstName} {player.lastName}
+                                </span>
+                                {player.birthYear && (
+                                  <span className="text-[10px] text-slate-500">Jg. {player.birthYear}</span>
+                                )}
+                              </div>
+                              <select
+                                value=""
+                                onChange={e => {
+                                  if (e.target.value) moveRolloverPlayer(player.id, g.id, e.target.value);
+                                }}
+                                title="Alternativ direkt Gruppe wählen"
+                                className="bg-slate-950 border border-slate-800 rounded-lg px-1.5 py-1 text-[10px] text-slate-300"
+                              >
+                                <option value="">Verschieben...</option>
+                                {visibleGroups.filter(og => og.id !== g.id).map(og => (
+                                  <option key={og.id} value={og.id}>&rarr; {og.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <label className="flex items-center gap-2 p-3 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rolloverArchivePlans}
+                  onChange={e => setRolloverArchivePlans(e.target.checked)}
+                  className="w-4 h-4 rounded text-sky-500 bg-slate-900 border-slate-700"
+                />
+                <span className="text-slate-200 font-semibold">
+                  Alle aktiven Trainingspläne ins Saison-Archiv verschieben
+                </span>
+              </label>
+
+              {rolloverArchivePlans && (
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Saison-Bezeichnung für Archiv</label>
+                  <input
+                    type="text"
+                    value={rolloverSeasonLabel}
+                    onChange={e => setRolloverSeasonLabel(e.target.value)}
+                    placeholder="z. B. 2025/2026"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsSeasonRolloverOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold cursor-pointer"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                disabled={isRunningRollover}
+                onClick={async () => {
+                  setIsRunningRollover(true);
+                  try {
+                    let savedGroupsCount = 0;
+                    for (const g of visibleGroups) {
+                      const newActive = rolloverDraftGroups[g.id] || [];
+                      const archivedPlayers = (g.players || []).filter(p => p.archived);
+                      const oldActiveIds = (g.players || []).filter(p => !p.archived).map(p => p.id).join(',');
+                      const newActiveIds = newActive.map(p => p.id).join(',');
+                      if (oldActiveIds !== newActiveIds) {
+                        await saveTrainingGroupToFirestore({ ...g, players: [...newActive, ...archivedPlayers] }, user, clubId);
+                        savedGroupsCount++;
+                      }
+                    }
+
+                    let archivedCount = 0;
+                    if (rolloverArchivePlans) {
+                      const activeToArchive = savedPlans.filter(p => !p.isArchived);
+                      for (const plan of activeToArchive) {
+                        await savePlanToFirestore(
+                          {
+                            ...plan,
+                            isArchived: true,
+                            archivedSeasonId: rolloverSeasonLabel.trim() || 'Archiv',
+                            archivedAt: Date.now()
+                          },
+                          user,
+                          clubId
+                        );
+                        archivedCount++;
+                      }
+                    }
+
+                    setGroups(getLocalTrainingGroups(user?.uid));
+                    setIsSeasonRolloverOpen(false);
+                    showToast(`Saisonwechsel abgeschlossen: ${savedGroupsCount} Gruppen aktualisiert, ${archivedCount} Pläne archiviert.`);
+                  } catch (err) {
+                    console.error('Season rollover error:', err);
+                    showToast('Fehler beim Ausführen des Saisonwechsels.', 'error');
+                  } finally {
+                    setIsRunningRollover(false);
+                  }
+                }}
+                className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold cursor-pointer disabled:opacity-50"
+              >
+                {isRunningRollover ? 'Wird ausgeführt...' : 'Saisonwechsel durchführen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

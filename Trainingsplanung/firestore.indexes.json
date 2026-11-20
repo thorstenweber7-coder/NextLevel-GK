@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "exercises",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clubId", "order": "ASCENDING" },
+        { "fieldPath": "isClubPublished", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

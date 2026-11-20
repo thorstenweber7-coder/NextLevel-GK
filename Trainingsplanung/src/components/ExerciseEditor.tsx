@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { ExerciseCanvasStage } from './editor/ExerciseCanvasStage';
+import { ExerciseAnimationPanel, type AnimationFrameItem } from './editor/ExerciseAnimationPanel';
 import { TacticalPrinciplesModal } from './editor/TacticalPrinciplesModal';
 import { UserTacticalPrinciplesModal, SITUATIVE_SCHWERPUNKT_META } from './editor/UserTacticalPrinciplesModal';
 import { ExerciseTemplatesModal } from './editor/ExerciseTemplatesModal';
@@ -185,6 +186,10 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
   // Status & Feedback
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [animationFrames, setAnimationFrames] = useState<AnimationFrameItem[]>(
+    (initialExercise?.animationFrames as AnimationFrameItem[]) || []
+  );
+  const [animationOpenSignal, setAnimationOpenSignal] = useState<number>(0);
 
   // Subscribe to Methodical Progressions & Tactical Principles
   useEffect(() => {
@@ -484,7 +489,9 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
 
   const handleTechnikChange = (selectedVal: string) => {
     setTechnik(selectedVal);
-    setTitle(selectedVal ? `Analytisch: ${selectedVal}` : '');
+    if (!title.trim() || title.trim().startsWith('Analytisch:')) {
+      setTitle(selectedVal ? `Analytisch: ${selectedVal}` : '');
+    }
     if (selectedVal) {
       applyProgression(selectedVal);
     } else {
@@ -593,6 +600,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
       setSiegbedingung(initialExercise.siegbedingung || '');
       setIsLoadedAsTemplate(false);
       setCanvasElements(initialExercise.canvasData?.elements || []);
+      setAnimationFrames((initialExercise.animationFrames as AnimationFrameItem[]) || []);
 
       if (initialExercise.canvasData && canvasRef.current) {
         canvasRef.current.loadCanvasData(initialExercise.canvasData);
@@ -630,6 +638,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
       setSiegbedingung('');
       setIsLoadedAsTemplate(false);
       setCanvasElements([]);
+      setAnimationFrames([]);
       if (canvasRef.current) {
         canvasRef.current.clearCanvas();
       }
@@ -1056,6 +1065,7 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
         durationMinutes,
         coachingPoints: coachingPoints.trim(),
         canvasData,
+        animationFrames: animationFrames.length > 0 ? animationFrames : undefined,
         imageUrl,
         imageBase64
       };
@@ -1244,6 +1254,16 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
             onChange={handleCanvasChange}
             width={864}
             height={560}
+            onOpenAnimation={() => setAnimationOpenSignal(prev => prev + 1)}
+            animationFramesCount={animationFrames.length}
+          />
+          <ExerciseAnimationPanel
+            canvasRef={canvasRef}
+            frames={animationFrames}
+            onChangeFrames={setAnimationFrames}
+            exerciseTitle={title || 'Uebung'}
+            openSignal={animationOpenSignal}
+            hideTriggerBar
           />
         </div>
 

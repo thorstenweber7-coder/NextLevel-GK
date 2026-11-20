@@ -31,6 +31,7 @@ interface OrgaTalksModalProps {
   initialImportantNotes?: string;
   initialHasVideoAnalysis?: boolean;
   initialVideoAnalysisNotes?: string;
+  isAdvanceMode?: boolean;
   onSaveToTraining: (data: {
     importantNotes: string;
     hasVideoAnalysis: boolean;
@@ -68,6 +69,7 @@ export const OrgaTalksModal: React.FC<OrgaTalksModalProps> = ({
   initialImportantNotes = '',
   initialHasVideoAnalysis = false,
   initialVideoAnalysisNotes = '',
+  isAdvanceMode = true,
   onSaveToTraining
 }) => {
   const [importantNotes, setImportantNotes] = useState<string>(initialImportantNotes);
@@ -92,44 +94,15 @@ export const OrgaTalksModal: React.FC<OrgaTalksModalProps> = ({
     }
   }, [isOpen, initialImportantNotes, initialHasVideoAnalysis, initialVideoAnalysisNotes]);
 
-  // Robustly resolve all goalkeepers to display as columns:
-  // 1. First, all goalkeepers in active group (Torwart 1, Torwart 2, ...)
-  // 2. Second, any other goalkeepers across other groups who have recorded talks or insights
+  // Strictly show only active (non-archived) goalkeepers of the selected training group
   const allDisplayKeepers = useMemo(() => {
-    const list: Player[] = [...players];
-    const existingIds = new Set(list.map(p => p.id));
-
-    // Also check all other groups
-    allGroups.forEach(g => {
-      (g.players || []).forEach(p => {
-        if (!existingIds.has(p.id)) {
-          // Check if this player has talks or insights in savedPlans
-          const hasTalksOrInsights = savedPlans.some(plan => {
-            const conv = plan.playerConversations || {};
-            const insights = plan.keeperInsights || {};
-            const pFullName = `${p.firstName} ${p.lastName}`.toLowerCase().trim();
-            const pIdLower = p.id.toLowerCase().trim();
-
-            const hasC = Boolean(
-              conv[p.id]?.trim() || 
-              Object.keys(conv).some(k => k.toLowerCase().trim() === pIdLower || k.toLowerCase().trim() === pFullName)
-            );
-            const hasI = Boolean(
-              insights[p.id]?.trim() || 
-              Object.keys(insights).some(k => k.toLowerCase().trim() === pIdLower || k.toLowerCase().trim() === pFullName)
-            );
-            return hasC || hasI;
-          });
-          if (hasTalksOrInsights) {
-            list.push(p);
-            existingIds.add(p.id);
-          }
-        }
-      });
+    const seen = new Set<string>();
+    return (players || []).filter(p => {
+      if (!p || p.archived || seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
     });
-
-    return list;
-  }, [players, allGroups, savedPlans]);
+  }, [players]);
 
   // =========================================================================
   // 1. SPIELERGESPRÄCHE MAP (from plan.playerConversations)
@@ -450,15 +423,17 @@ export const OrgaTalksModal: React.FC<OrgaTalksModalProps> = ({
               <Users className="w-6 h-6" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-bold text-teal-400 bg-teal-950/60 border border-teal-800/60 px-2.5 py-0.5 rounded-full flex items-center gap-1 font-mono">
-                  <Users className="w-3 h-3" />
-                  {targetGroupName || 'Trainingsgruppe'}
-                </span>
-                <span className="text-[11px] font-medium text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-0.5 rounded-full">
-                  {allDisplayKeepers.length} Torhüter
-                </span>
-              </div>
+              {isAdvanceMode && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-bold text-teal-400 bg-teal-950/60 border border-teal-800/60 px-2.5 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                    <Users className="w-3 h-3" />
+                    {targetGroupName || 'Trainingsgruppe'}
+                  </span>
+                  <span className="text-[11px] font-medium text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-0.5 rounded-full">
+                    {allDisplayKeepers.length} Torhüter
+                  </span>
+                </div>
+              )}
               <h2 className="text-lg sm:text-xl font-extrabold text-white truncate mt-1">
                 Orga & Gespräche
               </h2>
@@ -526,8 +501,10 @@ export const OrgaTalksModal: React.FC<OrgaTalksModalProps> = ({
           </div>
 
           {/* ================================================================= */}
-          {/* 3. SUCHFILTER FÜR WÖRTER / STICHWORTE (GILT FÜR ALLE KARTEN)     */}
+          {/* 3-6. GESPRÄCHE, ERKENNTNISSE & FEEDBACK (NUR IM ADVANCE-MODUS)    */}
           {/* ================================================================= */}
+          {isAdvanceMode && (
+          <>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
@@ -987,6 +964,8 @@ export const OrgaTalksModal: React.FC<OrgaTalksModalProps> = ({
               </div>
             )}
           </div>
+          </>
+          )}
 
         </div>
 

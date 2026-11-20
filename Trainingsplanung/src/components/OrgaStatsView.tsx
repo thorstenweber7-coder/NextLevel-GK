@@ -50,16 +50,50 @@ export const OrgaStatsView: React.FC<OrgaStatsViewProps> = ({
   const [targetGroupFilter, setTargetGroupFilter] = useState<string>('all');
   const [isExportingTrainerStats, setIsExportingTrainerStats] = useState<boolean>(false);
 
+  // Helper to parse YYYY-MM-DD or DD.MM.YYYY safely
+  const parsePlanDate = (raw?: string): Date | null => {
+    if (!raw) return null;
+    const trimmed = raw.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const d = new Date(`${trimmed}T12:00:00`);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const deMatch = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (deMatch) {
+      const iso = `${deMatch[3]}-${deMatch[2].padStart(2, '0')}-${deMatch[1].padStart(2, '0')}T12:00:00`;
+      const d = new Date(iso);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(trimmed);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // Plans filtered by timeFilter only (used for accurate targetGroup chip counts)
+  const timeFilteredPlans = useMemo(() => {
+    const now = Date.now();
+    const curYear = new Date().getFullYear();
+    return savedPlans.filter(p => {
+      if (timeFilter === 'all') return true;
+      const d = parsePlanDate(p.date || p.planDate);
+      if (!d) return false;
+      const pMs = d.getTime();
+      if (timeFilter === '30days' && now - pMs > 30 * 86400000) return false;
+      if (timeFilter === '90days' && now - pMs > 90 * 86400000) return false;
+      if (timeFilter === 'thisYear' && d.getFullYear() !== curYear) return false;
+      return true;
+    });
+  }, [savedPlans, timeFilter]);
+
   // Available Target Groups
   const availableTargetGroups = useMemo(() => {
     const set = new Set<string>();
-    savedPlans.forEach(p => {
+    timeFilteredPlans.forEach(p => {
       if (p.targetGroup && p.targetGroup.trim()) {
         set.add(p.targetGroup.trim());
       }
     });
     return Array.from(set).sort();
-  }, [savedPlans]);
+  }, [timeFilteredPlans]);
 
   // Map of all exercises
   const exerciseMap = useMemo(() => {
@@ -68,24 +102,13 @@ export const OrgaStatsView: React.FC<OrgaStatsViewProps> = ({
 
   // Filtered Plans by time & target group
   const filteredPlans = useMemo(() => {
-    return savedPlans.filter(p => {
-      if (targetGroupFilter !== 'all' && p.targetGroup !== targetGroupFilter) {
+    return timeFilteredPlans.filter(p => {
+      if (targetGroupFilter !== 'all' && (p.targetGroup || '').trim() !== targetGroupFilter) {
         return false;
-      }
-      if (timeFilter !== 'all' && p.date) {
-        const pDate = new Date(p.date).getTime();
-        const now = Date.now();
-        if (timeFilter === '30days' && now - pDate > 30 * 86400000) return false;
-        if (timeFilter === '90days' && now - pDate > 90 * 86400000) return false;
-        if (timeFilter === 'thisYear') {
-          const planYear = new Date(p.date).getFullYear();
-          const curYear = new Date().getFullYear();
-          if (planYear !== curYear) return false;
-        }
       }
       return true;
     });
-  }, [savedPlans, timeFilter, targetGroupFilter]);
+  }, [timeFilteredPlans, targetGroupFilter]);
 
   const handleExportTrainerStatsPDF = async () => {
     setIsExportingTrainerStats(true);
@@ -230,11 +253,11 @@ export const OrgaStatsView: React.FC<OrgaStatsViewProps> = ({
                       >
                         <span>Alle Zielgruppen</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-black/30 font-mono font-black">
-                          {savedPlans.length}
+                          {timeFilteredPlans.length}
                         </span>
                       </button>
                       {availableTargetGroups.map(tg => {
-                        const count = savedPlans.filter(p => p.targetGroup === tg).length;
+                        const count = timeFilteredPlans.filter(p => (p.targetGroup || '').trim() === tg).length;
                         const isActive = targetGroupFilter === tg;
                         return (
                           <button
@@ -261,7 +284,7 @@ export const OrgaStatsView: React.FC<OrgaStatsViewProps> = ({
                       <span>Gefilterte Pläne:</span>
                       <strong className="text-emerald-400">{filteredPlans.length}</strong>
                       <span className="text-slate-600">/</span>
-                      <span>{savedPlans.length}</span>
+                      <span>{timeFilteredPlans.length}</span>
                     </div>
                   </div>
                 </div>

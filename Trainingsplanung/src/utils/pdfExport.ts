@@ -1,6 +1,7 @@
 import type { Exercise, ExerciseCategory, TrainingPlan, TrainingGroup, TrainingStructure } from '../types';
 import { DEFAULT_TRAINING_STRUCTURE, getExerciseAllMaterials } from '../types';
 import { loadImageAsDataUrl } from './imageUtils';
+import { loadNextLevelLogoBase64, drawNextLevelFooterLogo } from './pdfBranding';
 
 export interface ExportPhaseItem {
   id: string;
@@ -33,6 +34,7 @@ export interface ExportPlanData {
   videoAnalysisNotes?: string;
   clubLogoUrl?: string;
   clubName?: string;
+  rtpPlayers?: { name: string; stage: string; allowedActions?: string; maxRpe?: number }[];
 }
 
 // Helper to fetch and convert transparent logo to Base64
@@ -206,6 +208,7 @@ export async function generateTrainingPlanPDF(
 ): Promise<{ blob: Blob; filename: string } | void> {
   const { jsPDF } = await import('jspdf');
   const logoBase64 = await loadLogoBase64(data.clubLogoUrl);
+  const nextLevelFooterLogo = data.clubLogoUrl ? await loadNextLevelLogoBase64() : '';
 
   const phaseList = resolvePlanPhases(data);
 
@@ -293,12 +296,12 @@ export async function generateTrainingPlanPDF(
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
-      doc.text('NEXTLEVEL GOALKEEPING ACADEMY', textStartX, 13);
+      doc.text((data.clubName || 'NEXTLEVEL GOALKEEPING ACADEMY').toUpperCase(), textStartX, 13);
 
       doc.setTextColor(74, 222, 128);
       doc.setFontSize(9.5);
       if (data.clubName) {
-        doc.text(`COACH PRO  •  PARTNER-VEREIN: ${data.clubName.toUpperCase()}`, textStartX, 20);
+        doc.text('TORWART-TRAININGSPLANUNG  •  COACH PRO', textStartX, 20);
       } else {
         doc.text('COACH PRO  •  PROFESSIONELLE TORWART-TRAININGSPLANUNG', textStartX, 20);
       }
@@ -474,6 +477,36 @@ export async function generateTrainingPlanPDF(
     currentY += matBoxHeight + 4.5;
   }
 
+  // 3b. Return-to-Play (RTP) Belastungshinweise
+  if (data.rtpPlayers && data.rtpPlayers.length > 0) {
+    const rtpLines = data.rtpPlayers.map(p => {
+      const details = [p.stage, p.allowedActions, p.maxRpe ? `max. RPE ${p.maxRpe}` : null].filter(Boolean).join(' • ');
+      return `• ${p.name}: ${details}`;
+    });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    const wrappedRtp = doc.splitTextToSize(rtpLines.join('\n'), contentWidth - 10);
+    const rtpBoxHeight = Math.max(11, 6.2 + wrappedRtp.length * 3.4);
+
+    doc.setFillColor(255, 247, 237);
+    doc.setDrawColor(251, 146, 60);
+    doc.roundedRect(margin, currentY, contentWidth, rtpBoxHeight, 1.8, 1.8, 'FD');
+    doc.setFillColor(234, 88, 12);
+    doc.rect(margin, currentY, 2.5, rtpBoxHeight, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.0);
+    doc.setTextColor(194, 65, 12);
+    doc.text(`RETURN-TO-PLAY / BELASTUNGSHINWEISE (${data.rtpPlayers.length} TW):`, margin + 5.5, currentY + 4.8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(67, 20, 7);
+    doc.text(wrappedRtp, margin + 5.5, currentY + 9.0);
+
+    currentY += rtpBoxHeight + 4.5;
+  }
+
   // 4. Iterate over Phases & Exercises
   const phaseColors: Record<string, number[]> = {
     'WarmUp': [245, 158, 11],
@@ -493,7 +526,7 @@ export async function generateTrainingPlanPDF(
     'slate': [100, 116, 139]
   };
 
-  // Helper to calculate full rendered height of an exercise card
+  // Helper to calculate full rendered height of an exercise card (matching exact font sizes)
   const calculateExerciseCardHeight = (exercise: Exercise): number => {
     const imgHeight = 58;
     const imgWidth = 88;
@@ -513,6 +546,8 @@ export async function generateTrainingPlanPDF(
     let rightTextH = 10.0; // Title & Badge top margin + free line space after title
 
     // 1. Material
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
     const cardMaterials = getExerciseAllMaterials(exercise);
     if (cardMaterials.length > 0) {
       const splitMat = doc.splitTextToSize(cardMaterials.join(', '), rightWidth);
@@ -520,11 +555,13 @@ export async function generateTrainingPlanPDF(
     }
 
     // 2. Ablauf
+    doc.setFontSize(7.5);
     const ablaufContent = exercise.ablauf && exercise.ablauf.trim() ? exercise.ablauf.trim() : 'Keine Ablaufbeschreibung hinterlegt.';
     const splitAblauf = doc.splitTextToSize(ablaufContent, rightWidth);
     rightTextH += 4.8 + splitAblauf.length * 3.3;
 
     // 3. Coachingpunkte
+    doc.setFontSize(7.4);
     if (exercise.coachingPoints && exercise.coachingPoints.trim()) {
       const splitCoach = doc.splitTextToSize(exercise.coachingPoints.trim(), rightWidth);
       rightTextH += 4.8 + splitCoach.length * 3.2;
@@ -619,6 +656,16 @@ export async function generateTrainingPlanPDF(
         (exercise.imageBase64 && preloadedImages.get(exercise.imageBase64)) ||
         (exercise.imageBase64?.startsWith('data:image') ? exercise.imageBase64 : '');
 
+      const drawImageFallback = (label = 'Taktikboard') => {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(margin, currentY, imgWidth, imgHeight, 'F');
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(margin, currentY, imgWidth, imgHeight, 'S');
+        doc.setFontSize(8.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(label, margin + imgWidth / 2, currentY + imgHeight / 2, { align: 'center' });
+      };
+
       if (exImgDataUrl && exImgDataUrl.startsWith('data:image')) {
         try {
           doc.addImage(exImgDataUrl, 'PNG', margin, currentY, imgWidth, imgHeight);
@@ -626,13 +673,10 @@ export async function generateTrainingPlanPDF(
           doc.rect(margin, currentY, imgWidth, imgHeight, 'S');
         } catch (imgErr) {
           console.warn('Could not render image in PDF:', imgErr);
+          drawImageFallback('Taktikbild nicht verfügbar');
         }
       } else {
-        doc.setFillColor(241, 245, 249);
-        doc.rect(margin, currentY, imgWidth, imgHeight, 'F');
-        doc.setFontSize(8.5);
-        doc.setTextColor(148, 163, 184);
-        doc.text('Taktikboard', margin + imgWidth / 2, currentY + imgHeight / 2, { align: 'center' });
+        drawImageFallback('Taktikboard');
       }
 
       // Arrow legend below image if present
@@ -726,6 +770,16 @@ export async function generateTrainingPlanPDF(
       // 2. RIGHT COLUMN: Duration badge top right + Exercise title + free line + Material + Ablauf + Coachingpunkte + Technikprinzipien + Taktikprinzipien
       const rightX = margin + imgWidth + 5;
       let rightY = currentY;
+      let rightColumnWrappedPage = false;
+
+      const ensureRightSpace = (neededH: number) => {
+        if (rightY + neededH > pageHeight - 16) {
+          doc.addPage();
+          drawHeaderBar(false, `Phase ${phaseIndex + 1}: ${phaseItem.name}`);
+          rightY = 22;
+          rightColumnWrappedPage = true;
+        }
+      };
 
       // Duration Badge (Top Right of right column)
       const badgeW = 16;
@@ -770,6 +824,11 @@ export async function generateTrainingPlanPDF(
       }
 
       // 2. Ablauf
+      const ablaufContent = exercise.ablauf && exercise.ablauf.trim() ? exercise.ablauf.trim() : 'Keine Ablaufbeschreibung hinterlegt.';
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      const splitAblauf = doc.splitTextToSize(ablaufContent, rightWidth);
+      ensureRightSpace(4.8 + splitAblauf.length * 3.3);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.0);
       doc.setTextColor(30, 41, 59);
@@ -778,13 +837,15 @@ export async function generateTrainingPlanPDF(
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(51, 65, 85);
-      const ablaufContent = exercise.ablauf && exercise.ablauf.trim() ? exercise.ablauf.trim() : 'Keine Ablaufbeschreibung hinterlegt.';
-      const splitAblauf = doc.splitTextToSize(ablaufContent, rightWidth);
       doc.text(splitAblauf, rightX, rightY + 3.6);
       rightY += 4.8 + splitAblauf.length * 3.3;
 
       // 3. Coachingpunkte
       if (exercise.coachingPoints && exercise.coachingPoints.trim()) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.4);
+        const splitCoach = doc.splitTextToSize(exercise.coachingPoints.trim(), rightWidth);
+        ensureRightSpace(4.8 + splitCoach.length * 3.2);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8.0);
         doc.setTextColor(22, 163, 74);
@@ -793,7 +854,6 @@ export async function generateTrainingPlanPDF(
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.4);
         doc.setTextColor(71, 85, 105);
-        const splitCoach = doc.splitTextToSize(exercise.coachingPoints.trim(), rightWidth);
         doc.text(splitCoach, rightX, rightY + 3.6);
         rightY += 4.8 + splitCoach.length * 3.2;
       }
@@ -801,6 +861,10 @@ export async function generateTrainingPlanPDF(
       // 4. Technikprinzipien (nur wenn ausgefüllt)
       const techText = getTechnikprinzipienText(exercise);
       if (techText) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.4);
+        const splitTech = doc.splitTextToSize(techText, rightWidth);
+        ensureRightSpace(4.8 + splitTech.length * 3.2);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8.0);
         doc.setTextColor(30, 41, 59);
@@ -809,7 +873,6 @@ export async function generateTrainingPlanPDF(
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.4);
         doc.setTextColor(51, 65, 85);
-        const splitTech = doc.splitTextToSize(techText, rightWidth);
         doc.text(splitTech, rightX, rightY + 3.6);
         rightY += 4.8 + splitTech.length * 3.2;
       }
@@ -817,6 +880,10 @@ export async function generateTrainingPlanPDF(
       // 5. Taktikprinzipien (nur wenn ausgefüllt)
       const takText = getTaktikprinzipienText(exercise);
       if (takText) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.4);
+        const splitTak = doc.splitTextToSize(takText, rightWidth);
+        ensureRightSpace(4.8 + splitTak.length * 3.2);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8.0);
         doc.setTextColor(30, 41, 59);
@@ -825,13 +892,12 @@ export async function generateTrainingPlanPDF(
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.4);
         doc.setTextColor(51, 65, 85);
-        const splitTak = doc.splitTextToSize(takText, rightWidth);
         doc.text(splitTak, rightX, rightY + 3.6);
         rightY += 4.8 + splitTak.length * 3.2;
       }
 
       const leftBottomY = currentY + imgHeight + (legendHeight > 0 ? legendHeight + 2 : 0);
-      currentY = Math.max(leftBottomY, rightY) + 2;
+      currentY = (rightColumnWrappedPage ? rightY : Math.max(leftBottomY, rightY)) + 2;
 
       // Separator line
       doc.setDrawColor(226, 232, 240);
@@ -854,7 +920,11 @@ export async function generateTrainingPlanPDF(
     doc.line(margin, pageHeight - 9, pageWidth - margin, pageHeight - 9);
 
     doc.text('NextLevel Goalkeeping Academy — Coach PRO', margin, pageHeight - 5);
-    doc.text(`Seite ${i} von ${totalPages}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+    const pageRightX = nextLevelFooterLogo ? pageWidth - margin - 7.5 : pageWidth - margin;
+    doc.text(`Seite ${i} von ${totalPages}`, pageRightX, pageHeight - 5, { align: 'right' });
+    if (nextLevelFooterLogo) {
+      drawNextLevelFooterLogo(doc, nextLevelFooterLogo, pageWidth, margin, pageHeight - 8.2, 5.5);
+    }
   }
 
   // File Name format: TW-TE_Datum_Trainingsgruppe_Ausführlich.pdf
@@ -884,6 +954,7 @@ export async function generateCompactTrainingPlanPDF(
 ): Promise<{ blob: Blob; filename: string } | void> {
   const { jsPDF } = await import('jspdf');
   const logoBase64 = await loadLogoBase64(data.clubLogoUrl);
+  const nextLevelFooterLogo = data.clubLogoUrl ? await loadNextLevelLogoBase64() : '';
 
   const phaseList = resolvePlanPhases(data);
 
@@ -961,12 +1032,12 @@ export async function generateCompactTrainingPlanPDF(
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text('NEXTLEVEL GOALKEEPING ACADEMY', headerTextX, 6.0);
+  doc.text((data.clubName || 'NEXTLEVEL GOALKEEPING ACADEMY').toUpperCase(), headerTextX, 6.0);
 
   doc.setTextColor(74, 222, 128);
   doc.setFontSize(7.2);
   const clubSub = data.clubName 
-    ? `KLEMMBRETT-TRAININGSPLAN  •  PARTNER-VEREIN: ${data.clubName.toUpperCase()}`
+    ? 'KLEMMBRETT-TRAININGSPLAN  •  1-SEITEN PLATZ-ÜBERSICHT'
     : 'KLEMMBRETT-TRAININGSPLAN  •  1-SEITEN PLATZ-ÜBERSICHT';
   doc.text(clubSub, headerTextX, 10.5);
 
@@ -1089,6 +1160,32 @@ export async function generateCompactTrainingPlanPDF(
     doc.text(splitMatStr[0] || '', margin + 46, currentY + 3.5);
 
     currentY += matBoxH + 1.8;
+  }
+
+  // 3b. Compact Return-to-Play (RTP) Strip
+  if (data.rtpPlayers && data.rtpPlayers.length > 0) {
+    const rtpText = data.rtpPlayers
+      .map(p => `${p.name} (${p.stage}${p.allowedActions ? `: ${p.allowedActions}` : ''}${p.maxRpe ? `, max. RPE ${p.maxRpe}` : ''})`)
+      .join('  |  ');
+    const rtpBoxH = 5.2;
+    doc.setFillColor(255, 247, 237);
+    doc.setDrawColor(251, 146, 60);
+    doc.roundedRect(margin, currentY, contentWidth, rtpBoxH, 0.8, 0.8, 'FD');
+    doc.setFillColor(234, 88, 12);
+    doc.rect(margin, currentY, 1.8, rtpBoxH, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.8);
+    doc.setTextColor(194, 65, 12);
+    doc.text('RTP-HINWEIS:', margin + 3.0, currentY + 3.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(5.8);
+    doc.setTextColor(67, 20, 7);
+    const splitRtp = doc.splitTextToSize(rtpText, contentWidth - 23);
+    doc.text(splitRtp[0] || '', margin + 21, currentY + 3.5);
+
+    currentY += rtpBoxH + 1.8;
   }
 
   // 4. Calculate dynamic space per exercise to strictly guarantee 1 single page!
@@ -1318,7 +1415,11 @@ export async function generateCompactTrainingPlanPDF(
   doc.setFontSize(6.5);
   doc.setTextColor(148, 163, 184);
   doc.text('NextLevel Goalkeeping Academy — Coach PRO  •  Kompaktes Klemmbrett-Blatt', margin, footerY + 3);
-  doc.text('Seite 1 von 1', pageWidth - margin, footerY + 3, { align: 'right' });
+  const compactRightX = nextLevelFooterLogo ? pageWidth - margin - 6.5 : pageWidth - margin;
+  doc.text('Seite 1 von 1', compactRightX, footerY + 3, { align: 'right' });
+  if (nextLevelFooterLogo) {
+    drawNextLevelFooterLogo(doc, nextLevelFooterLogo, pageWidth, margin, footerY - 0.3, 5.0);
+  }
 
   const dateStr = (data.planDate || data.date || new Date().toISOString().substring(0, 10)).trim();
   const groupStr = (data.targetGroup || 'nicht-zugeordnet').trim().replace(/[/\\:]+/g, '-').replace(/\s+/g, '-');
@@ -1355,6 +1456,7 @@ export interface ExportHistoryData {
   groups?: TrainingGroup[];
   clubLogoUrl?: string;
   clubName?: string;
+  rtpPlayers?: { name: string; stage: string; allowedActions?: string; maxRpe?: number }[];
 }
 
 /**
@@ -1403,6 +1505,7 @@ export async function generateTrainingPlanHistoryPDF(data: ExportHistoryData): P
   const debriefedCount = sortedPlans.filter(p => p.debriefedAt || (p.keeperInsights && Object.keys(p.keeperInsights).length > 0)).length;
 
   const logoBase64 = await loadLogoBase64(data.clubLogoUrl);
+  const nextLevelFooterLogo = data.clubLogoUrl ? await loadNextLevelLogoBase64() : '';
 
   const drawHeader = (isFirstPage: boolean) => {
     if (isFirstPage) {
@@ -1702,7 +1805,11 @@ export async function generateTrainingPlanHistoryPDF(data: ExportHistoryData): P
     doc.setFontSize(6.8);
     doc.setTextColor(148, 163, 184);
     doc.text('NextLevel Goalkeeping Academy — Trainingsplan-Historie Export', margin, pageHeight - 5);
-    doc.text(`Seite ${i} von ${totalPages}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+    const histRightX = nextLevelFooterLogo ? pageWidth - margin - 7.5 : pageWidth - margin;
+    doc.text(`Seite ${i} von ${totalPages}`, histRightX, pageHeight - 5, { align: 'right' });
+    if (nextLevelFooterLogo) {
+      drawNextLevelFooterLogo(doc, nextLevelFooterLogo, pageWidth, margin, pageHeight - 8.2, 5.5);
+    }
   }
 
   const todayIso = new Date().toISOString().substring(0, 10);

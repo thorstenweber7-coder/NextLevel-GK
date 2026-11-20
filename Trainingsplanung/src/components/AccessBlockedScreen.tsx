@@ -32,7 +32,7 @@ export const AccessBlockedScreen: React.FC = () => {
           <p className="text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
             {isBlocked 
               ? 'Dein Zugang zu NextLevel Coach PRO wurde deaktiviert. Bitte wende dich an den Administrator zur Freischaltung.' 
-              : 'Dein kostenloser 7-tägiger Testzeitraum für NextLevel Coach PRO ist abgelaufen.'}
+              : 'Dein kostenloser 14-tägiger Testzeitraum für NextLevel Coach PRO ist abgelaufen.'}
           </p>
         </div>
 

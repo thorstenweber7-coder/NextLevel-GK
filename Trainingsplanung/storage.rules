@@ -1,0 +1,65 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasUserDoc() {
+      return isSignedIn() && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function userData() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isMasterAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'info@nextlevel-torwarttraining.de'
+        || (hasUserDoc() && userData().role == 'master_admin')
+      );
+    }
+
+    function isClubAdmin(clubId) {
+      return hasUserDoc()
+        && userData().clubId == clubId
+        && userData().role == 'club_admin';
+    }
+
+    function isClubMember(clubId) {
+      return hasUserDoc()
+        && userData().clubId == clubId
+        && (userData().role == 'club_admin' || userData().role == 'club_coach');
+    }
+
+    function canManageExerciseAsset(exerciseId) {
+      let exPath = /databases/(default)/documents/exercises/$(exerciseId);
+      return isMasterAdmin()
+        || !firestore.exists(exPath)
+        || firestore.get(exPath).data.ownerId == request.auth.uid
+        || (firestore.get(exPath).data.clubId != null && isClubAdmin(firestore.get(exPath).data.clubId));
+    }
+
+    function isValidImageUpload() {
+      return request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /exercises/{exerciseId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && canManageExerciseAsset(exerciseId)
+        && (request.resource == null || isValidImageUpload());
+    }
+
+    match /clubs/{clubId}/{allPaths=**} {
+      allow read: if isMasterAdmin() || isClubMember(clubId);
+      allow write: if (isMasterAdmin() || isClubAdmin(clubId))
+        && (request.resource == null || isValidImageUpload());
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

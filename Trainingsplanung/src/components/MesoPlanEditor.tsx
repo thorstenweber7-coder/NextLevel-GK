@@ -664,7 +664,7 @@ export const MesoPlanEditor: React.FC<MesoPlanEditorProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-slate-400 font-bold">Zyklus:</span>
                 <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-black bg-indigo-950 text-indigo-300 border border-indigo-700">
-                  Mesoplan {activeMesoPlan.mesoIndex} von max. 5
+                  Mesoplan {activeMesoPlan.mesoIndex} (Saison)
                 </span>
                 {isMesoSaved ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-700 flex items-center gap-1">

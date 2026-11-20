@@ -181,6 +181,12 @@ export const PeriodizationContextCard: React.FC<PeriodizationContextCardProps> =
                         {matchedPeriodization.microTwIntensity ? `${matchedPeriodization.microTwIntensity} / 10` : '–'}
                       </span>
                     </div>
+                    <div>
+                      <span className="text-[9.5px] text-slate-400 block font-semibold">Dauerhafter WarmUp Schwerpunkt:</span>
+                      <span className="text-amber-300 font-bold text-xs block leading-tight">
+                        {matchedPeriodization.warmUpFocus || '–'}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Rechte Spalte: Teamtraining */}

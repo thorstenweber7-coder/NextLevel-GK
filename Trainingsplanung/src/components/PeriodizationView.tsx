@@ -48,7 +48,8 @@ import {
   DEFAULT_WEEK_SETTINGS,
   type TrainingPlan,
   type PlayerMatchPlaytime,
-  type PlayerAbsence
+  type PlayerAbsence,
+  type Exercise
 } from '../types';
 import { 
   getLocalPeriodizationSeasons, 
@@ -66,7 +67,8 @@ import {
   subscribeUserMatchPlaytimes,
   getLocalMatchPlaytimes,
   subscribeUserAbsences,
-  getLocalPlayerAbsences
+  getLocalPlayerAbsences,
+  subscribeExercises
 } from '../firebase/firestoreService';
 import { useAuth } from '../context/AuthContext';
 
@@ -133,6 +135,15 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
   const [absences, setAbsences] = useState<PlayerAbsence[]>(() => {
     return getLocalPlayerAbsences(user?.uid);
   });
+  const [catalogExercises, setCatalogExercises] = useState<Exercise[]>([]);
+
+  const catalogExerciseMap = useMemo(() => {
+    const map = new Map<string, Exercise>();
+    catalogExercises.forEach(ex => {
+      if (ex.id) map.set(ex.id, ex);
+    });
+    return map;
+  }, [catalogExercises]);
 
   // Active Selections
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>('');
@@ -159,6 +170,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
     const unsubPlans = subscribeUserPlans(user, Boolean(isAdmin || isMasterAdmin), data => setSavedPlans(data), undefined, clubId, isClubAdmin);
     const unsubMatches = subscribeUserMatchPlaytimes(user, data => setMatchPlaytimes(data), undefined, clubId);
     const unsubAbsences = subscribeUserAbsences(user, data => setAbsences(data), undefined, clubId);
+    const unsubExercises = subscribeExercises(user, Boolean(isAdmin || isMasterAdmin), data => setCatalogExercises(data), undefined, isClubAdmin, clubId);
 
     return () => {
       unsubSeasons();
@@ -167,6 +179,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
       unsubPlans?.();
       unsubMatches?.();
       unsubAbsences?.();
+      unsubExercises?.();
     };
   }, [user, clubId, isAdmin, isMasterAdmin, isClubAdmin]);
 
@@ -327,7 +340,8 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
 
   useEffect(() => {
     if (allGroupMesoPlans.length > 0) {
-      if (!selectedMesoId || !allGroupMesoPlans.some(m => m.id === selectedMesoId)) {
+      const currentSelected = allGroupMesoPlans.find(m => m.id === selectedMesoId);
+      if (!selectedMesoId || !currentSelected) {
         const target = defaultUncompletedMesoPlan || allGroupMesoPlans[0];
         if (target) {
           setSelectedMesoId(target.id);
@@ -336,11 +350,14 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
             setSelectedHalfYear(parentMacro.halfYear);
           }
         }
+      } else if (activeMacroPlan && currentSelected.macroPlanId !== activeMacroPlan.id && currentMesoPlans.length > 0) {
+        // Re-sync selectedMesoId when user switches half-year
+        setSelectedMesoId(currentMesoPlans[0].id);
       }
     } else {
       setSelectedMesoId('');
     }
-  }, [allGroupMesoPlans, selectedMesoId, defaultUncompletedMesoPlan, macroPlans]);
+  }, [allGroupMesoPlans, selectedMesoId, defaultUncompletedMesoPlan, macroPlans, activeMacroPlan, currentMesoPlans, selectedHalfYear]);
 
   const activeMesoPlan = useMemo(() => {
     return allGroupMesoPlans.find(m => m.id === selectedMesoId) || currentMesoPlans.find(m => m.id === selectedMesoId) || currentMesoPlans[0] || allGroupMesoPlans[0] || null;
@@ -433,7 +450,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
         Object.values(planPhases).forEach(exIds => {
           if (foundInExercises) return;
           (exIds || []).forEach(exId => {
-            const ex = customExercises[exId];
+            const ex = customExercises[exId] || catalogExerciseMap.get(exId);
             if (!ex) return;
             if (ex.situativeSchwerpunkte && Array.isArray(ex.situativeSchwerpunkte)) {
               if (ex.situativeSchwerpunkte.some(s => 
@@ -466,7 +483,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
     });
 
     return stats;
-  }, [savedPlans, activeGroup, activeSeason, selectedHalfYear, activeMacroPlan]);
+  }, [savedPlans, activeGroup, activeSeason, selectedHalfYear, activeMacroPlan, catalogExerciseMap]);
 
   // --------------------------------------------------------------------------
   // Modals & Form States
@@ -981,6 +998,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
         startDate: activeMesoPlan.startDate,
         endDate: activeMesoPlan.endDate,
         athleticFocus: activeMesoPlan.athleticFocus,
+        warmUpFocus: activeMesoPlan.warmUpFocus,
         forAdults: Boolean(activeMesoPlan.forAdults),
         targetDefenseGoals: activeMesoPlan.targetDefenseGoals,
         targetDefenseTechnique1: activeMesoPlan.targetDefenseTechnique1,
@@ -1012,7 +1030,9 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
     }
     if (!activeMacroPlan || !activeSeason || !activeGroup) return;
 
-    const nextMesoIndex = currentMesoPlans.length + 1;
+    // Continuous season-wide numbering across half-years (and safe against deletions)
+    const maxSeasonMesoIndex = allGroupMesoPlans.reduce((max, m) => Math.max(max, m.mesoIndex || 0), 0);
+    const nextMesoIndex = maxSeasonMesoIndex + 1;
     let startDateObj: Date;
 
     if (currentMesoPlans.length === 0) {
@@ -1282,7 +1302,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
           Object.values(planPhases).forEach(exIds => {
             if (foundInExercises) return;
             (exIds || []).forEach(exId => {
-              const ex = customExercises[exId];
+              const ex = customExercises[exId] || catalogExerciseMap.get(exId);
               if (!ex) return;
               if (ex.situativeSchwerpunkte && Array.isArray(ex.situativeSchwerpunkte)) {
                 if (ex.situativeSchwerpunkte.some(s => 
@@ -1470,7 +1490,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
           Object.values(planPhases).forEach(exIds => {
             if (foundInExercises) return;
             (exIds || []).forEach(exId => {
-              const ex = customExercises[exId];
+              const ex = customExercises[exId] || catalogExerciseMap.get(exId);
               if (!ex) return;
               if (ex.situativeSchwerpunkte && Array.isArray(ex.situativeSchwerpunkte)) {
                 if (ex.situativeSchwerpunkte.some(s => 
@@ -1584,29 +1604,18 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
   const handleCompleteSeason = async () => {
     if (!activeSeason) return;
 
-    const startLimit = `${activeSeason.startYear}-07-01`;
-    const endLimit = `${activeSeason.endYear}-06-30`;
-
-    const seasonPlansToArchive = savedPlans.filter(p => {
-      if (p.isArchived) return false;
-      const rawDate = p.date || p.planDate || '';
-      const pYMD = normalizeDateToYMD(rawDate);
-      return Boolean(pYMD && pYMD >= startLimit && pYMD <= endLimit);
-    });
+    const seasonPlansToArchive = savedPlans.filter(p => !p.isArchived);
 
     setConfirmDialog({
       title: 'Saison abschließen & archivieren',
-      message: `Bist du sicher, dass du die "${activeSeason.name}" abschließen möchtest?\n\nAlle ${seasonPlansToArchive.length} Trainingseinheiten der Historie im Zeitraum 01.07.${activeSeason.startYear} bis 30.06.${activeSeason.endYear} werden ins Archiv verschoben.`,
+      message: `Bist du sicher, dass du die "${activeSeason.name}" abschließen möchtest?\n\nAlle ${seasonPlansToArchive.length} aktiven Trainingseinheiten der Historie werden ins Archiv verschoben.`,
       confirmText: 'Saison abschließen',
       isDanger: false,
       onConfirm: async () => {
         setIsCompletingSeason(true);
         try {
           const updatedPlans = savedPlans.map(p => {
-            const rawDate = p.date || p.planDate || '';
-            const pYMD = normalizeDateToYMD(rawDate);
-            const inSeason = Boolean(pYMD && pYMD >= startLimit && pYMD <= endLimit);
-            if (inSeason && !p.isArchived) {
+            if (!p.isArchived) {
               return {
                 ...p,
                 isArchived: true,
@@ -1860,6 +1869,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
     slotType: 'morning' | 'afternoon',
     block?: BuildingBlockType
   ) => {
+    if (!canEditPeriodization) return;
     setGeneralWeekTemplateDraft(prev => prev.map((d, i) => {
       if (i !== dayIndex) return d;
       return {
@@ -1870,6 +1880,9 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
         }
       };
     }));
+    if (activeMesoPlan) {
+      setMesoPlans(prev => prev.map(m => m.id === activeMesoPlan.id ? { ...m, isCompleted: false, isSaved: false } : m));
+    }
   };
 
   // Save Mesoplanung (General Week Structure as default for Mikroplanung)
@@ -1949,7 +1962,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
     }
   };
 
-  const handleUpdateMicroDayField = async (
+  const handleUpdateMicroDayField = (
     weekNumber: number,
     dayIndex: number,
     field:
@@ -1969,7 +1982,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
       | 'afternoonOpponentInfo',
     value: string | number
   ) => {
-    if (!activeMesoPlan) return;
+    if (!activeMesoPlan || !canEditPeriodization) return;
     if (microValidationError) setMicroValidationError(null);
     const updatedWeeks = activeMesoPlan.weeks.map(w => {
       if (w.weekNumber !== weekNumber) return w;
@@ -1980,7 +1993,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
           [field]: value
         };
       });
-      return { ...w, days: updatedDays };
+      return { ...w, days: updatedDays, isSaved: false };
     });
 
     const updatedMeso: MesoPlan = {
@@ -1989,21 +2002,16 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
       updatedAt: Date.now()
     };
     setMesoPlans(prev => prev.map(m => m.id === activeMesoPlan.id ? updatedMeso : m));
-    try {
-      await saveMesoPlanToFirestore(updatedMeso, user, clubId);
-    } catch (err) {
-      console.error('Error updating micro field:', err);
-    }
   };
 
   // Handlers for Mikroplanung (6-Wochen Zahlenstrahl & Detailplanung)
-  const handleUpdateMicroSlot = async (
+  const handleUpdateMicroSlot = (
     weekNumber: number,
     dayIndex: number,
     slotType: 'morning' | 'afternoon',
     newBlock?: BuildingBlockType
   ) => {
-    if (!activeMesoPlan) return;
+    if (!activeMesoPlan || !canEditPeriodization) return;
     if (microValidationError) setMicroValidationError(null);
 
     const updatedWeeks = activeMesoPlan.weeks.map(w => {
@@ -2018,7 +2026,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
           }
         };
       });
-      return { ...w, days: updatedDays };
+      return { ...w, days: updatedDays, isSaved: false };
     });
 
     const updatedMeso: MesoPlan = {
@@ -2028,20 +2036,14 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
     };
 
     setMesoPlans(prev => prev.map(m => m.id === activeMesoPlan.id ? updatedMeso : m));
-
-    try {
-      await saveMesoPlanToFirestore(updatedMeso, user, clubId);
-    } catch (err) {
-      console.error('Error updating micro slot:', err);
-    }
   };
 
-  const handleUpdateMicroDayMicrodosing = async (
+  const handleUpdateMicroDayMicrodosing = (
     weekNumber: number,
     dayIndex: number,
     microdosing: string
   ) => {
-    if (!activeMesoPlan) return;
+    if (!activeMesoPlan || !canEditPeriodization) return;
     if (microValidationError) setMicroValidationError(null);
     const updatedWeeks = activeMesoPlan.weeks.map(w => {
       if (w.weekNumber !== weekNumber) return w;
@@ -2052,7 +2054,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
           athleticMicrodosing: microdosing
         };
       });
-      return { ...w, days: updatedDays };
+      return { ...w, days: updatedDays, isSaved: false };
     });
 
     const updatedMeso: MesoPlan = {
@@ -2061,11 +2063,6 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
       updatedAt: Date.now()
     };
     setMesoPlans(prev => prev.map(m => m.id === activeMesoPlan.id ? updatedMeso : m));
-    try {
-      await saveMesoPlanToFirestore(updatedMeso, user, clubId);
-    } catch (e) {
-      console.error(e);
-    }
   };
 
   const handleUpdateWeekIntensity = (weekNumber: number, intensity: string) => {
@@ -2193,6 +2190,7 @@ export const PeriodizationView: React.FC<PeriodizationViewProps> = ({
         weekIntensity: currentWeekData.intensity || DEFAULT_WEEK_SETTINGS[activeMicroWeekIndex]?.intensity,
         weekVolume: currentWeekData.volume || DEFAULT_WEEK_SETTINGS[activeMicroWeekIndex]?.volume,
         athleticFocus: activeMesoPlan.athleticFocus,
+        warmUpFocus: activeMesoPlan.warmUpFocus,
         forAdults: Boolean(activeMesoPlan.forAdults),
         targetDefenseGoals: activeMesoPlan.targetDefenseGoals,
         targetDefenseTechnique1: activeMesoPlan.targetDefenseTechnique1,

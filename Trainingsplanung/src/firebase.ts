@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { 
   initializeFirestore, 
   persistentLocalCache, 
@@ -21,6 +22,21 @@ export const firebaseConfig = {
 
 // Initialize or get existing Firebase App
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+// Optional Firebase App Check via Google Cloud Fraud Defense (reCAPTCHA Enterprise)
+const recaptchaSiteKey =
+  (import.meta as any)?.env?.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY ||
+  (import.meta as any)?.env?.VITE_RECAPTCHA_V3_SITE_KEY;
+if (typeof window !== 'undefined' && recaptchaSiteKey) {
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(recaptchaSiteKey),
+      isTokenAutoRefreshEnabled: true
+    });
+  } catch (err) {
+    console.warn('Firebase App Check initialization warning:', err);
+  }
+}
 
 // Initialize Auth
 export const auth: Auth = getAuth(app);

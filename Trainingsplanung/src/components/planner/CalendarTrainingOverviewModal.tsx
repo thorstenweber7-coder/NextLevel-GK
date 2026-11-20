@@ -8,7 +8,9 @@ import {
   ChevronUp, 
   ExternalLink,
   Users,
-  CalendarDays
+  CalendarDays,
+  FileDown,
+  Activity
 } from 'lucide-react';
 import type { 
   TrainingPlan, 
@@ -17,10 +19,14 @@ import type {
   MesoDayItem, 
   MicroPlan,
   MicroDayPlan,
-  BuildingBlockType
+  BuildingBlockType,
+  PlayerMatchPlaytime,
+  PlayerAbsence
 } from '../../types';
 import { BUILDING_BLOCK_CONFIGS } from '../../types';
 import { cn } from '../../utils/cn';
+import { useAuth } from '../../context/AuthContext';
+import { exportHeadCoachBriefingPdf } from '../../utils/headCoachBriefing';
 
 interface CalendarTrainingOverviewModalProps {
   isOpen: boolean;
@@ -29,6 +35,8 @@ interface CalendarTrainingOverviewModalProps {
   trainingGroups: TrainingGroup[];
   mesoPlans: MesoPlan[];
   microPlans?: MicroPlan[];
+  matchPlaytimes?: PlayerMatchPlaytime[];
+  absences?: PlayerAbsence[];
   currentPlannerDate?: string;
   currentPlannerGroupId?: string;
   onSelectDate?: (dateStr: string) => void;
@@ -95,12 +103,18 @@ export const CalendarTrainingOverviewModal: React.FC<CalendarTrainingOverviewMod
   trainingGroups = [],
   mesoPlans = [],
   microPlans = [],
+  matchPlaytimes = [],
+  absences = [],
   currentPlannerDate,
   currentPlannerGroupId,
   onSelectDate,
   onSelectPlan,
   onNavigateToOrga
 }) => {
+  const { user, userProfile, currentClub, clubName } = useAuth();
+  const [selectedDayForBriefing, setSelectedDayForBriefing] = useState<DayCalendarInfo | null>(null);
+  const [isExportingBriefing, setIsExportingBriefing] = useState<boolean>(false);
+
   // Sorted groups (oldest first)
   const sortedGroups = useMemo(() => {
     return [...trainingGroups].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -110,6 +124,39 @@ export const CalendarTrainingOverviewModal: React.FC<CalendarTrainingOverviewMod
   const [selectedGroupId, setSelectedGroupId] = useState<string>(() => {
     return currentPlannerGroupId || sortedGroups[0]?.id || 'ALL';
   });
+
+  const activeBriefingGroup = useMemo(() => {
+    if (selectedGroupId && selectedGroupId !== 'ALL') {
+      return sortedGroups.find(g => g.id === selectedGroupId) || sortedGroups[0] || null;
+    }
+    return sortedGroups[0] || null;
+  }, [selectedGroupId, sortedGroups]);
+
+  const handleDownloadDayWorkloadPdf = async (dateStr: string, explicitGroup?: TrainingGroup | null) => {
+    const grp = explicitGroup || activeBriefingGroup;
+    if (!grp) return;
+    setIsExportingBriefing(true);
+    try {
+      const trainerDisplayName = userProfile?.firstName && userProfile?.lastName
+        ? `${userProfile.firstName} ${userProfile.lastName}`
+        : userProfile?.displayName || user?.displayName || 'Torwarttrainer';
+      await exportHeadCoachBriefingPdf({
+        group: grp,
+        referenceDate: dateStr,
+        savedPlans,
+        matchPlaytimes,
+        mesoPlans,
+        absences,
+        trainerName: trainerDisplayName,
+        clubName: currentClub?.name || clubName,
+        clubLogoUrl: currentClub?.logoUrl
+      });
+    } catch (err) {
+      console.error('Error exporting day workload briefing PDF:', err);
+    } finally {
+      setIsExportingBriefing(false);
+    }
+  };
 
   // Base Date for Navigation (defaults to today or planner date)
   const [baseDate, setBaseDate] = useState<Date>(() => {
@@ -546,10 +593,7 @@ export const CalendarTrainingOverviewModal: React.FC<CalendarTrainingOverviewMod
                                 <div
                                   key={day.dateStr}
                                   onClick={() => {
-                                    if (onSelectDate) {
-                                      onSelectDate(day.dateStr);
-                                      onClose();
-                                    }
+                                    setSelectedDayForBriefing(day);
                                   }}
                                   className={cn(
                                     "flex flex-col justify-between p-1.5 rounded-xl border text-left min-h-[64px] transition-all cursor-pointer group relative",
@@ -559,9 +603,10 @@ export const CalendarTrainingOverviewModal: React.FC<CalendarTrainingOverviewMod
                                     day.isCurrentMonth && isTeam && "bg-sky-950/30 border-sky-500/40 hover:border-sky-400 hover:bg-sky-950/50",
                                     day.isCurrentMonth && isFree && "bg-slate-900/50 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900",
                                     day.isToday && "ring-1 ring-emerald-400 shadow-sm",
-                                    day.isPlannerDate && "ring-2 ring-amber-400 shadow-md"
+                                    day.isPlannerDate && "ring-2 ring-amber-400 shadow-md",
+                                    selectedDayForBriefing?.dateStr === day.dateStr && "ring-2 ring-sky-400 bg-sky-950/30"
                                   )}
-                                  title={`Datum: ${day.dateStr} | Status: ${day.statusLabel} | Thema: ${day.topic || 'Keines'} (Klicken, um diesen Tag im Planer zu öffnen)`}
+                                  title={`Datum: ${day.dateStr} | Status: ${day.statusLabel} | Thema: ${day.topic || 'Keines'} (Klicken für Belastungsstand-PDF oder zum Öffnen im Planer)`}
                                 >
                                   {/* Day Number & Status Dot */}
                                   <div className="flex items-center justify-between gap-0.5">
@@ -725,23 +770,37 @@ export const CalendarTrainingOverviewModal: React.FC<CalendarTrainingOverviewMod
                                         )}
                                       </div>
 
-                                      {/* Planer Button Action */}
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (d.savedPlan && onSelectPlan) {
-                                            onSelectPlan(d.savedPlan.id!);
-                                            onClose();
-                                          } else if (onSelectDate) {
-                                            onSelectDate(d.dateStr);
-                                            onClose();
-                                          }
-                                        }}
-                                        className="w-full mt-1 py-1 rounded-lg text-[9px] font-black bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 transition flex items-center justify-center gap-1 cursor-pointer"
-                                      >
-                                        <Calendar className="w-2.5 h-2.5" />
-                                        <span>{d.savedPlan ? 'Plan öffnen' : 'Tag planen'}</span>
-                                      </button>
+                                      {/* Planer & Belastungsstand PDF Actions */}
+                                      <div className="space-y-1 mt-1">
+                                        {activeBriefingGroup && (
+                                          <button
+                                            type="button"
+                                            disabled={isExportingBriefing}
+                                            onClick={() => handleDownloadDayWorkloadPdf(d.dateStr, activeBriefingGroup)}
+                                            className="w-full py-1 rounded-lg text-[9px] font-black bg-emerald-950/80 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-700/60 transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                                            title={`Belastungsstand für ${activeBriefingGroup.name} am ${d.dateStr} als PDF herunterladen`}
+                                          >
+                                            <FileDown className="w-2.5 h-2.5" />
+                                            <span>Belastung PDF</span>
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (d.savedPlan && onSelectPlan) {
+                                              onSelectPlan(d.savedPlan.id!);
+                                              onClose();
+                                            } else if (onSelectDate) {
+                                              onSelectDate(d.dateStr);
+                                              onClose();
+                                            }
+                                          }}
+                                          className="w-full py-1 rounded-lg text-[9px] font-black bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 transition flex items-center justify-center gap-1 cursor-pointer"
+                                        >
+                                          <Calendar className="w-2.5 h-2.5" />
+                                          <span>{d.savedPlan ? 'Plan öffnen' : 'Tag planen'}</span>
+                                        </button>
+                                      </div>
                                     </div>
                                   );
                                 })}
@@ -757,6 +816,69 @@ export const CalendarTrainingOverviewModal: React.FC<CalendarTrainingOverviewMod
             })}
           </div>
         </div>
+
+        {/* Selected Day Action Strip (Belastungsstand PDF zum Stichtag + Planer öffnen) */}
+        {selectedDayForBriefing && (
+          <div className="px-4 sm:px-6 py-3 border-t border-emerald-500/40 bg-emerald-950/30 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-xs">
+              <Activity className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <div>
+                <span className="font-extrabold text-white">
+                  Ausgewählter Tag: {new Date(`${selectedDayForBriefing.dateStr}T12:00:00`).toLocaleDateString('de-DE')}
+                </span>
+                <span className="text-slate-300 ml-2">
+                  ({selectedDayForBriefing.topic || selectedDayForBriefing.statusLabel})
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {sortedGroups.length > 0 && (
+                <>
+                  {selectedGroupId === 'ALL' && sortedGroups.length > 1 && (
+                    <select
+                      value={activeBriefingGroup?.id || ''}
+                      onChange={e => setSelectedGroupId(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-200 focus:outline-none cursor-pointer"
+                    >
+                      {sortedGroups.map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    type="button"
+                    disabled={isExportingBriefing || !activeBriefingGroup}
+                    onClick={() => handleDownloadDayWorkloadPdf(selectedDayForBriefing.dateStr, activeBriefingGroup)}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md disabled:opacity-50"
+                  >
+                    <FileDown className="w-3.5 h-3.5" />
+                    <span>
+                      {isExportingBriefing
+                        ? 'Erstelle PDF...'
+                        : `Belastungsstand PDF (${activeBriefingGroup?.name || 'Gruppe'})`}
+                    </span>
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedDayForBriefing.savedPlan && onSelectPlan) {
+                    onSelectPlan(selectedDayForBriefing.savedPlan.id!);
+                    onClose();
+                  } else if (onSelectDate) {
+                    onSelectDate(selectedDayForBriefing.dateStr);
+                    onClose();
+                  }
+                }}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                <span>{selectedDayForBriefing.savedPlan ? 'Plan im Planer öffnen' : 'Tag im Planer öffnen'}</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="p-4 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between">

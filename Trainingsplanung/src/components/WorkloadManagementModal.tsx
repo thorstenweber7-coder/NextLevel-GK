@@ -50,8 +50,6 @@ export const WorkloadManagementModal: React.FC<WorkloadManagementModalProps> = (
   initialPlayerId,
   referenceDate
 }) => {
-  if (!isOpen) return null;
-
   // 1. Group Selection
   const [selectedGroupId, setSelectedGroupId] = useState<string>(() => {
     if (initialGroupId) {
@@ -141,6 +139,8 @@ export const WorkloadManagementModal: React.FC<WorkloadManagementModalProps> = (
   const avg4Weeks = Math.round(past4Weeks.reduce((a, b) => a + b.totalLoad, 0) / Math.max(1, past4Weeks.length));
   const peakLoad = Math.max(0, ...currentHistory.map(w => w.totalLoad));
   const currentMinutes = currentHistory[currentHistory.length - 1]?.totalMinutes || 0;
+  const activeMonotony = activePlayerData ? (activePlayerData.monotony7d ?? 0) : (groupWorkload.teamAvgMonotony ?? 0);
+  const activeStrain = activePlayerData ? (activePlayerData.strain7d ?? 0) : (groupWorkload.teamAvgStrain ?? 0);
 
   const isCurrentColdStart = activePlayerData ? activePlayerData.isColdStart : groupWorkload.isColdStart;
   const currentDocumentedWeeks = activePlayerData ? activePlayerData.documentedWeeksCount : (groupWorkload.players[0]?.documentedWeeksCount ?? 0);
@@ -183,6 +183,8 @@ export const WorkloadManagementModal: React.FC<WorkloadManagementModalProps> = (
 
   // Danger threshold line (1.5)
   const dangerLineY = getYAcwr(1.5);
+
+  if (!isOpen) return null;
 
   return (
     <div 
@@ -560,20 +562,30 @@ export const WorkloadManagementModal: React.FC<WorkloadManagementModalProps> = (
               </div>
             </div>
 
-            {/* Metric 5: Monatspeak / 4-Wochen-Schnitt */}
-            <div className="bg-slate-950/70 border border-slate-800/90 rounded-2xl p-3.5 space-y-1 col-span-2 sm:col-span-1">
+            {/* Metric 5: Monatspeak / Monotonie & Strain */}
+            <div className={cn(
+              "border rounded-2xl p-3.5 space-y-1 col-span-2 sm:col-span-1",
+              activeMonotony > 2.0 ? "bg-amber-950/25 border-amber-500/50" : "bg-slate-950/70 border-slate-800/90"
+            )}>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                  Monatspeak / Ø
+                  Peak / Monotonie
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono">Max / Ø</span>
+                {activeMonotony > 2.0 ? (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40" title="Foster Monotonie > 2.0: Zu wenig Belastungsvariation innerhalb der 7 Tage">
+                    ⚠️ Monotonie &gt; 2.0
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-500 font-mono">Foster 7d</span>
+                )}
               </div>
               <div className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                {peakLoad.toLocaleString('de-DE')} <span className="text-xs font-normal text-slate-400">Peak</span>
+                {peakLoad.toLocaleString('de-DE')} <span className="text-xs font-normal text-slate-400">Peak (Ø {avg4Weeks.toLocaleString('de-DE')})</span>
               </div>
-              <div className="text-[10.5px] text-slate-400">
-                Ø 4 Wochen: {avg4Weeks.toLocaleString('de-DE')} A.U.
+              <div className="text-[10px] text-slate-300 flex items-center justify-between">
+                <span>Monotonie: <strong className={cn("font-mono", activeMonotony > 2.0 ? "text-amber-300" : "text-white")}>{activeMonotony.toFixed(2)}</strong></span>
+                <span className="text-slate-400 font-mono">Strain: {activeStrain.toLocaleString('de-DE')}</span>
               </div>
             </div>
           </div>

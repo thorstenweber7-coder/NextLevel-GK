@@ -113,6 +113,7 @@ export interface UserProfile {
   subscriptionExpiresAt?: number | null;
   isBlocked: boolean;
   favoriteExerciseIds?: string[];
+  privacyConsentAt?: number;
 }
 
 export interface Club {
@@ -660,6 +661,12 @@ export interface Exercise {
   
   // Canvas data & rendered image (Storage URL or Base64 fallback)
   canvasData?: TacticalCanvasData;
+  animationFrames?: {
+    id: string;
+    label: string;
+    durationMs: number;
+    elements: any[];
+  }[];
   imageUrl?: string;
   imageBase64?: string;
 
@@ -790,6 +797,11 @@ export interface TrainingPlan {
   keeperLoadRatings?: Record<string, number>; // Map of playerId -> Belastungsbewertung (RPE 1-10)
   jumpVolume?: 'low' | 'medium' | 'high' | string; // Allgemeines Sprung- & Hechtvolumen der Einheit ('low' | 'medium' | 'high')
   keeperJumpVolumes?: Record<string, 'low' | 'medium' | 'high' | string>; // Individuelles Sprung- & Hechtvolumen pro Torwart
+  actionEstimates?: {
+    divingSaves?: number; // Geschätzte Hecht-/Sprungparaden (0-60)
+    oneOnOneContacts?: number; // Geschätzte 1-gegen-1 Aktionen (0-30)
+    highBalls?: number; // Flanken / hohe Bälle (0-40)
+  };
   pitchSurface?: PitchSurface | string; // Platzbelag / Untergrund ('natural_grass' | 'artificial_turf' | 'hybrid_grass' | 'indoor' | 'hardcourt')
   keeperCompetitionScores?: Record<string, number>; // Map of playerId or keeperName -> Points in on-pitch competition (Aggregated or active round)
   competitionTitle?: string; // Title or preset of the competition (e.g. "Torschuss-Duell", "1v1 Turnier")
@@ -811,6 +823,8 @@ export interface TrainingPlan {
   authorRole?: string;
   groupId?: string;
   groupName?: string;
+  guestKeeperIds?: string[];
+  allowedCoachUids?: string[];
   createdAt: number;
   updatedAt?: number;
 }
@@ -833,6 +847,15 @@ export type SavedTrainingPlan = TrainingPlan;
 // ORGANISATION: TRAININGSGRUPPEN, SPIELER & FEHLZEITEN
 // ----------------------------------------------------------------------------
 
+export interface ReturnToPlayStatus {
+  active: boolean;
+  stage: 'Reha' | 'Teilintegration' | 'Individuell' | 'Freigabe mit Einschränkung';
+  allowedActions: string;
+  maxRpe?: number;
+  since?: string;
+  targetFullReturn?: string;
+}
+
 export interface Player {
   id: string;
   firstName: string;
@@ -841,6 +864,7 @@ export interface Player {
   jerseyNumber?: number | string;
   mainTeam?: string; // e.g. "U17", "Herren 1", etc.
   notes?: string;
+  returnToPlay?: ReturnToPlayStatus;
   archived?: boolean;
   archivedAt?: number;
   originalGroupId?: string;
@@ -880,6 +904,7 @@ export interface TrainingGroup {
   assignedCoachName?: string; // Name des zugewiesenen Trainers
   observerCoachEmails?: string[]; // E-Mails der lizensierten Vereinstrainer mit Beobachter-/Einsichtsrechten
   observerCoachIds?: string[]; // User IDs der Trainer mit Beobachter-Rechten
+  allowedCoachUids?: string[]; // Serverseitige Gruppen-ACL (ownerId + assignedCoachId + observerCoachIds)
   clubId?: string;
   createdAt: number;
   updatedAt?: number;
@@ -934,6 +959,7 @@ export interface PlayerAbsence {
   note?: string;
   ownerId: string;
   clubId?: string;
+  allowedCoachUids?: string[];
   createdAt: number;
 }
 
@@ -1421,6 +1447,7 @@ export interface PlayerEvaluation {
   updatedAt: number;
   ownerId: string;
   clubId?: string;
+  allowedCoachUids?: string[];
 }
 
 // ----------------------------------------------------------------------------
@@ -1452,6 +1479,13 @@ export const MATCH_GRADE_OPTIONS: MatchGradeOption[] = [
   { grade: 5, label: 'Note 5', description: 'mehr schlechte als gute Aktionen' },
 ];
 
+export interface PlayerMatchStats {
+  goalsConceded?: number; // Gegentore
+  saves?: number; // Paraden / 1v1
+  crossesClaimed?: number; // Flanken abgefangen
+  distributionPct?: number; // Spieleröffnung % (0-100)
+}
+
 export interface PlayerMatchPlaytime {
   id: string;
   date: string; // YYYY-MM-DD
@@ -1464,11 +1498,15 @@ export interface PlayerMatchPlaytime {
   playerMinutes: Record<string, number>; // playerId -> minutes (e.g. 0, 45, 90)
   playerGrades?: Record<string, number>; // playerId -> grade (1 to 5, optional)
   playerBenchStatus?: Record<string, boolean>; // playerId -> true if Ersatz-Torwart auf der Bank (Warm-up & Standby)
+  matchRpe?: number; // Spiel-Belastungsintensität (RPE 4-10, Standard: 8)
+  matchJumpVolume?: 'low' | 'medium' | 'high'; // Spiel-Sprung- & Hechtvolumen (Standard: 'medium')
+  playerMatchStats?: Record<string, PlayerMatchStats>; // Optionale Spiel-KPIs pro Torwart
   notes?: string;
   createdAt: number;
   updatedAt: number;
   ownerId?: string;
   clubId?: string;
+  allowedCoachUids?: string[];
 }
 
 // ----------------------------------------------------------------------------
@@ -1488,6 +1526,7 @@ export interface PlayerFeedbackTalk {
   updatedAt: number;
   ownerId?: string;
   clubId?: string;
+  allowedCoachUids?: string[];
 }
 
 // ----------------------------------------------------------------------------
@@ -1693,6 +1732,7 @@ export interface MacroPlan {
   createdByName?: string;
   createdByRole?: string;
   clubId?: string;
+  allowedCoachUids?: string[];
   createdAt: number;
   updatedAt: number;
 }
@@ -1919,6 +1959,7 @@ export interface MesoPlan {
   createdByName?: string;
   createdByRole?: string;
   clubId?: string;
+  allowedCoachUids?: string[];
   createdAt: number;
   updatedAt: number;
 }
@@ -2065,6 +2106,7 @@ export interface MicroPlan {
   isSaved: boolean;
   ownerId: string;
   clubId?: string;
+  allowedCoachUids?: string[];
   createdAt: number;
   updatedAt: number;
 }

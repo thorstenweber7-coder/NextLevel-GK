@@ -43,6 +43,7 @@ import type {
   MesoWeekItem
 } from '../types';
 import { ExerciseModal } from './ExerciseModal';
+import { resolveGroupRtpPlayers } from '../utils/rtpHelper';
 import { TrainingPlanHistoryModal } from './TrainingPlanHistoryModal';
 import { LiveSessionModal } from './LiveSessionModal';
 import { OrgaTalksModal } from './OrgaTalksModal';
@@ -108,6 +109,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     isMasterAdmin,
     clubId, 
     clubName, 
+    currentClub,
     favoriteExerciseIds = [], 
     toggleFavoriteExercise 
   } = useAuth();
@@ -150,6 +152,8 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     }
   });
 
+  const [guestKeeperIds, setGuestKeeperIds] = useState<string[]>([]);
+  const [guestKeeperModalMode, setGuestKeeperModalMode] = useState<'add' | 'remove' | null>(null);
   const [manualKeepersOverride, setManualKeepersOverride] = useState<number | null>(null);
 
   const [pitchSurface, setPitchSurface] = useState<PitchSurface>(() => {
@@ -164,6 +168,44 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   const [planImportantNotes, setPlanImportantNotes] = useState<string>('');
   const [planHasVideoAnalysis, setPlanHasVideoAnalysis] = useState<boolean>(false);
   const [planVideoAnalysisNotes, setPlanVideoAnalysisNotes] = useState<string>('');
+
+  // Einfach vs. Advance Mode Toggle (persisted per user)
+  const [isAdvanceMode, setIsAdvanceMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(`nl_planner_advance_mode_${userKey}`) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleAdvanceMode = () => {
+    setIsAdvanceMode(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem(`nl_planner_advance_mode_${userKey}`, String(next));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+  };
+
+  const [isOnboardingDismissed, setIsOnboardingDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(`nl_onboarding_dismissed_${userKey}`) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleDismissOnboarding = () => {
+    setIsOnboardingDismissed(true);
+    try {
+      localStorage.setItem(`nl_onboarding_dismissed_${userKey}`, 'true');
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Persistent preferences
   const handleTrainerChange = (val: string) => {
@@ -274,7 +316,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     }
 
     if (isClubCoach) {
-      const isAssigned = (Boolean(group.assignedCoachEmail) && group.assignedCoachEmail?.toLowerCase() === userEmail) ||
+      const isAssigned = (Boolean(group.assignedCoachEmail) && group.assignedCoachEmail?.toLowerCase().trim() === userEmail) ||
                          (Boolean(group.assignedCoachId) && group.assignedCoachId === uid);
       if (isAssigned) return true;
 
@@ -282,7 +324,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                          (group.observerCoachIds || []).includes(uid || '');
       if (isObserver) return true;
 
-      if (group.ownerId === uid || (Boolean(group.ownerEmail) && group.ownerEmail?.toLowerCase() === userEmail)) {
+      if (!group.assignedCoachEmail && !group.assignedCoachId && (group.ownerId === uid || (Boolean(group.ownerEmail) && group.ownerEmail?.toLowerCase().trim() === userEmail))) {
         return true;
       }
 
@@ -297,6 +339,48 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
       .filter(canViewGroup)
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [trainingGroups, user, isMasterAdmin, isClubAdmin, isClubCoach]);
+
+  const visibleGroupIdSet = useMemo(() => new Set(visibleTrainingGroups.map(g => g.id)), [visibleTrainingGroups]);
+  const visibleGroupNameSet = useMemo(() => new Set(visibleTrainingGroups.map(g => (g.name || '').trim().toLowerCase())), [visibleTrainingGroups]);
+  const visiblePlayerIdSet = useMemo(() => {
+    const s = new Set<string>();
+    visibleTrainingGroups.forEach(g => (g.players || []).forEach(p => s.add(p.id)));
+    return s;
+  }, [visibleTrainingGroups]);
+
+  const visibleSavedPlans = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return savedPlans;
+    return savedPlans.filter(p => {
+      if (p.groupId && visibleGroupIdSet.has(p.groupId)) return true;
+      if (p.targetGroup && (visibleGroupIdSet.has(p.targetGroup) || visibleGroupNameSet.has(p.targetGroup.trim().toLowerCase()))) return true;
+      return false;
+    });
+  }, [savedPlans, isMasterAdmin, isClubAdmin, visibleGroupIdSet, visibleGroupNameSet]);
+
+  const visibleMesoPlans = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return mesoPlans;
+    return mesoPlans.filter(m => visibleGroupIdSet.has(m.groupId));
+  }, [mesoPlans, isMasterAdmin, isClubAdmin, visibleGroupIdSet]);
+
+  const visibleMicroPlans = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return microPlans;
+    return microPlans.filter(m => visibleGroupIdSet.has(m.groupId));
+  }, [microPlans, isMasterAdmin, isClubAdmin, visibleGroupIdSet]);
+
+  const visibleAbsences = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return absences;
+    return absences.filter(a => visibleGroupIdSet.has(a.groupId) || visiblePlayerIdSet.has(a.playerId));
+  }, [absences, isMasterAdmin, isClubAdmin, visibleGroupIdSet, visiblePlayerIdSet]);
+
+  const visibleMatchPlaytimes = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return matchPlaytimes;
+    return matchPlaytimes.filter(m => visibleGroupIdSet.has(m.groupId));
+  }, [matchPlaytimes, isMasterAdmin, isClubAdmin, visibleGroupIdSet]);
+
+  const visibleFeedbackTalks = useMemo(() => {
+    if (isMasterAdmin || isClubAdmin) return feedbackTalks;
+    return feedbackTalks.filter(t => visibleGroupIdSet.has(t.groupId) || visiblePlayerIdSet.has(t.playerId));
+  }, [feedbackTalks, isMasterAdmin, isClubAdmin, visibleGroupIdSet, visiblePlayerIdSet]);
 
   // Ensure default targetGroup matches or falls back to first created group
   useEffect(() => {
@@ -394,7 +478,20 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     };
   }, [selectedGroupObj, absences, planDate]);
 
-  const actualAvailableKeepers = attendanceBreakdown.presentPlayersToday.length;
+  const actualAvailableKeepers = attendanceBreakdown.presentPlayersToday.length + guestKeeperIds.length;
+
+  const externalGuestKeepers = useMemo(() => {
+    const list: { player: Player; groupName: string }[] = [];
+    visibleTrainingGroups.forEach(g => {
+      if (g.id === selectedGroupObj?.id) return;
+      (g.players || [])
+        .filter(p => !p.archived && guestKeeperIds.includes(p.id))
+        .forEach(p => {
+          list.push({ player: p, groupName: g.name });
+        });
+    });
+    return list;
+  }, [visibleTrainingGroups, selectedGroupObj?.id, guestKeeperIds]);
 
   // Synchronously compute availableKeepers from attending keepers of selected group (with manual override support)
   const availableKeepers: number = useMemo(() => {
@@ -918,8 +1015,8 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   }, [targetGroup, visibleTrainingGroups]);
 
   const activeGroupWorkload = useMemo(() => {
-    return calculateGroupWorkload(currentPlannerGroup, visibleTrainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans, absences);
-  }, [currentPlannerGroup, visibleTrainingGroups, savedPlans, planDate, matchPlaytimes, mesoPlans, absences]);
+    return calculateGroupWorkload(currentPlannerGroup, visibleTrainingGroups, visibleSavedPlans, planDate, visibleMatchPlaytimes, visibleMesoPlans, visibleAbsences);
+  }, [currentPlannerGroup, visibleTrainingGroups, visibleSavedPlans, planDate, visibleMatchPlaytimes, visibleMesoPlans, visibleAbsences]);
 
   // Matching Periodization (strictly for selected target group & planDate)
   const matchedPeriodization = useMemo(() => {
@@ -1033,7 +1130,8 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
       microTeamFocus: microTeamFocusVal,
       microFieldSize: microFieldSizeVal,
       microTeamIntensity: microTeamIntensityVal,
-      microTeamDuration: microTeamDurationVal
+      microTeamDuration: microTeamDurationVal,
+      warmUpFocus: matchedMeso?.warmUpFocus || ''
     };
   }, [planDate, mesoPlans, targetGroup, visibleTrainingGroups]);
 
@@ -1072,6 +1170,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     if (plan.targetGroup) handleTargetGroupChange(plan.targetGroup);
     
     // Set manual keeper count if specified in saved plan
+    setGuestKeeperIds(plan.guestKeeperIds || []);
     if (typeof plan.availableKeepers === 'number') {
       setManualKeepersOverride(plan.availableKeepers);
     } else {
@@ -1117,6 +1216,13 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   };
 
   // Export handlers
+  const activeRtpPlayers = useMemo(() => {
+    const grp = visibleTrainingGroups.find(
+      g => g.name.trim().toLowerCase() === (targetGroup || '').trim().toLowerCase()
+    );
+    return resolveGroupRtpPlayers(grp?.players || [], absences, planDate);
+  }, [visibleTrainingGroups, targetGroup, absences, planDate]);
+
   const buildExportData = (effectiveTitle: string, effectiveDate: string) => ({
     title: effectiveTitle,
     planDate: effectiveDate,
@@ -1131,7 +1237,9 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     importantNotes: planImportantNotes,
     hasVideoAnalysis: planHasVideoAnalysis,
     videoAnalysisNotes: planVideoAnalysisNotes,
-    clubName: clubName || 'NextLevel Goalkeeping Academy'
+    clubName: currentClub?.name || clubName || 'NextLevel Goalkeeping Academy',
+    clubLogoUrl: currentClub?.logoUrl,
+    rtpPlayers: activeRtpPlayers
   });
 
   const executeExportAction = async (action: 'full' | 'compact' | 'share_compact' | 'share_full' | 'save_only', options?: { mode?: 'replace' | 'create_b' | 'skip_history'; existingId?: string }) => {
@@ -1148,6 +1256,9 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           planDate: effectiveDate,
           trainerName: trainerName.trim() || 'Torwarttrainer',
           targetGroup: targetGroup.trim() || 'nicht zugeordnet',
+          groupId: selectedGroupObj?.id,
+          clubId: currentClub?.id || clubId || undefined,
+          guestKeeperIds: guestKeeperIds.length > 0 ? guestKeeperIds : undefined,
           availableKeepers,
           pitchSurface: pitchSurface || 'natural_grass',
           structureId: activeStructure.id,
@@ -1211,8 +1322,10 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
         setTimeout(() => setExportFeedback(null), 4000);
         setIsExportModalOpen(false);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Export error:', err);
+      setExportFeedback(`Fehler beim Speichern/Exportieren: ${err?.message || 'Bitte Verbindung prüfen und erneut versuchen.'}`);
+      setTimeout(() => setExportFeedback(null), 6000);
     } finally {
       setIsExporting(false);
     }
@@ -1290,6 +1403,31 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           <div className="flex items-center gap-2.5 flex-wrap ml-auto justify-end">
             <button
               type="button"
+              role="switch"
+              aria-checked={isAdvanceMode}
+              onClick={handleToggleAdvanceMode}
+              title={isAdvanceMode ? 'Advance-Modus AN (alle Profi-Felder sichtbar)' : 'Advance-Modus AUS (Einfach-Modus)'}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-950/90 border border-slate-800 hover:border-slate-700 transition cursor-pointer select-none"
+            >
+              <span className={cn(
+                "text-xs font-extrabold",
+                isAdvanceMode ? "text-emerald-400" : "text-orange-400"
+              )}>
+                {isAdvanceMode ? 'Advance' : 'Einfach'}
+              </span>
+              <span className={cn(
+                "relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors duration-200",
+                isAdvanceMode ? "bg-emerald-500" : "bg-orange-500"
+              )}>
+                <span className={cn(
+                  "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200",
+                  isAdvanceMode ? "translate-x-4.5" : "translate-x-1"
+                )} />
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsHistoryModalOpen(true)}
               className="px-3.5 py-3 rounded-xl font-bold text-slate-300 bg-slate-800/90 hover:bg-slate-700 hover:text-white border border-slate-700 active:scale-95 transition shadow flex items-center gap-2 text-xs cursor-pointer"
             >
@@ -1318,11 +1456,11 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
         {exportFeedback && (
           <div className={cn(
             "p-3 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg animate-in fade-in",
-            topicError || exportFeedback.includes('Pflichtfeld') || exportFeedback.includes('nicht zulässig')
+            topicError || exportFeedback.includes('Pflichtfeld') || exportFeedback.includes('nicht zulässig') || exportFeedback.includes('Fehler')
               ? "bg-rose-950/90 border border-rose-500/60 text-rose-200 shadow-rose-950/40"
               : "bg-emerald-950/90 border border-emerald-500/50 text-emerald-200 shadow-emerald-950/40"
           )}>
-            {topicError || exportFeedback.includes('Pflichtfeld') || exportFeedback.includes('nicht zulässig') ? (
+            {topicError || exportFeedback.includes('Pflichtfeld') || exportFeedback.includes('nicht zulässig') || exportFeedback.includes('Fehler') ? (
               <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
             ) : (
               <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -1331,8 +1469,11 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           </div>
         )}
 
-        {/* Form Inputs Grid (5 Spalten: Datum ganz links, Thema Dropdown, Trainingsgruppe, Anzahl TW 1-8 + Anwesenheit, Platzbelag) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {/* Form Inputs Grid */}
+        <div className={cn(
+          "grid grid-cols-1 sm:grid-cols-2 gap-3.5",
+          isAdvanceMode ? "lg:grid-cols-5" : "lg:grid-cols-3"
+        )}>
           {/* 1. Datum (ganz links mit Kalenderpicker, Übersicht-Button & Periodisierungs-Button) */}
           <div className="space-y-1 min-w-0">
             <div className="flex items-center justify-between gap-1 min-w-0">
@@ -1350,7 +1491,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                   <Calendar className="w-3 h-3 text-slate-950 flex-shrink-0" />
                   <span className="truncate">Übersicht</span>
                 </button>
-                {onNavigateToOrga && (
+                {isAdvanceMode && onNavigateToOrga && (
                   <button
                     type="button"
                     onClick={() => onNavigateToOrga('macro')}
@@ -1381,7 +1522,8 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                 <span className="text-rose-400 text-xs font-black flex-shrink-0" title="Pflichtfeld">*</span>
               </label>
 
-              {/* Checkbox: Mikroplanung ignorieren */}
+              {/* Checkbox: Mikroplanung ignorieren (nur Advance) */}
+              {isAdvanceMode && (
               <label
                 className="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer select-none min-w-0 overflow-hidden"
                 title="Mikroplanung ignorieren"
@@ -1404,6 +1546,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                 />
                 <span className="truncate">Mikroplanung ignorieren</span>
               </label>
+              )}
             </div>
 
             <div className="relative">
@@ -1463,7 +1606,8 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
             )}
           </div>
 
-          {/* 3. Trainingsgruppe (inkl. 'Trainingsgruppe' Button) */}
+          {/* 3. Trainingsgruppe (inkl. 'Trainingsgruppe' Button - nur Advance) */}
+          {isAdvanceMode && (
           <div className="space-y-1 min-w-0">
             <div className="flex items-center justify-between gap-1 min-w-0">
               <label 
@@ -1478,7 +1622,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                 <span className="hidden xl:inline truncate">Trainingsgruppe</span>
                 <span className="xl:hidden truncate">Gruppe</span>
               </label>
-              {onNavigateToOrga && (
+              {isAdvanceMode && onNavigateToOrga && (
                 <button
                   type="button"
                   onClick={() => onNavigateToOrga('groups')}
@@ -1502,22 +1646,23 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
               ))}
             </select>
           </div>
+          )}
 
           {/* 4. Torhüteranzahl (1 bis 8 + Anwesenheits-Button) */}
           <div className="space-y-1 min-w-0">
             <div className="flex items-center justify-between gap-1 min-w-0">
               <label 
-                onClick={() => onNavigateToOrga && onNavigateToOrga('absences')}
+                onClick={() => isAdvanceMode && onNavigateToOrga && onNavigateToOrga('absences')}
                 className={cn(
                   "text-[11px] font-bold text-slate-400 flex items-center gap-1 min-w-0 flex-shrink-0",
-                  onNavigateToOrga && "cursor-pointer hover:text-emerald-400 transition"
+                  isAdvanceMode && onNavigateToOrga && "cursor-pointer hover:text-emerald-400 transition"
                 )}
-                title="Zu Orga > Dateneingabe > Fehlzeiten wechseln"
+                title={isAdvanceMode ? "Zu Orga > Dateneingabe > Fehlzeiten wechseln" : "Anzahl der Torhüter frei wählen"}
               >
                 <Users className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                 <span className="truncate">Anzahl TW</span>
               </label>
-              {onNavigateToOrga && (
+              {isAdvanceMode && onNavigateToOrga && (
                 <button
                   type="button"
                   onClick={() => onNavigateToOrga('absences')}
@@ -1529,77 +1674,112 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-0.5 bg-slate-950 border border-slate-800 rounded-xl p-1">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => setManualKeepersOverride(num)}
-                  className={cn(
-                    "flex-1 py-1 rounded-lg text-xs font-bold transition cursor-pointer text-center",
-                    availableKeepers === num
-                      ? "bg-emerald-600 text-white shadow"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
-                  )}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-
-            {/* Attendance Status & Absences Breakdown */}
-            {attendanceBreakdown.absentPlayersToday.length > 0 ? (
-              <div 
-                onClick={() => onNavigateToOrga?.('absences')}
-                className="mt-1 p-1.5 rounded-lg bg-rose-950/50 border border-rose-500/40 text-rose-300 text-[10px] font-bold flex flex-col gap-0.5 animate-in fade-in leading-tight shadow-sm cursor-pointer hover:bg-rose-950/80 transition"
-                title="Klicken, um Fehlzeiten in der Organisation zu öffnen"
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="flex items-center gap-1 text-rose-400 font-extrabold">
-                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                    <span>{attendanceBreakdown.absentPlayersToday.length} TW abwesend ({actualAvailableKeepers} von {attendanceBreakdown.activePlayers.length} da)</span>
-                  </span>
-                  <span className="text-[9px] text-rose-400 underline font-semibold">Fehlzeiten &rarr;</span>
-                </div>
-                <div className="text-[9.5px] text-rose-200/90 truncate font-normal">
-                  {attendanceBreakdown.absentPlayersToday.map(a => `${a.player.firstName} ${a.player.lastName} (${a.reason}${a.isRecurring ? ' - Wöchentlich' : ''})`).join(', ')}
-                </div>
+            <div className="flex items-center gap-1">
+              <div className="flex-1 flex items-center gap-0.5 bg-slate-950 border border-slate-800 rounded-xl p-1 min-w-0">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setManualKeepersOverride(num)}
+                    className={cn(
+                      "flex-1 py-1 rounded-lg text-xs font-bold transition cursor-pointer text-center",
+                      availableKeepers === num
+                        ? "bg-emerald-600 text-white shadow"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    )}
+                  >
+                    {num}
+                  </button>
+                ))}
               </div>
-            ) : attendanceBreakdown.activePlayers.length > 0 ? (
-              <div 
-                onClick={() => onNavigateToOrga?.('absences')}
-                className="mt-1 px-1.5 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 text-[9.5px] font-medium flex items-center justify-between cursor-pointer hover:bg-emerald-950/70 transition"
-                title="Klicken, um Fehlzeiten in der Organisation zu öffnen"
-              >
-                <span>Alle {attendanceBreakdown.activePlayers.length} TW anwesend (0 Fehlzeiten)</span>
-                {manualKeepersOverride !== null && (
+              {isAdvanceMode && (
+                <div className="flex flex-col gap-0.5 flex-shrink-0">
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setManualKeepersOverride(null);
-                    }}
-                    className="text-[9px] text-amber-400 underline hover:text-amber-300 ml-1 cursor-pointer"
+                    onClick={() => setGuestKeeperModalMode('add')}
+                    title="Gruppenexternen Torhüter einmalig zu diesem Training hinzufügen"
+                    className="w-5 h-[15px] rounded bg-emerald-600/85 hover:bg-emerald-500 text-white font-black text-[11px] leading-none flex items-center justify-center cursor-pointer transition"
                   >
-                    Auto-Wert
+                    +
                   </button>
-                )}
-              </div>
-            ) : null}
+                  <button
+                    type="button"
+                    disabled={guestKeeperIds.length === 0}
+                    onClick={() => setGuestKeeperModalMode('remove')}
+                    title={guestKeeperIds.length > 0 ? 'Gruppenexternen Gast-Torhüter entfernen' : 'Keine gruppenexternen Gast-TW hinzugefügt (Gruppen-TW nur über Fehlzeiten steuerbar)'}
+                    className="w-5 h-[15px] rounded bg-rose-600/85 hover:bg-rose-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-black text-[11px] leading-none flex items-center justify-center cursor-pointer transition"
+                  >
+                    -
+                  </button>
+                </div>
+              )}
+            </div>
 
-            {availableKeepers !== actualAvailableKeepers && (
-              <div 
-                onClick={() => onNavigateToOrga?.('absences')}
-                className="mt-1 p-1.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-amber-300 text-[10px] font-bold flex items-center gap-1.5 animate-in fade-in leading-tight shadow-sm cursor-pointer hover:bg-amber-950/70 transition"
-                title="Zu Orga > Dateneingabe > Fehlzeiten wechseln"
-              >
-                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-amber-400" />
-                <span>Manuell überschrieben: {availableKeepers} TW gewählt (Laut Fehlzeiten: {actualAvailableKeepers} TW anwesend)</span>
-              </div>
+            {/* Attendance Status & Absences Breakdown (nur im Advance-Modus) */}
+            {isAdvanceMode && (
+              <>
+                {attendanceBreakdown.absentPlayersToday.length > 0 && (
+                  <div 
+                    onClick={() => onNavigateToOrga?.('absences')}
+                    className="mt-1 p-1.5 rounded-lg bg-rose-950/50 border border-rose-500/40 text-rose-300 text-[10px] font-bold flex flex-col gap-0.5 animate-in fade-in leading-tight shadow-sm cursor-pointer hover:bg-rose-950/80 transition"
+                    title="Klicken, um Fehlzeiten in der Organisation zu öffnen"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="flex items-center gap-1 text-rose-400 font-extrabold">
+                        <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                        <span>{attendanceBreakdown.absentPlayersToday.length} TW abwesend ({actualAvailableKeepers} von {attendanceBreakdown.activePlayers.length} da)</span>
+                      </span>
+                      <span className="text-[9px] text-rose-400 underline font-semibold">Fehlzeiten &rarr;</span>
+                    </div>
+                    <div className="text-[9.5px] text-rose-200/90 truncate font-normal">
+                      {attendanceBreakdown.absentPlayersToday.map(a => `${a.player.firstName} ${a.player.lastName} (${a.reason}${a.isRecurring ? ' - Wöchentlich' : ''})`).join(', ')}
+                    </div>
+                  </div>
+                )}
+
+                {externalGuestKeepers.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {externalGuestKeepers.map(({ player, groupName }) => (
+                      <span
+                        key={player.id}
+                        className="px-1.5 py-0.5 rounded bg-sky-950/70 border border-sky-700/50 text-sky-300 text-[9px] font-bold"
+                      >
+                        + {player.firstName} {player.lastName} ({groupName})
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {availableKeepers !== actualAvailableKeepers && (
+                  <div 
+                    onClick={() => onNavigateToOrga?.('absences')}
+                    className="mt-1 p-1.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-amber-300 text-[10px] font-bold flex items-center justify-between gap-1.5 animate-in fade-in leading-tight shadow-sm cursor-pointer hover:bg-amber-950/70 transition"
+                    title="Zu Orga > Dateneingabe > Fehlzeiten wechseln"
+                  >
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-amber-400" />
+                      <span className="truncate">Manuell: {availableKeepers} TW (Fehlzeiten: {actualAvailableKeepers})</span>
+                    </span>
+                    {manualKeepersOverride !== null && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setManualKeepersOverride(null);
+                        }}
+                        className="text-[9px] text-amber-200 underline hover:text-white cursor-pointer flex-shrink-0"
+                      >
+                        Auto
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* 5. Platzbelag (Standard Kunstrasen) + Spielzeiten-Button */}
+          {/* 5. Platzbelag (Standard Kunstrasen) + Spielzeiten-Button (nur Advance) */}
+          {isAdvanceMode && (
           <div className="space-y-1 min-w-0">
             <div className="flex items-center justify-between gap-1 min-w-0">
               <label 
@@ -1635,10 +1815,41 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
               ))}
             </select>
           </div>
+          )}
         </div>
 
-        {/* Periodization Context Card */}
-        {matchedPeriodization && matchedPeriodization.hasData && (
+        {/* Return-to-Play (RTP) Warnbanner */}
+        {activeRtpPlayers.length > 0 && (
+          <div className="p-3.5 rounded-2xl bg-amber-950/50 border border-amber-600/50 text-amber-100 text-xs space-y-1.5 shadow-lg">
+            <div className="flex items-center gap-2 font-extrabold text-amber-300">
+              <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span>Return-to-Play / Belastungshinweise ({activeRtpPlayers.length} TW in dieser Gruppe)</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {activeRtpPlayers.map(p => (
+                <div key={p.name} className="px-3 py-2 rounded-xl bg-slate-950/70 border border-amber-700/40 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="font-bold text-white">{p.name}</span>
+                    <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      {p.stage}
+                    </span>
+                    {p.allowedActions && (
+                      <p className="text-[11px] text-amber-200/90 truncate mt-0.5">{p.allowedActions}</p>
+                    )}
+                  </div>
+                  {p.maxRpe && (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40 flex-shrink-0">
+                      max. RPE {p.maxRpe}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Periodization Context Card (nur Advance) */}
+        {isAdvanceMode && matchedPeriodization && matchedPeriodization.hasData && (
           <PeriodizationContextCard
             matchedPeriodization={matchedPeriodization}
             isPeriodizationOpen={isPeriodizationOpen}
@@ -1650,6 +1861,69 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           />
         )}
       </div>
+
+      {/* Erste-Schritte-Checkliste (Onboarding) */}
+      {!isOnboardingDismissed && (() => {
+        const hasCreatedExercise = allExercises.some(e => e.ownerId === user?.uid);
+        const hasAddedToPlanner = stats.totalCount > 0;
+        const hasCompletedUnit = savedPlans.length > 0;
+        if (hasCreatedExercise && hasAddedToPlanner && hasCompletedUnit) return null;
+
+        return (
+          <div className="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center gap-2 text-xs font-extrabold text-emerald-400 uppercase tracking-wider">
+                <Sparkles className="w-4 h-4" />
+                <span>Erste Schritte</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => onOpenEditorForNew?.()}
+                  className={cn(
+                    "p-2.5 rounded-xl border text-left flex items-center gap-2 transition cursor-pointer",
+                    hasCreatedExercise
+                      ? "bg-emerald-950/50 border-emerald-600/50 text-emerald-200"
+                      : "bg-slate-950 border-slate-800 hover:border-emerald-500/50 text-slate-300"
+                  )}
+                >
+                  <CheckCircle2 className={cn("w-4 h-4 flex-shrink-0", hasCreatedExercise ? "text-emerald-400" : "text-slate-600")} />
+                  <span className="font-bold">1. Übung erstellen</span>
+                </button>
+                <div
+                  className={cn(
+                    "p-2.5 rounded-xl border flex items-center gap-2",
+                    hasAddedToPlanner
+                      ? "bg-emerald-950/50 border-emerald-600/50 text-emerald-200"
+                      : "bg-slate-950 border-slate-800 text-slate-300"
+                  )}
+                >
+                  <CheckCircle2 className={cn("w-4 h-4 flex-shrink-0", hasAddedToPlanner ? "text-emerald-400" : "text-slate-600")} />
+                  <span className="font-bold">2. Zum Planer hinzufügen</span>
+                </div>
+                <div
+                  className={cn(
+                    "p-2.5 rounded-xl border flex items-center gap-2",
+                    hasCompletedUnit
+                      ? "bg-emerald-950/50 border-emerald-600/50 text-emerald-200"
+                      : "bg-slate-950 border-slate-800 text-slate-300"
+                  )}
+                >
+                  <CheckCircle2 className={cn("w-4 h-4 flex-shrink-0", hasCompletedUnit ? "text-emerald-400" : "text-slate-600")} />
+                  <span className="font-bold">3. Einheit abschließen (PDF / Live)</span>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleDismissOnboarding}
+              className="text-[11px] font-bold text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition self-start sm:self-center cursor-pointer flex-shrink-0"
+            >
+              Ausblenden
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Main Content Grid: 5 Cols Phase Canvas (Left) | 7 Cols Exercise Catalog (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -1778,6 +2052,18 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                   onCardDragLeave={handleCardDragLeave}
                   onCardDrop={(e, exIdx) => handleCardDrop(e, phase.id, exIdx)}
                   onMoveExercise={(exIdx, direction, e) => handleMoveExerciseInPhase(phase.id, exIdx, direction, e)}
+                  allPhases={activeStructure.phases}
+                  onMoveToPhase={(exIdx, targetPhaseId) => {
+                    const sourceList = [...(phaseExercises[phase.id] || [])];
+                    const [movedId] = sourceList.splice(exIdx, 1);
+                    if (!movedId || targetPhaseId === phase.id) return;
+                    setPhaseExercises(prev => ({
+                      ...prev,
+                      [phase.id]: sourceList,
+                      [targetPhaseId]: [...(prev[targetPhaseId] || []), movedId]
+                    }));
+                    setOpenPhases(prev => ({ ...prev, [targetPhaseId]: true }));
+                  }}
                   onPreviewExercise={(ex) => {
                     setPreviewExercise(ex);
                     setIsPreviewFromPlan(true);
@@ -1872,10 +2158,13 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
       <TrainingPlanHistoryModal
         isOpen={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}
-        savedPlans={savedPlans}
+        savedPlans={visibleSavedPlans}
         exerciseMap={exerciseMap}
         structures={structures}
         groups={visibleTrainingGroups}
+        matchPlaytimes={visibleMatchPlaytimes}
+        mesoPlans={visibleMesoPlans}
+        absences={visibleAbsences}
         onLoadPlan={handleLoadPlan}
         onPlanUpdated={(updated) => {
           setSavedPlans(prev => prev.map(p => p.id === updated.id ? updated : p));
@@ -1901,12 +2190,13 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
         targetGroupName={targetGroup}
         players={currentGroupPlayers}
         allGroups={visibleTrainingGroups}
-        savedPlans={savedPlans}
-        feedbackTalks={feedbackTalks}
+        savedPlans={visibleSavedPlans}
+        feedbackTalks={visibleFeedbackTalks}
         userId={user?.uid}
         initialImportantNotes={planImportantNotes}
         initialHasVideoAnalysis={planHasVideoAnalysis}
         initialVideoAnalysisNotes={planVideoAnalysisNotes}
+        isAdvanceMode={isAdvanceMode}
         onSaveToTraining={({ importantNotes, hasVideoAnalysis, videoAnalysisNotes }) => {
           setPlanImportantNotes(importantNotes);
           setPlanHasVideoAnalysis(hasVideoAnalysis);
@@ -1920,10 +2210,10 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
         isOpen={isWorkloadModalOpen}
         onClose={() => setIsWorkloadModalOpen(false)}
         groups={visibleTrainingGroups}
-        savedPlans={savedPlans}
-        matchPlaytimes={matchPlaytimes}
-        mesoPlans={mesoPlans}
-        absences={absences}
+        savedPlans={visibleSavedPlans}
+        matchPlaytimes={visibleMatchPlaytimes}
+        mesoPlans={visibleMesoPlans}
+        absences={visibleAbsences}
         initialGroupId={currentPlannerGroup?.id || selectedGroupObj?.id}
         referenceDate={planDate}
       />
@@ -1950,19 +2240,102 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
       <CalendarTrainingOverviewModal
         isOpen={isCalendarOverviewOpen}
         onClose={() => setIsCalendarOverviewOpen(false)}
-        savedPlans={savedPlans}
+        savedPlans={visibleSavedPlans}
         trainingGroups={visibleTrainingGroups}
-        mesoPlans={mesoPlans}
-        microPlans={microPlans}
+        mesoPlans={visibleMesoPlans}
+        microPlans={visibleMicroPlans}
+        matchPlaytimes={visibleMatchPlaytimes}
+        absences={visibleAbsences}
         currentPlannerDate={planDate}
         currentPlannerGroupId={selectedGroupObj?.id}
         onSelectDate={(newDate) => setPlanDate(newDate)}
         onSelectPlan={(planId) => {
-          const plan = savedPlans.find(p => p.id === planId);
+          const plan = visibleSavedPlans.find(p => p.id === planId);
           if (plan) handleLoadPlan(plan);
         }}
         onNavigateToOrga={onNavigateToOrga}
       />
+
+      {/* Gast-Torhüter Hinzufügen / Entfernen Modal (nur gruppenexterne TW) */}
+      {guestKeeperModalMode && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-md w-full shadow-2xl space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-white">
+                  {guestKeeperModalMode === 'add' ? 'Gast-Torhüter hinzufügen (+)' : 'Gast-Torhüter entfernen (-)'}
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {guestKeeperModalMode === 'add'
+                    ? 'Einmalige Teilnahme eines Torwarts aus einer anderen Gruppe (fließt in Belastung & Statistik ein)'
+                    : 'Nur gruppenexterne Gast-Torhüter können hier entfernt werden (Stammkeeper über Fehlzeiten)'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGuestKeeperModalMode(null)}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-bold cursor-pointer"
+              >
+                Schließen
+              </button>
+            </div>
+
+            {guestKeeperModalMode === 'add' ? (
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {visibleTrainingGroups
+                  .filter(g => g.id !== selectedGroupObj?.id)
+                  .flatMap(g => (g.players || []).filter(p => !p.archived && !guestKeeperIds.includes(p.id)).map(p => ({ player: p, groupName: g.name })))
+                  .map(({ player, groupName }) => (
+                    <button
+                      key={player.id}
+                      type="button"
+                      onClick={() => {
+                        setGuestKeeperIds(prev => (prev.includes(player.id) ? prev : [...prev, player.id]));
+                        setGuestKeeperModalMode(null);
+                      }}
+                      className="w-full p-2.5 rounded-xl bg-slate-950 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/50 flex items-center justify-between text-left transition cursor-pointer"
+                    >
+                      <div>
+                        <span className="font-bold text-white block">{player.firstName} {player.lastName}</span>
+                        <span className="text-[10px] text-slate-400">Gruppe: {groupName}</span>
+                      </div>
+                      <span className="px-2 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[10px]">+ Hinzufügen</span>
+                    </button>
+                  ))}
+                {visibleTrainingGroups
+                  .filter(g => g.id !== selectedGroupObj?.id)
+                  .every(g => (g.players || []).filter(p => !p.archived && !guestKeeperIds.includes(p.id)).length === 0) && (
+                  <p className="text-slate-500 italic text-center py-4">Keine weiteren Torhüter in anderen Gruppen verfügbar.</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {externalGuestKeepers.length === 0 ? (
+                  <p className="text-slate-500 italic text-center py-4">Keine gruppenexternen Gast-Torhüter in dieser Einheit.</p>
+                ) : (
+                  externalGuestKeepers.map(({ player, groupName }) => (
+                    <button
+                      key={player.id}
+                      type="button"
+                      onClick={() => {
+                        setGuestKeeperIds(prev => prev.filter(id => id !== player.id));
+                        setGuestKeeperModalMode(null);
+                      }}
+                      className="w-full p-2.5 rounded-xl bg-slate-950 hover:bg-rose-950/40 border border-slate-800 hover:border-rose-500/50 flex items-center justify-between text-left transition cursor-pointer"
+                    >
+                      <div>
+                        <span className="font-bold text-white block">{player.firstName} {player.lastName}</span>
+                        <span className="text-[10px] text-slate-400">Gast aus: {groupName}</span>
+                      </div>
+                      <span className="px-2 py-1 rounded-lg bg-rose-600 text-white font-bold text-[10px]">- Entfernen</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

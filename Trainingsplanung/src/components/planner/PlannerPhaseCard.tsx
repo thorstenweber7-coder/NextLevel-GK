@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { TrainingPhaseItem, Exercise } from '../../types';
 import { createPlaceholderExercise } from '../../types';
 import { 
@@ -8,7 +8,8 @@ import {
   GripVertical, 
   Eye, 
   Trash2, 
-  Package 
+  Package,
+  ArrowRightLeft
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -35,6 +36,8 @@ export interface PlannerPhaseCardProps {
   onCardDragLeave: () => void;
   onCardDrop: (e: React.DragEvent, exIdx: number) => void;
   onMoveExercise: (exIdx: number, direction: 'up' | 'down', e: React.MouseEvent) => void;
+  allPhases?: TrainingPhaseItem[];
+  onMoveToPhase?: (exIdx: number, targetPhaseId: string) => void;
   onPreviewExercise: (ex: Exercise) => void;
   onRemoveExercise: (exIdx: number) => void;
 }
@@ -62,9 +65,12 @@ export const PlannerPhaseCard: React.FC<PlannerPhaseCardProps> = ({
   onCardDragLeave,
   onCardDrop,
   onMoveExercise,
+  allPhases = [],
+  onMoveToPhase,
   onPreviewExercise,
   onRemoveExercise
 }) => {
+  const [movingExIdx, setMovingExIdx] = useState<number | null>(null);
   // Filter to valid assigned exercises
   const validAssigned = assignedIds
     .map(id => exerciseMap.get(id) || customPlanExercises[id])
@@ -258,6 +264,25 @@ export const PlannerPhaseCard: React.FC<PlannerPhaseCardProps> = ({
                           <ChevronDown className="w-3.5 h-3.5" />
                         </button>
 
+                        {allPhases.length > 1 && onMoveToPhase && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMovingExIdx(prev => prev === exIdx ? null : exIdx);
+                            }}
+                            title="Übung in eine andere Phase verschieben"
+                            className={cn(
+                              "px-1.5 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition cursor-pointer",
+                              movingExIdx === exIdx
+                                ? "bg-emerald-600 text-white"
+                                : "text-slate-400 hover:text-emerald-300 hover:bg-slate-800"
+                            )}
+                          >
+                            <ArrowRightLeft className="w-3 h-3" />
+                            <span className="hidden sm:inline">Verschieben</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onPreviewExercise(ex)}
@@ -281,6 +306,26 @@ export const PlannerPhaseCard: React.FC<PlannerPhaseCardProps> = ({
                         </button>
                       </div>
                     </div>
+                    {movingExIdx === exIdx && allPhases.length > 1 && onMoveToPhase && (
+                      <div className="mt-1 p-2 rounded-xl bg-slate-950 border border-emerald-500/40 flex flex-wrap items-center gap-1.5 text-[10px] animate-in fade-in">
+                        <span className="text-slate-400 font-bold mr-1">Verschieben nach:</span>
+                        {allPhases
+                          .filter(p => p.id !== phase.id)
+                          .map(targetP => (
+                            <button
+                              key={targetP.id}
+                              type="button"
+                              onClick={() => {
+                                onMoveToPhase(exIdx, targetP.id);
+                                setMovingExIdx(null);
+                              }}
+                              className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-emerald-600 text-slate-200 hover:text-white border border-slate-700 hover:border-emerald-500 font-bold transition cursor-pointer"
+                            >
+                              {targetP.name}
+                            </button>
+                          ))}
+                      </div>
+                    )}
                     {isDropTargetBelow && (
                       <div className="h-1.5 bg-emerald-400 rounded-full my-1 shadow-md shadow-emerald-500/50 animate-pulse transition-all" />
                     )}

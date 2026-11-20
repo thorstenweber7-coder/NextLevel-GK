@@ -61,7 +61,7 @@ export const EmailVerificationScreen: React.FC = () => {
         </div>
 
         <p className="text-xs text-slate-400 leading-relaxed">
-          Bitte klicke auf den Bestätigungslink in der E-Mail, um deinen 7-tägigen kostenlosen Testzeitraum und deinen Zugang freizuschalten.
+          Bitte klicke auf den Bestätigungslink in der E-Mail, um deinen 14-tägigen kostenlosen Testzeitraum und deinen Zugang freizuschalten.
         </p>
 
         {/* Alerts */}

@@ -5,7 +5,18 @@ export function registerServiceWorker() {
       navigator.serviceWorker
         .register(swUrl)
         .then((reg) => {
-          console.log('NextLevel Coach PWA Service Worker registered:', reg.scope);
+          // Automatically activate newly installed SW versions
+          reg.addEventListener('updatefound', () => {
+            const installing = reg.installing;
+            if (!installing) return;
+            installing.addEventListener('statechange', () => {
+              if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                installing.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          });
+          // Periodically check for updates when trainer re-opens the app
+          reg.update().catch(() => {});
         })
         .catch((err) => {
           console.warn('PWA Service Worker registration warning:', err);

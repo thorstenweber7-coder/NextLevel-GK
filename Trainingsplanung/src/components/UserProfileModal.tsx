@@ -10,8 +10,13 @@ import {
   AlertCircle, 
   X, 
   Save,
-  Sparkles
+  Sparkles,
+  Download,
+  Trash2
 } from 'lucide-react';
+import { collection, deleteDoc, doc, getDocs, query, where } from 'firebase/firestore';
+import { firestoreDb } from '../firebase';
+import { db } from '../db/database';
 import { cn } from '../utils/cn';
 
 interface UserProfileModalProps {
@@ -43,6 +48,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [clubNameInput, setClubNameInput] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState<string>('');
+  const [isExportingData, setIsExportingData] = useState<boolean>(false);
 
   useEffect(() => {
     if (userProfile) {
@@ -284,6 +292,126 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               )}
             </button>
           </div>
+
+          {/* Meine Daten & Datenschutz (DSGVO Art. 17 & Art. 20) */}
+          {!forceComplete && user && (
+            <div className="pt-4 mt-2 border-t border-slate-800 space-y-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Meine Daten &amp; Datenschutz (DSGVO)
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isExportingData}
+                  onClick={async () => {
+                    try {
+                      setIsExportingData(true);
+                      const uid = user.uid;
+                      const [exercises, plans, groups, absences, evaluations] = await Promise.all([
+                        db.exercises.where('ownerId').equals(uid).toArray().catch(() => []),
+                        db.plans.where('ownerId').equals(uid).toArray().catch(() => []),
+                        db.trainingGroups.where('ownerId').equals(uid).toArray().catch(() => []),
+                        db.playerAbsences.where('ownerId').equals(uid).toArray().catch(() => []),
+                        db.playerEvaluations.where('ownerId').equals(uid).toArray().catch(() => [])
+                      ]);
+                      const exportPayload = {
+                        exportedAt: new Date().toISOString(),
+                        profile: userProfile,
+                        exercises,
+                        plans,
+                        groups,
+                        absences,
+                        evaluations
+                      };
+                      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `NextLevel_Datenexport_${new Date().toISOString().slice(0, 10)}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      setFeedback({ type: 'success', message: 'DSGVO-Datenexport erfolgreich heruntergeladen.' });
+                    } catch (err) {
+                      console.error('Data export error:', err);
+                      setFeedback({ type: 'error', message: 'Fehler beim Erstellen des Datenexports.' });
+                    } finally {
+                      setIsExportingData(false);
+                    }
+                  }}
+                  className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{isExportingData ? 'Exportiere...' : 'Meine Daten exportieren (JSON)'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(prev => !prev)}
+                  className="px-3 py-2 rounded-xl text-xs font-bold bg-rose-950/40 hover:bg-rose-950/70 text-rose-300 border border-rose-800/50 flex items-center gap-1.5 transition cursor-pointer ml-auto"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Account löschen</span>
+                </button>
+              </div>
+
+              {showDeleteConfirm && (
+                <div className="p-3 rounded-2xl bg-rose-950/40 border border-rose-700/60 space-y-2 text-xs">
+                  <p className="text-rose-200 font-semibold">
+                    Möchtest du deinen Account wirklich unwiderruflich löschen? Tippe zur Bestätigung <strong className="text-white">LÖSCHEN</strong> ein:
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={deleteConfirmText}
+                      onChange={e => setDeleteConfirmText(e.target.value)}
+                      placeholder="LÖSCHEN"
+                      className="flex-1 bg-slate-950 border border-rose-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      disabled={deleteConfirmText.trim() !== 'LÖSCHEN'}
+                      onClick={async () => {
+                        try {
+                          const ownedCollections = [
+                            'plans',
+                            'training_groups',
+                            'player_absences',
+                            'player_evaluations',
+                            'match_playtimes',
+                            'feedback_talks'
+                          ];
+                          for (const collName of ownedCollections) {
+                            try {
+                              const q = query(collection(firestoreDb, collName), where('ownerId', '==', user.uid));
+                              const snap = await getDocs(q);
+                              await Promise.all(
+                                snap.docs
+                                  .filter(d => !d.data()?.clubId)
+                                  .map(d => deleteDoc(d.ref))
+                              );
+                            } catch (cleanupErr) {
+                              console.warn(`Cleanup skipped for ${collName}:`, cleanupErr);
+                            }
+                          }
+                          await deleteDoc(doc(firestoreDb, 'users', user.uid));
+                          await user.delete();
+                        } catch (err: any) {
+                          console.error('Account deletion error:', err);
+                          const msg = err?.code === 'auth/requires-recent-login'
+                            ? 'Aus Sicherheitsgründen bitte kurz abmelden, neu anmelden und die Löschung direkt wiederholen.'
+                            : 'Fehler beim Löschen des Accounts.';
+                          setFeedback({ type: 'error', message: msg });
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold text-xs cursor-pointer"
+                    >
+                      Endgültig löschen
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </form>
       </div>
     </div>

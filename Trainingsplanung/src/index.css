@@ -59,3 +59,86 @@ input[type="date"]::-webkit-clear-button {
   -webkit-appearance: none;
 }
 
+/* Global unified dark dropdown styling (matching CustomDatePicker popover border & radius) */
+select {
+  color-scheme: dark;
+}
+
+@supports (appearance: base-select) {
+  select,
+  select::picker(select) {
+    appearance: base-select;
+  }
+
+  select {
+    align-items: center;
+  }
+
+  select::picker-icon {
+    color: #94a3b8;
+    margin-inline-start: auto;
+    padding-inline-start: 0.35rem;
+    font-size: 0.65rem;
+    transition: transform 0.15s ease, color 0.15s ease;
+  }
+
+  select:open {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.45);
+  }
+
+  select:open::picker-icon {
+    transform: rotate(180deg);
+    color: #34d399;
+  }
+
+  select::picker(select) {
+    margin-top: 0.375rem;
+    padding: 0.375rem;
+    background-color: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid rgba(51, 65, 85, 0.95);
+    border-radius: 1rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    min-width: anchor-size(width);
+    max-height: 20rem;
+    overflow-y: auto;
+  }
+
+  select option {
+    padding: 0.45rem 0.65rem;
+    border-radius: 0.625rem;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    background-color: transparent;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+
+  select option:hover,
+  select option:focus-visible {
+    background-color: #1e293b;
+    color: #ffffff;
+  }
+
+  select option:checked {
+    background-color: rgba(16, 185, 129, 0.18);
+    color: #6ee7b7;
+    font-weight: 700;
+  }
+
+  select option::checkmark {
+    color: #10b981;
+    font-size: 0.7rem;
+    margin-inline-end: 0.35rem;
+  }
+
+  select optgroup {
+    padding-top: 0.35rem;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    color: #94a3b8;
+  }
+}
+
+

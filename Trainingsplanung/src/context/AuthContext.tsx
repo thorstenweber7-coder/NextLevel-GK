@@ -11,7 +11,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, getDocs, query, where, deleteDoc } from 'firebase/firestore';
 import { auth, firestoreDb } from '../firebase';
-import { toggleUserFavoriteExerciseInFirestore } from '../firebase/firestoreService';
+import { toggleUserFavoriteExerciseInFirestore, setActiveUserRoleForQueries } from '../firebase/firestoreService';
 import type { UserProfile, UserRole, Club } from '../types';
 
 export const MAIN_ADMIN_EMAIL = 'thorsten.weber7@gmail.com';
@@ -84,28 +84,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           let matchedClubName: string | undefined;
           let matchedRole: UserRole | undefined;
 
-          // Check if this email is pre-configured in any club as admin or coach
-          if (firebaseUser.email) {
+          // Check if this email/UID is pre-configured in any club as admin or coach
+          if (firebaseUser.email || firebaseUser.uid) {
             try {
-              const normEmail = firebaseUser.email.toLowerCase().trim();
+              const normEmail = firebaseUser.email?.toLowerCase().trim();
               const clubsCol = collection(firestoreDb, 'clubs');
-              const clubsSnap = await getDocs(clubsCol);
-              
-              clubsSnap.forEach(cDoc => {
-                const cData = cDoc.data() as Club;
-                if (cData.adminEmail?.toLowerCase().trim() === normEmail) {
+              const clubQueries = [
+                query(clubsCol, where('adminUid', '==', firebaseUser.uid)),
+                query(clubsCol, where('coachUids', 'array-contains', firebaseUser.uid)),
+              ];
+              if (normEmail) {
+                clubQueries.push(
+                  query(clubsCol, where('adminEmail', '==', normEmail)),
+                  query(clubsCol, where('coachEmails', 'array-contains', normEmail))
+                );
+              }
+              const queryResults = await Promise.allSettled(clubQueries.map(q => getDocs(q)));
+              const matchedClubs = new Map<string, Club>();
+              queryResults.forEach(res => {
+                if (res.status === 'fulfilled') {
+                  res.value.forEach(cDoc => {
+                    matchedClubs.set(cDoc.id, { ...(cDoc.data() as Club), id: cDoc.id });
+                  });
+                }
+              });
+
+              matchedClubs.forEach((cData, cId) => {
+                if ((normEmail && cData.adminEmail?.toLowerCase().trim() === normEmail) || cData.adminUid === firebaseUser.uid) {
                   matchedRole = isBootstrap ? 'master_admin' : 'club_admin';
-                  matchedClubId = cDoc.id;
+                  matchedClubId = cId;
                   matchedClubName = cData.name;
+                  setCurrentClub({ ...cData, id: cId });
                   if (cData.adminUid !== firebaseUser.uid) {
-                    updateDoc(doc(firestoreDb, 'clubs', cDoc.id), { adminUid: firebaseUser.uid }).catch(console.warn);
+                    updateDoc(doc(firestoreDb, 'clubs', cId), { adminUid: firebaseUser.uid }).catch(console.warn);
                   }
-                } else if (cData.coachEmails?.some(e => e.toLowerCase().trim() === normEmail)) {
+                } else if ((normEmail && cData.coachEmails?.some(e => e.toLowerCase().trim() === normEmail)) || cData.coachUids?.includes(firebaseUser.uid)) {
                   matchedRole = isBootstrap ? 'master_admin' : 'club_coach';
-                  matchedClubId = cDoc.id;
+                  matchedClubId = cId;
                   matchedClubName = cData.name;
+                  setCurrentClub({ ...cData, id: cId });
                   if (!cData.coachUids?.includes(firebaseUser.uid)) {
-                    updateDoc(doc(firestoreDb, 'clubs', cDoc.id), {
+                    updateDoc(doc(firestoreDb, 'clubs', cId), {
                       coachUids: Array.from(new Set([...(cData.coachUids || []), firebaseUser.uid]))
                     }).catch(console.warn);
                   }
@@ -267,13 +286,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isMasterAdmin = isBootstrapAdminUser || userProfile?.role === 'master_admin' || userProfile?.role === 'admin';
   const isClubAdmin = userProfile?.role === 'club_admin' || 
     Boolean(currentClub && (currentClub.adminUid === user?.uid || currentClub.adminEmail?.toLowerCase().trim() === user?.email?.toLowerCase().trim())) ||
-    Boolean(isMasterAdmin && (userProfile?.clubId || currentClub));
+    (isMasterAdmin && Boolean(userProfile?.clubId || currentClub));
   const isClubCoach = userProfile?.role === 'club_coach' || 
     Boolean(currentClub && currentClub.coachEmails?.some(e => e.toLowerCase().trim() === user?.email?.toLowerCase().trim()));
   const isSinglePro = userProfile?.role === 'single_pro';
   const isSingleStandard = userProfile?.role === 'single_standard' || userProfile?.role === 'user';
   const isTrialUser = userProfile?.role === 'trial_user';
-  const isAdmin = isMasterAdmin || isClubAdmin;
+  const isAdmin = isMasterAdmin;
   const isEmailVerified = Boolean(user?.emailVerified || isBootstrapAdminUser);
   const isBlocked = !!userProfile?.isBlocked;
 
@@ -340,23 +359,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const now = Date.now();
       const isBootstrap = isMainAdminEmail(cred.user.email);
-      const initialRole: UserRole = isBootstrap ? 'master_admin' : (details?.role || 'trial_user');
+      // Newly registered users can never self-assign privileged roles or clubId
+      const initialRole: UserRole = isBootstrap ? 'master_admin' : 'trial_user';
       const trialExpires = isBootstrap 
         ? now + 3650 * 24 * 60 * 60 * 1000 // 10 years for admin
         : now + 14 * 24 * 60 * 60 * 1000;   // 14 days for trial user
 
       const newProfile: UserProfile = {
         uid: cred.user.uid,
-        email: cred.user.email || '',
+        email: (cred.user.email || '').toLowerCase().trim(),
         firstName: isBootstrap ? (fName || 'Thorsten') : fName,
         lastName: isBootstrap ? (lName || 'Weber') : lName,
         displayName: isBootstrap ? 'Thorsten Weber' : fullName,
         role: initialRole,
         createdAt: now,
         trialExpiresAt: trialExpires,
-        subscriptionExpiresAt: isBootstrap ? now + 3650 * 24 * 60 * 60 * 1000 : (initialRole === 'single_pro' ? now + 365 * 24 * 60 * 60 * 1000 : null),
+        subscriptionExpiresAt: isBootstrap ? now + 3650 * 24 * 60 * 60 * 1000 : null,
         isBlocked: false,
-        favoriteExerciseIds: []
+        favoriteExerciseIds: [],
+        privacyConsentAt: now
       };
 
       const userDocRef = doc(firestoreDb, 'users', cred.user.uid);
@@ -415,15 +436,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const [, setUserRefreshTick] = useState(0);
+
   const reloadUser = async (): Promise<boolean> => {
     if (auth.currentUser) {
       await auth.currentUser.reload();
       const reloaded = auth.currentUser;
-      setUser({ ...reloaded } as User);
+      // Keep Firebase User prototype methods intact while triggering React re-render
+      setUser(reloaded);
+      setUserRefreshTick(t => t + 1);
       return reloaded.emailVerified;
     }
     return false;
   };
+
+  useEffect(() => {
+    const resolvedRole = isMasterAdmin
+      ? 'master_admin'
+      : isClubAdmin
+      ? 'club_admin'
+      : (userProfile?.role || '');
+    setActiveUserRoleForQueries(resolvedRole);
+  }, [isMasterAdmin, isClubAdmin, userProfile?.role]);
 
   return (
     <AuthContext.Provider

@@ -1,5 +1,6 @@
 import type { MesoDayItem } from '../types';
 import { BUILDING_BLOCK_CONFIGS } from '../types';
+import { loadNextLevelLogoBase64, drawNextLevelFooterLogo } from './pdfBranding';
 
 export interface MicroPlanPdfExportData {
   seasonName: string;
@@ -16,6 +17,7 @@ export interface MicroPlanPdfExportData {
   weekIntensity?: string;
   weekVolume?: string;
   athleticFocus?: string;
+  warmUpFocus?: string;
   forAdults?: boolean;
   targetDefenseGoals?: string;
   targetDefenseTechnique1?: string;
@@ -103,6 +105,7 @@ export async function generateMicroPlanPDF(data: MicroPlanPdfExportData): Promis
 
   let currentY = margin;
   const logoBase64 = await loadLogoBase64(data.clubLogoUrl);
+  const nextLevelFooterLogo = data.clubLogoUrl ? await loadNextLevelLogoBase64() : '';
   const todayStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   const formatDate = (dStr?: string) => {
@@ -253,7 +256,16 @@ export async function generateMicroPlanPDF(data: MicroPlanPdfExportData): Promis
   doc.setTextColor(67, 56, 202); // indigo-700
   doc.text(`SCHWERPUNKTE AUS DER MESOPLANUNG (${mesoTitle.toUpperCase()})`, margin + 4.5, currentY + 3.8);
 
-  // Athletic stimulus badge on top right of the banner
+  // WarmUp Schwerpunkt badge (if set) & Athletic stimulus badge on top right of the banner
+  if (data.warmUpFocus) {
+    doc.setFillColor(20, 184, 166); // teal-500
+    doc.roundedRect(pageWidth - margin - 102, currentY + 1.5, 42, 3.8, 0.6, 0.6, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(4.4);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`WarmUp: ${data.warmUpFocus}`, pageWidth - margin - 100, currentY + 3.9);
+  }
+
   doc.setFillColor(245, 158, 11);
   doc.roundedRect(pageWidth - margin - 58, currentY + 1.5, 56, 3.8, 0.6, 0.6, 'F');
   doc.setFont('helvetica', 'bold');
@@ -557,7 +569,11 @@ export async function generateMicroPlanPDF(data: MicroPlanPdfExportData): Promis
   doc.setFontSize(5.8);
   doc.setTextColor(148, 163, 184);
   doc.text('NEXTLEVEL GOALKEEPING ACADEMY  •  PROFESSIONELLE TORWART-TRAININGSPLANUNG & PERIODISIERUNG', margin, footerY + 1.5);
-  doc.text(`Dokument generiert am ${todayStr}  |  Seite 1 von 1`, pageWidth - margin, footerY + 1.5, { align: 'right' });
+  const microRightX = nextLevelFooterLogo ? pageWidth - margin - 7.5 : pageWidth - margin;
+  doc.text(`Dokument generiert am ${todayStr}  |  Seite 1 von 1`, microRightX, footerY + 1.5, { align: 'right' });
+  if (nextLevelFooterLogo) {
+    drawNextLevelFooterLogo(doc, nextLevelFooterLogo, pageWidth, margin, footerY - 1.5, 5.5);
+  }
 
   // --------------------------------------------------------------------------
   // 7. SAVE / DOWNLOAD PDF

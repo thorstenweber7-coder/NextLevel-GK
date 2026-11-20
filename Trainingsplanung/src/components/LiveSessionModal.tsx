@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import type { TrainingPlan, Exercise, TrainingStructure, TrainingGroup, CompetitionRound } from '../types';
+import type { TrainingPlan, Exercise, TrainingStructure, TrainingGroup, CompetitionRound, PlayerAbsence } from '../types';
 import { getExerciseAllMaterials } from '../types';
 import { VideoEmbedPlayer } from './VideoEmbedPlayer';
 import { 
@@ -12,12 +12,17 @@ import {
   Maximize2,
   Info,
   Layers,
-  ChevronRight
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { LiveTimerHud } from './live/LiveTimerHud';
 import { LiveCompetitionBoard } from './live/LiveCompetitionBoard';
+import { ExerciseAnimationPanel } from './editor/ExerciseAnimationPanel';
 import { useLiveSessionPersistence } from '../hooks/useLiveSessionPersistence';
+import { savePlanToFirestore, subscribeUserAbsences, getLocalPlayerAbsences } from '../firebase/firestoreService';
+import { useAuth } from '../context/AuthContext';
+import { resolveGroupRtpPlayers } from '../utils/rtpHelper';
 
 interface LiveSessionModalProps {
   plan: TrainingPlan;
@@ -57,8 +62,15 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
   structures,
   groups = [],
   onClose,
-  onPlanUpdated: _onPlanUpdated
+  onPlanUpdated
 }) => {
+  const { user, clubId } = useAuth();
+  const [absences, setAbsences] = useState<PlayerAbsence[]>(() => getLocalPlayerAbsences(user?.uid));
+
+  useEffect(() => {
+    const unsub = subscribeUserAbsences(user, (data) => setAbsences(data), undefined, clubId);
+    return () => unsub();
+  }, [user, clubId]);
   // Active View Tab: 'timer' (Exercise timer & details + Competition) or 'competition' (Scoreboard full width)
   const [activeViewTab, setActiveViewTab] = useState<'timer' | 'competition'>('timer');
   const [sunMode, setSunMode] = useState<boolean>(false);
@@ -199,15 +211,17 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
 
   // Target end time ref for accurate delta timer without drift
   const targetEndTimeRef = useRef<number | null>(null);
+  const flattenedExercisesRef = useRef(flattenedExercises);
+  flattenedExercisesRef.current = flattenedExercises;
 
-  // Update timer duration when changing active exercise or step 0
+  // Update timer duration ONLY when active step (currentIndex) changes
   useEffect(() => {
     if (currentIndex === 0) {
       setTimeLeft(5 * 60);
       setTimerRunning(false);
       targetEndTimeRef.current = null;
     } else {
-      const item = flattenedExercises[currentIndex - 1];
+      const item = flattenedExercisesRef.current[currentIndex - 1];
       if (item) {
         const secs = (item.exercise.durationMinutes || item.phaseDuration || 15) * 60;
         setTimeLeft(secs);
@@ -215,7 +229,7 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
         targetEndTimeRef.current = null;
       }
     }
-  }, [currentIndex, flattenedExercises]);
+  }, [currentIndex]);
 
   // Competition & Debrief State
   const [competitionRounds, setCompetitionRounds] = useState<CompetitionRound[]>(() => {
@@ -264,7 +278,10 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
     setShowRestoreDraftPrompt(false);
   };
 
-  // Auto-save live draft debounced
+  const timeLeftRef = useRef(timeLeft);
+  timeLeftRef.current = timeLeft;
+
+  // Auto-save live draft debounced & persist competitionRounds to Firestore
   useEffect(() => {
     saveSessionDraft({
       currentIndex,
@@ -273,21 +290,105 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
     });
   }, [currentIndex, timeLeft, competitionRounds, saveSessionDraft]);
 
+  const initialRoundsJsonRef = useRef(JSON.stringify(plan.competitionRounds || []));
+  useEffect(() => {
+    if (!plan.id) return;
+    const currentJson = JSON.stringify(competitionRounds);
+    if (currentJson === initialRoundsJsonRef.current) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const aggregatedScores: Record<string, number> = {};
+        competitionRounds.forEach(r => {
+          Object.entries(r.scores || {}).forEach(([kId, pts]) => {
+            aggregatedScores[kId] = (aggregatedScores[kId] || 0) + (Number(pts) || 0);
+          });
+        });
+
+        const updatedPlan: TrainingPlan = {
+          ...plan,
+          competitionRounds,
+          keeperCompetitionScores: aggregatedScores,
+          competitionTitle: competitionRounds[0]?.title || plan.competitionTitle,
+          updatedAt: Date.now()
+        };
+        await savePlanToFirestore(updatedPlan, user);
+        initialRoundsJsonRef.current = currentJson;
+        onPlanUpdated?.(updatedPlan);
+      } catch (err) {
+        console.warn('Error persisting competition scores to Firestore:', err);
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [competitionRounds, plan, user, onPlanUpdated]);
+
   // Keepers list for selected group
   const matchedGroup = useMemo(() => {
     return groups.find(g => g.id === plan.groupId || g.name === plan.targetGroup) || groups[0];
   }, [groups, plan.groupId, plan.targetGroup]);
 
   const groupKeepers = useMemo(() => {
-    return matchedGroup?.players || [];
-  }, [matchedGroup]);
+    const base = (matchedGroup?.players || []).filter(p => !p.archived);
+    const guestIds = plan.guestKeeperIds || [];
+    if (guestIds.length === 0) return base;
+    const seen = new Set(base.map(p => p.id));
+    const guests: typeof base = [];
+    groups.forEach(g => {
+      (g.players || [])
+        .filter(p => !p.archived && guestIds.includes(p.id) && !seen.has(p.id))
+        .forEach(p => {
+          seen.add(p.id);
+          guests.push(p);
+        });
+    });
+    return [...base, ...guests];
+  }, [matchedGroup, groups, plan.guestKeeperIds]);
 
-  // Timer Tick Interval
+  const activeRtpKeepers = useMemo(() => {
+    const planDateStr = plan.date || plan.planDate || new Date().toISOString().slice(0, 10);
+    return resolveGroupRtpPlayers(groupKeepers, absences, planDateStr);
+  }, [groupKeepers, absences, plan.date, plan.planDate]);
+
+  const watchNotificationEnabledRef = useRef(watchNotificationEnabled);
+  watchNotificationEnabledRef.current = watchNotificationEnabled;
+
+  const triggerWatchNotification = useCallback(() => {
+    if (!watchNotificationEnabledRef.current) return;
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate([250, 100, 250, 100, 400]);
+      }
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        const activeTitle = currentIndex === 0
+          ? 'Vorbereitung'
+          : (flattenedExercisesRef.current[currentIndex - 1]?.exercise.title || `Übung ${currentIndex}`);
+        new Notification('NextLevel Live-Timer abgelaufen', {
+          body: `${activeTitle} ist beendet.`,
+          tag: 'nextlevel-live-timer'
+        });
+      }
+    } catch (e) {
+      console.warn('Watch notification warning:', e);
+    }
+  }, [currentIndex]);
+
+  const handleToggleWatchNotification = () => {
+    setWatchNotificationEnabled(prev => {
+      const next = !prev;
+      if (next && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
+      return next;
+    });
+  };
+
+  // Timer Tick Interval (no timeLeft in deps so interval is not torn down every 250ms)
   useEffect(() => {
     let interval: any = null;
     if (timerRunning) {
       if (!targetEndTimeRef.current) {
-        targetEndTimeRef.current = Date.now() + timeLeft * 1000;
+        targetEndTimeRef.current = Date.now() + timeLeftRef.current * 1000;
       }
 
       interval = setInterval(() => {
@@ -298,6 +399,7 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
             setTimerRunning(false);
             targetEndTimeRef.current = null;
             playAlarmSound();
+            triggerWatchNotification();
           }
         }
       }, 250);
@@ -305,7 +407,7 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
       targetEndTimeRef.current = null;
     }
     return () => clearInterval(interval);
-  }, [timerRunning, playAlarmSound, timeLeft]);
+  }, [timerRunning, playAlarmSound, triggerWatchNotification]);
 
   // Wet Screen Lock Long-Press Logic
   const [unlockProgress, setUnlockProgress] = useState<number>(0);
@@ -539,54 +641,9 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
       {/* 3. MAIN CONTENT AREA */}
       <div className="flex-1 p-4 sm:p-6 max-w-6xl mx-auto w-full space-y-6">
         {activeViewTab === 'timer' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Compact Timer HUD & Wettkampf-Modus (col-span-5) */}
-            <div className="lg:col-span-5 space-y-4">
-              {/* Compact Digital Timer HUD */}
-              <LiveTimerHud
-                currentItem={currentItem}
-                currentIndex={currentIndex}
-                totalExercises={flattenedExercises.length}
-                timeLeft={timeLeft}
-                initialDurationSeconds={initialDurationSeconds}
-                timerRunning={timerRunning}
-                soundEnabled={soundEnabled}
-                sunMode={sunMode}
-                watchNotificationEnabled={watchNotificationEnabled}
-                isWetScreenLocked={isWetScreenLocked}
-                unlockProgress={unlockProgress}
-                onToggleTimer={handleToggleTimer}
-                onAdjustTimerSeconds={handleAdjustTimerSeconds}
-                onResetTimer={handleResetTimer}
-                onPrev={handlePrev}
-                onNext={handleNext}
-                onToggleSound={() => setSoundEnabled(prev => !prev)}
-                onToggleSunMode={() => setSunMode(prev => !prev)}
-                onToggleWatchNotification={() => setWatchNotificationEnabled(prev => !prev)}
-                onToggleWetScreenLock={() => setIsWetScreenLocked(prev => !prev)}
-                onStartUnlockHold={startUnlockHold}
-                onCancelUnlockHold={cancelUnlockHold}
-              />
-
-              {/* Wettkampf-Modus Board positioned under Timer */}
-              <LiveCompetitionBoard
-                competitionRounds={competitionRounds}
-                selectedRoundId={selectedRoundId}
-                setSelectedRoundId={setSelectedRoundId}
-                onAddRound={handleAddRound}
-                onDeleteRound={handleDeleteRound}
-                onResetRoundScores={handleResetRoundScores}
-                onAdjustScore={handleAdjustScore}
-                groupKeepers={groupKeepers}
-                competitionPresets={COMPETITION_PRESETS}
-              />
-            </div>
-
-            {/* Right Column: Step 0 (Vorbereitung) OR Step 1..N (Exercise Details) (col-span-7) */}
-            <div className="lg:col-span-7 space-y-6">
-              {currentIndex === 0 ? (
-                /* STARTSEITE: Übung 0 - Vorbereitung */
-                <div className="space-y-6">
+          currentIndex === 0 ? (
+            /* STARTSEITE: Übung 0 - Vorbereitung (ohne Timer & ohne Torwart-Wettkampf) */
+            <div className="space-y-6">
                   {/* Banner Card */}
                   <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/50 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
                     <div className="flex items-center justify-between gap-3">
@@ -612,6 +669,57 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
                       </button>
                     </div>
                   </div>
+
+                  {/* Return-to-Play (RTP) Check-Box in der Vorbereitung */}
+                  {activeRtpKeepers.length > 0 && (
+                    <div className={cn(
+                      "rounded-3xl p-5 sm:p-6 shadow-xl border transition-colors",
+                      sunMode ? "bg-orange-50 border-orange-300 text-slate-900" : "bg-amber-950/40 border-amber-600/50 text-amber-100"
+                    )}>
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <div className={cn(
+                          "p-2 rounded-xl flex items-center justify-center",
+                          sunMode ? "bg-orange-200 text-orange-900" : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                        )}>
+                          <AlertCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className={cn("text-xs sm:text-sm font-extrabold uppercase tracking-wider", sunMode ? "text-orange-900" : "text-amber-300")}>
+                            Return-to-Play / Belastungshinweise ({activeRtpKeepers.length})
+                          </h4>
+                          <p className={cn("text-xs", sunMode ? "text-orange-800/80" : "text-amber-200/80")}>
+                            Individuelle Einschränkungen für diese Trainingseinheit beachten
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {activeRtpKeepers.map(k => (
+                          <div
+                            key={k.id}
+                            className={cn(
+                              "p-3 rounded-2xl border text-xs flex flex-wrap items-center justify-between gap-2",
+                              sunMode ? "bg-white border-orange-200 text-slate-900" : "bg-slate-950/70 border-amber-700/40 text-amber-100"
+                            )}
+                          >
+                            <div>
+                              <span className="font-extrabold">{k.name}</span>
+                              <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                {k.stage}
+                              </span>
+                              {k.allowedActions && (
+                                <p className="text-xs opacity-90 mt-1">{k.allowedActions}</p>
+                              )}
+                            </div>
+                            {k.maxRpe && (
+                              <span className="text-[11px] font-black px-2.5 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                max. RPE {k.maxRpe}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Benötigtes Gesamtmaterial */}
                   <div className={cn(
@@ -735,9 +843,12 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
                     </div>
                   </div>
                 </div>
-              ) : (
-                /* EXERCISE DETAILS (Übung 1..N) */
-                currentItem ? (
+          ) : (
+            /* ÜBUNGEN (Step 1..N): Mobil 1. Übung -> 2. Timer -> 3. Torwart-Wettkampf; Desktop 2-spaltig */
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Mobile 1. / Desktop Rechts: Exercise Details */}
+              <div className="order-1 lg:order-none lg:col-start-6 lg:col-span-7 lg:row-start-1 lg:row-span-2 space-y-6">
+                {currentItem ? (
                   <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
                     {/* Exercise Header */}
                     <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-4">
@@ -763,6 +874,23 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
                       )}
                     </div>
 
+                    {/* Return-to-Play (RTP) Hinweis-Streifen auf jeder Übung */}
+                    {activeRtpKeepers.length > 0 && (
+                      <div className="p-3 rounded-2xl bg-amber-950/60 border border-amber-600/50 text-amber-200 text-xs space-y-1">
+                        <div className="font-extrabold text-amber-300 flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                          <span>RTP-Hinweis für diese Übung:</span>
+                        </div>
+                        {activeRtpKeepers.map(k => (
+                          <div key={k.id} className="text-[11px] leading-snug">
+                            <strong>{k.name}</strong> ({k.stage}):{' '}
+                            {k.allowedActions || 'Angepasste Belastung beachten'}
+                            {k.maxRpe ? ` • max. RPE ${k.maxRpe}` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Prominent Large Tactic Graphic */}
                     {(currentItem.exercise.imageUrl || currentItem.exercise.imageBase64) && (
                       <div 
@@ -787,6 +915,15 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
                       <div className="rounded-2xl overflow-hidden border border-slate-800">
                         <VideoEmbedPlayer url={currentItem.exercise.videoUrl} title={currentItem.exercise.title} />
                       </div>
+                    )}
+
+                    {/* Optional Animated Sequence Player */}
+                    {currentItem.exercise.animationFrames && currentItem.exercise.animationFrames.length >= 2 && (
+                      <ExerciseAnimationPanel
+                        frames={currentItem.exercise.animationFrames as any}
+                        readOnly
+                        exerciseTitle={currentItem.exercise.title}
+                      />
                     )}
 
                     {/* Übungs-Details: Ablauf, Technikprinzipien, Taktikprinzipien, Coachingpunkte, Siegbedingung */}
@@ -865,7 +1002,7 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
 
                       {/* Materials & Keepers specific to this exercise */}
                       <div className="flex flex-wrap items-center gap-2 pt-1">
-                        {currentItem.exercise.materials && currentItem.exercise.materials.map(mat => (
+                        {getExerciseAllMaterials(currentItem.exercise).map(mat => (
                           <span key={mat} className="px-2.5 py-1 rounded-xl bg-slate-950 text-slate-400 border border-slate-800 text-[11px] font-bold flex items-center gap-1">
                             <Package className="w-3 h-3 text-amber-400" />
                             <span>{mat}</span>
@@ -882,10 +1019,53 @@ export const LiveSessionModal: React.FC<LiveSessionModalProps> = ({
                   <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl text-slate-400 text-xs">
                     Keine Übung zugewiesen.
                   </div>
-                )
-              )}
+                )}
+              </div>
+
+              {/* Mobile 2. / Desktop Links Oben: Compact Digital Timer HUD */}
+              <div className="order-2 lg:order-none lg:col-start-1 lg:col-span-5 lg:row-start-1">
+                <LiveTimerHud
+                  currentItem={currentItem}
+                  currentIndex={currentIndex}
+                  totalExercises={flattenedExercises.length}
+                  timeLeft={timeLeft}
+                  initialDurationSeconds={initialDurationSeconds}
+                  timerRunning={timerRunning}
+                  soundEnabled={soundEnabled}
+                  sunMode={sunMode}
+                  watchNotificationEnabled={watchNotificationEnabled}
+                  isWetScreenLocked={isWetScreenLocked}
+                  unlockProgress={unlockProgress}
+                  onToggleTimer={handleToggleTimer}
+                  onAdjustTimerSeconds={handleAdjustTimerSeconds}
+                  onResetTimer={handleResetTimer}
+                  onPrev={handlePrev}
+                  onNext={handleNext}
+                  onToggleSound={() => setSoundEnabled(prev => !prev)}
+                  onToggleSunMode={() => setSunMode(prev => !prev)}
+                  onToggleWatchNotification={handleToggleWatchNotification}
+                  onToggleWetScreenLock={() => setIsWetScreenLocked(prev => !prev)}
+                  onStartUnlockHold={startUnlockHold}
+                  onCancelUnlockHold={cancelUnlockHold}
+                />
+              </div>
+
+              {/* Mobile 3. (ganz unten) / Desktop Links Unten: Wettkampf-Modus Board */}
+              <div className="order-3 lg:order-none lg:col-start-1 lg:col-span-5 lg:row-start-2">
+                <LiveCompetitionBoard
+                  competitionRounds={competitionRounds}
+                  selectedRoundId={selectedRoundId}
+                  setSelectedRoundId={setSelectedRoundId}
+                  onAddRound={handleAddRound}
+                  onDeleteRound={handleDeleteRound}
+                  onResetRoundScores={handleResetRoundScores}
+                  onAdjustScore={handleAdjustScore}
+                  groupKeepers={groupKeepers}
+                  competitionPresets={COMPETITION_PRESETS}
+                />
+              </div>
             </div>
-          </div>
+          )
         ) : (
           /* Full Width Competition Board Tab */
           <LiveCompetitionBoard

@@ -1,4 +1,5 @@
 import type { AthleticTestMetrics, BiologicalMaturityMetrics } from '../types';
+import { loadNextLevelLogoBase64, drawNextLevelFooterLogo } from './pdfBranding';
 
 export interface AthleticTestExportData {
   clubLogoUrl?: string;
@@ -64,6 +65,7 @@ export async function generateAthleticTestPDF(
 ): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const logoBase64 = await loadLogoBase64(data.clubLogoUrl);
+  const nextLevelFooterLogo = data.clubLogoUrl ? await loadNextLevelLogoBase64() : '';
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -109,12 +111,12 @@ export async function generateAthleticTestPDF(
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
-      doc.text('NEXTLEVEL GOALKEEPING ACADEMY', textStartX, 12.5);
+      doc.text((data.clubName || 'NEXTLEVEL GOALKEEPING ACADEMY').toUpperCase(), textStartX, 12.5);
 
       doc.setTextColor(74, 222, 128); // #4ade80
       doc.setFontSize(8.5);
       if (data.clubName) {
-        doc.text(`ATHLETIKTEST & LEISTUNGSDIAGNOSTIK • ${data.clubName.toUpperCase()}`, textStartX, 19.5);
+        doc.text('ATHLETIKTEST & STANDARDISIERTE LEISTUNGSDIAGNOSTIK', textStartX, 19.5);
       } else {
         doc.text('ATHLETIKTEST & STANDARDISIERTE LEISTUNGSDIAGNOSTIK', textStartX, 19.5);
       }
@@ -975,7 +977,11 @@ export async function generateAthleticTestPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.text('NextLevel Goalkeeping Academy - Standardisierte Leistungsdiagnostik & Athletikprotokoll', margin, pageHeight - 3);
-    doc.text(`Seite ${i} von ${totalPages}`, pageWidth - margin, pageHeight - 3, { align: 'right' });
+    const athRightX = nextLevelFooterLogo ? pageWidth - margin - 7.5 : pageWidth - margin;
+    doc.text(`Seite ${i} von ${totalPages}`, athRightX, pageHeight - 3, { align: 'right' });
+    if (nextLevelFooterLogo) {
+      drawNextLevelFooterLogo(doc, nextLevelFooterLogo, pageWidth, margin, pageHeight - 6.75, 5.5);
+    }
   }
 
   // Save PDF

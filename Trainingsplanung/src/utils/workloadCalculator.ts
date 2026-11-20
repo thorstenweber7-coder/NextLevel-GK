@@ -155,6 +155,10 @@ export interface PlayerWorkload {
   jumpWeightedChronicLoad28d?: number;
   jumpWeightedAcwr?: number;
   jumpWeightedStatus?: WorkloadStatus;
+
+  // Foster (1998) Training Monotony & Training Strain (7d)
+  monotony7d?: number;
+  strain7d?: number;
 }
 
 export interface GroupWorkloadSummary {
@@ -182,6 +186,10 @@ export interface GroupWorkloadSummary {
   teamAvgJumpWeightedChronicLoad?: number;
   teamAvgJumpWeightedAcwr?: number;
   teamJumpWeightedStatus?: WorkloadStatus;
+
+  // Team Foster Monotony & Strain (7d)
+  teamAvgMonotony?: number;
+  teamAvgStrain?: number;
 }
 
 export interface SeasonWeeklyLoadData {
@@ -259,8 +267,29 @@ export const classifyACWR = (acwr: number): WorkloadStatus => {
  * 2. Secondary: If unrated, uses Mikroplanung intensities (TW-Dauer * TW-Intensität + Team-Dauer * Team-Intensität)
  * 3. Fallback: Standard training load (duration * 6.0)
  */
+function isPlanMatchingPlayerGroup(
+  plan: TrainingPlan,
+  playerId: string,
+  playerGroupId?: string,
+  playerGroupName?: string
+): boolean {
+  if (Array.isArray(plan.guestKeeperIds) && plan.guestKeeperIds.includes(playerId)) {
+    return true;
+  }
+  if (!playerGroupId && !playerGroupName) return true;
+  if (playerGroupId && plan.groupId) {
+    return plan.groupId === playerGroupId;
+  }
+  if (playerGroupName && plan.targetGroup && plan.targetGroup.trim()) {
+    return plan.targetGroup.trim().toLowerCase() === playerGroupName.trim().toLowerCase();
+  }
+  // Legacy plans without groupId or targetGroup cannot be attributed to a different group if another group is strictly expected;
+  // allow only if neither groupId nor targetGroup is set on the plan.
+  return !plan.groupId && !(plan.targetGroup && plan.targetGroup.trim());
+}
+
 export function calculatePlayerWorkload(
-  player: { id: string; firstName?: string; lastName?: string; name?: string; jerseyNumber?: number | string; groupId?: string },
+  player: { id: string; firstName?: string; lastName?: string; name?: string; jerseyNumber?: number | string; groupId?: string; groupName?: string },
   savedPlans: TrainingPlan[],
   referenceDateInput: Date | string = new Date(),
   weeksCount: number = 8,
@@ -268,31 +297,29 @@ export function calculatePlayerWorkload(
   mesoPlans?: MesoPlan[],
   absences?: PlayerAbsence[]
 ): PlayerWorkload {
-  const refDate = typeof referenceDateInput === 'string' ? new Date(referenceDateInput) : new Date(referenceDateInput.getTime());
+  const refDate = typeof referenceDateInput === 'string'
+    ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(referenceDateInput) ? `${referenceDateInput}T12:00:00` : referenceDateInput)
+    : new Date(referenceDateInput.getTime());
   // End of reference day (23:59:59)
   refDate.setHours(23, 59, 59, 999);
 
   const playerId = player.id;
   const playerName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Torwart';
   const playerGroupId = player.groupId;
+  const playerGroupName = player.groupName;
 
   // Window limit (past 8-10 weeks)
   const windowStartDate = new Date(refDate.getTime());
   windowStartDate.setDate(windowStartDate.getDate() - (weeksCount * 7 + 14));
   windowStartDate.setHours(0, 0, 0, 0);
 
-  // Helper to find a matching MesoDayItem for a given date
+  // Helper to find a matching MesoDayItem for a given date (strictly scoped to player's group)
   const findMicroDayForDate = (dateStr: string): MesoDayItem | null => {
     if (!mesoPlans || mesoPlans.length === 0) return null;
     
-    // Check plans matching the player's group first
-    let candidates = mesoPlans;
-    if (playerGroupId) {
-      const groupSpecific = mesoPlans.filter(m => m.groupId === playerGroupId);
-      if (groupSpecific.length > 0) {
-        candidates = groupSpecific;
-      }
-    }
+    const candidates = playerGroupId
+      ? mesoPlans.filter(m => m.groupId === playerGroupId)
+      : mesoPlans;
 
     for (const meso of candidates) {
       for (const week of meso.weeks || []) {
@@ -363,9 +390,9 @@ export function calculatePlayerWorkload(
   // 1a. Process Saved Plans (Debrief -> Microplan -> Fallback)
   savedPlans.forEach(plan => {
     if (plan.isArchived) return;
+    if (!isPlanMatchingPlayerGroup(plan, playerId, playerGroupId, playerGroupName)) return;
     const planDateStr = normalizeToYMD(plan.date || plan.planDate);
-    const planDate = new Date(planDateStr);
-    planDate.setHours(12, 0, 0, 0);
+    const planDate = new Date(`${planDateStr}T12:00:00`);
 
     // Skip future plans beyond reference date or outside history window
     if (planDate.getTime() > refDate.getTime() || planDate.getTime() < windowStartDate.getTime()) return;
@@ -418,7 +445,9 @@ export function calculatePlayerWorkload(
       } else {
         dailyLoadsMap[planDateStr].load += sessionLoad;
         dailyLoadsMap[planDateStr].durationMinutes += duration;
-        dailyLoadsMap[planDateStr].rpe = Math.round(((dailyLoadsMap[planDateStr].rpe + debriefRpe) / 2) * 10) / 10;
+        dailyLoadsMap[planDateStr].rpe = dailyLoadsMap[planDateStr].durationMinutes > 0
+          ? Math.round((dailyLoadsMap[planDateStr].load / dailyLoadsMap[planDateStr].durationMinutes) * 10) / 10
+          : debriefRpe;
         dailyLoadsMap[planDateStr].jumpVolume = mergeJumpVolume(dailyLoadsMap[planDateStr].jumpVolume, playerJumpVol);
         if (plan.pitchSurface) dailyLoadsMap[planDateStr].pitchSurface = plan.pitchSurface;
       }
@@ -443,7 +472,9 @@ export function calculatePlayerWorkload(
           } else {
             dailyLoadsMap[planDateStr].load += microLoadResult.totalLoad;
             dailyLoadsMap[planDateStr].durationMinutes += microLoadResult.totalMinutes;
-            dailyLoadsMap[planDateStr].rpe = Math.round(((dailyLoadsMap[planDateStr].rpe + microLoadResult.effectiveRpe) / 2) * 10) / 10;
+            dailyLoadsMap[planDateStr].rpe = dailyLoadsMap[planDateStr].durationMinutes > 0
+              ? Math.round((dailyLoadsMap[planDateStr].load / dailyLoadsMap[planDateStr].durationMinutes) * 10) / 10
+              : microLoadResult.effectiveRpe;
             dailyLoadsMap[planDateStr].jumpVolume = mergeJumpVolume(dailyLoadsMap[planDateStr].jumpVolume, playerJumpVol);
             if (plan.pitchSurface) dailyLoadsMap[planDateStr].pitchSurface = plan.pitchSurface;
           }
@@ -471,7 +502,9 @@ export function calculatePlayerWorkload(
       } else {
         dailyLoadsMap[planDateStr].load += sessionLoad;
         dailyLoadsMap[planDateStr].durationMinutes += duration;
-        dailyLoadsMap[planDateStr].rpe = Math.round(((dailyLoadsMap[planDateStr].rpe + fallbackRpe) / 2) * 10) / 10;
+        dailyLoadsMap[planDateStr].rpe = dailyLoadsMap[planDateStr].durationMinutes > 0
+          ? Math.round((dailyLoadsMap[planDateStr].load / dailyLoadsMap[planDateStr].durationMinutes) * 10) / 10
+          : fallbackRpe;
         dailyLoadsMap[planDateStr].jumpVolume = mergeJumpVolume(dailyLoadsMap[planDateStr].jumpVolume, playerJumpVol);
         if (plan.pitchSurface) dailyLoadsMap[planDateStr].pitchSurface = plan.pitchSurface;
       }
@@ -480,18 +513,15 @@ export function calculatePlayerWorkload(
 
   // 1b. Check standalone days from Meso-/Mikroplanung (if no saved plan was created on that date)
   if (mesoPlans && mesoPlans.length > 0) {
-    let relevantMeso = mesoPlans;
-    if (playerGroupId) {
-      const gSpecific = mesoPlans.filter(m => m.groupId === playerGroupId);
-      if (gSpecific.length > 0) relevantMeso = gSpecific;
-    }
+    const relevantMeso = playerGroupId
+      ? mesoPlans.filter(m => m.groupId === playerGroupId)
+      : mesoPlans;
 
     relevantMeso.forEach(meso => {
       (meso.weeks || []).forEach(week => {
         (week.days || []).forEach(day => {
           const dayDateStr = normalizeToYMD(day.date);
-          const dayDate = new Date(dayDateStr);
-          dayDate.setHours(12, 0, 0, 0);
+          const dayDate = new Date(`${dayDateStr}T12:00:00`);
 
           if (dayDate.getTime() > refDate.getTime() || dayDate.getTime() < windowStartDate.getTime()) return;
 
@@ -548,8 +578,16 @@ export function calculatePlayerWorkload(
       }
 
       if (minutes !== undefined && minutes > 0) {
-        // High Match Intensity RPE: 8.0 (Borg CR-10 / Gabbett Benchmark for Match Day)
-        const matchRpe = 8;
+        // Match Intensity RPE: Configurable match.matchRpe (4-10) or default 8.0 (Borg CR-10 / Gabbett Benchmark for Match Day)
+        const matchRpe = (typeof match.matchRpe === 'number' && match.matchRpe >= 1 && match.matchRpe <= 10) ? match.matchRpe : 8;
+        const matchJumpVol: 'low' | 'medium' | 'high' =
+          match.matchJumpVolume === 'low' || match.matchJumpVolume === 'high' ? match.matchJumpVolume : 'medium';
+        const mergeMatchJump = (existing?: string, next?: string): 'low' | 'medium' | 'high' | undefined => {
+          if (existing === 'high' || next === 'high') return 'high';
+          if (existing === 'medium' || next === 'medium') return 'medium';
+          if (existing === 'low' || next === 'low') return 'low';
+          return undefined;
+        };
 
         if (minutes <= 45) {
           // Substitute Goalkeeper with Short Appearance:
@@ -566,6 +604,7 @@ export function calculatePlayerWorkload(
               load: combinedLoad,
               durationMinutes: totalMin,
               rpe: effectiveRpe,
+              jumpVolume: matchJumpVol,
               planTitle: `⚽ Spiel & Warm-up: ${match.opponent || 'Wettkampf'} (${minutes} Min. Einsatz + 35 Min. Warm-up)`,
               planId: match.id,
               isMatch: true
@@ -573,6 +612,7 @@ export function calculatePlayerWorkload(
           } else {
             dailyLoadsMap[matchDateStr].load += combinedLoad;
             dailyLoadsMap[matchDateStr].durationMinutes += totalMin;
+            dailyLoadsMap[matchDateStr].jumpVolume = mergeMatchJump(dailyLoadsMap[matchDateStr].jumpVolume, matchJumpVol);
             dailyLoadsMap[matchDateStr].planTitle += ` + ⚽ Spiel (${minutes} Min.) & Warm-up`;
             dailyLoadsMap[matchDateStr].isMatch = true;
           }
@@ -586,6 +626,7 @@ export function calculatePlayerWorkload(
               load: matchLoad,
               durationMinutes: minutes,
               rpe: matchRpe,
+              jumpVolume: matchJumpVol,
               planTitle: `⚽ Spiel: ${match.opponent || 'Wettkampf'} (${match.team || match.location || 'Spiel'})`,
               planId: match.id,
               isMatch: true
@@ -593,6 +634,7 @@ export function calculatePlayerWorkload(
           } else {
             dailyLoadsMap[matchDateStr].load += matchLoad;
             dailyLoadsMap[matchDateStr].durationMinutes += minutes;
+            dailyLoadsMap[matchDateStr].jumpVolume = mergeMatchJump(dailyLoadsMap[matchDateStr].jumpVolume, matchJumpVol);
             dailyLoadsMap[matchDateStr].planTitle += ` + ⚽ Spiel (${minutes} Min)`;
             dailyLoadsMap[matchDateStr].isMatch = true;
           }
@@ -612,6 +654,7 @@ export function calculatePlayerWorkload(
             load: benchLoad,
             durationMinutes: benchWarmupMinutes,
             rpe: benchWarmupRpe,
+            jumpVolume: 'low',
             planTitle: `🧤 Spieltag: Bank & Match-Warm-up (${match.opponent || 'Spiel'})`,
             planId: match.id,
             isMatch: true
@@ -619,6 +662,7 @@ export function calculatePlayerWorkload(
         } else {
           dailyLoadsMap[matchDateStr].load += benchLoad;
           dailyLoadsMap[matchDateStr].durationMinutes += benchWarmupMinutes;
+          if (!dailyLoadsMap[matchDateStr].jumpVolume) dailyLoadsMap[matchDateStr].jumpVolume = 'low';
           dailyLoadsMap[matchDateStr].planTitle += ` + 🧤 Bank & Warm-up`;
           dailyLoadsMap[matchDateStr].isMatch = true;
         }
@@ -798,6 +842,20 @@ export function calculatePlayerWorkload(
   const acwrEwma = acuteLoadEwma > 0 ? Math.round((acuteLoadEwma / chronicLoadEwma) * 100) / 100 : 0;
   const statusEwma = classifyACWR(acwrEwma);
 
+  // 9. Compute Foster (1998) Training Monotony & Training Strain (7-day acute window)
+  const loads7d: number[] = [];
+  for (let i = 0; i < 7; i++) {
+    const dObj = new Date(sevenDaysAgo.getTime());
+    dObj.setDate(dObj.getDate() + i);
+    const dKey = normalizeToYMD(dObj.toISOString());
+    loads7d.push(dailyLoadsMap[dKey]?.load || 0);
+  }
+  const mean7d = acuteLoad7d / 7;
+  const variance7d = loads7d.reduce((acc, val) => acc + Math.pow(val - mean7d, 2), 0) / 7;
+  const sd7d = Math.sqrt(variance7d);
+  const monotony7d = acuteLoad7d > 0 && sd7d > 0 ? Math.round((mean7d / sd7d) * 100) / 100 : 0;
+  const strain7d = Math.round(acuteLoad7d * monotony7d);
+
   return {
     playerId,
     playerName,
@@ -821,7 +879,9 @@ export function calculatePlayerWorkload(
     jumpWeightedAcuteLoad7d,
     jumpWeightedChronicLoad28d,
     jumpWeightedAcwr,
-    jumpWeightedStatus
+    jumpWeightedStatus,
+    monotony7d,
+    strain7d
   };
 }
 
@@ -841,17 +901,25 @@ export function calculateGroupWorkload(
   const targetGroupId = groupObj?.id || 'all';
   const targetGroupName = groupObj?.name || 'Alle Torhüter';
 
-  // Get all goalkeepers in this group
-  let playersList: Player[] = [];
+  // Get all goalkeepers in this group (with groupId & groupName attached for strict plan filtering)
+  let playersList: (Player & { groupName?: string })[] = [];
   if (groupObj && groupObj.players && groupObj.players.length > 0) {
-    playersList = groupObj.players;
+    playersList = groupObj.players.map(p => ({
+      ...p,
+      groupId: p.groupId || groupObj.id,
+      groupName: groupObj.name
+    }));
   } else {
     // Collect from all groups
-    const collected: Player[] = [];
+    const collected: (Player & { groupName?: string })[] = [];
     allGroups.forEach(g => {
       (g.players || []).forEach(p => {
         if (!collected.some(x => x.id === p.id)) {
-          collected.push(p);
+          collected.push({
+            ...p,
+            groupId: p.groupId || g.id,
+            groupName: g.name
+          });
         }
       });
     });
@@ -925,6 +993,9 @@ export function calculateGroupWorkload(
   const teamAvgJumpWeightedAcwr = teamAvgJumpWeightedChronicLoad > 0 ? Math.round((teamAvgJumpWeightedAcuteLoad / teamAvgJumpWeightedChronicLoad) * 100) / 100 : 0;
   const teamJumpWeightedStatus = classifyACWR(teamAvgJumpWeightedAcwr);
 
+  const teamAvgMonotony = Math.round((playersWorkloads.reduce((acc, p) => acc + (p.monotony7d || 0), 0) / Math.max(1, playersWorkloads.length)) * 100) / 100;
+  const teamAvgStrain = Math.round(playersWorkloads.reduce((acc, p) => acc + (p.strain7d || 0), 0) / Math.max(1, playersWorkloads.length));
+
   return {
     targetGroupId,
     targetGroupName,
@@ -945,7 +1016,9 @@ export function calculateGroupWorkload(
     teamAvgJumpWeightedAcuteLoad,
     teamAvgJumpWeightedChronicLoad,
     teamAvgJumpWeightedAcwr,
-    teamJumpWeightedStatus
+    teamJumpWeightedStatus,
+    teamAvgMonotony,
+    teamAvgStrain
   };
 }
 
@@ -954,7 +1027,7 @@ export function calculateGroupWorkload(
   * 52 weeks mapped chronologically across the 12 season months.
   */
 export function calculatePlayerSeasonWorkload(
-  player: { id: string; firstName?: string; lastName?: string; name?: string; jerseyNumber?: number | string; groupId?: string },
+  player: { id: string; firstName?: string; lastName?: string; name?: string; jerseyNumber?: number | string; groupId?: string; groupName?: string },
   savedPlans: TrainingPlan[] = [],
   matchPlaytimes: PlayerMatchPlaytime[] = [],
   seasonStartYearInput?: number,
@@ -962,6 +1035,8 @@ export function calculatePlayerSeasonWorkload(
 ): PlayerSeasonWorkload {
   const playerId = player.id;
   const playerName = player.name || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Torwart';
+  const playerGroupId = player.groupId;
+  const playerGroupName = player.groupName;
   
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -990,9 +1065,9 @@ export function calculatePlayerSeasonWorkload(
   // 1a. Saved Plans
   savedPlans.forEach(plan => {
     if (plan.isArchived) return;
+    if (!isPlanMatchingPlayerGroup(plan, playerId, playerGroupId, playerGroupName)) return;
     const planDateStr = normalizeToYMD(plan.date || plan.planDate);
-    const planDate = new Date(planDateStr);
-    planDate.setHours(12, 0, 0, 0);
+    const planDate = new Date(`${planDateStr}T12:00:00`);
 
     if (planDate.getTime() < baselineStartDate.getTime() || planDate.getTime() > seasonEndDate.getTime()) return;
 
@@ -1033,7 +1108,9 @@ export function calculatePlayerSeasonWorkload(
     } else {
       dailyLoadsMap[planDateStr].load += sessionLoad;
       dailyLoadsMap[planDateStr].durationMinutes += duration;
-      dailyLoadsMap[planDateStr].rpe = Math.round(((dailyLoadsMap[planDateStr].rpe + rpe) / 2) * 10) / 10;
+      dailyLoadsMap[planDateStr].rpe = dailyLoadsMap[planDateStr].durationMinutes > 0
+        ? Math.round((dailyLoadsMap[planDateStr].load / dailyLoadsMap[planDateStr].durationMinutes) * 10) / 10
+        : rpe;
       dailyLoadsMap[planDateStr].jumpVolume = mergeJumpVolume(dailyLoadsMap[planDateStr].jumpVolume, playerJumpVol);
     }
   });
@@ -1041,8 +1118,7 @@ export function calculatePlayerSeasonWorkload(
   // 1b. Match Playtimes
   matchPlaytimes.forEach(match => {
     const matchDateStr = normalizeToYMD(match.date);
-    const matchDate = new Date(matchDateStr);
-    matchDate.setHours(12, 0, 0, 0);
+    const matchDate = new Date(`${matchDateStr}T12:00:00`);
 
     if (matchDate.getTime() < baselineStartDate.getTime() || matchDate.getTime() > seasonEndDate.getTime()) return;
 
@@ -1065,7 +1141,7 @@ export function calculatePlayerSeasonWorkload(
     }
 
     if (minutes !== undefined && minutes > 0) {
-      const matchRpe = 8;
+      const matchRpe = (typeof match.matchRpe === 'number' && match.matchRpe >= 1 && match.matchRpe <= 10) ? match.matchRpe : 8;
       if (minutes <= 45) {
         const warmupMin = 35;
         const warmupRpe = 5.5;

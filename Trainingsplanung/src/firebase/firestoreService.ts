@@ -10,6 +10,7 @@ import {
   query, 
   orderBy,
   where,
+  writeBatch,
   type Query,
   type QuerySnapshot,
   type QueryDocumentSnapshot
@@ -79,6 +80,193 @@ const LOCAL_EVALUATIONS_PREFIX = 'nextlevel_player_evaluations_';
 const LOCAL_MATCH_PLAYTIMES_PREFIX = 'nextlevel_match_playtimes_';
 const LOCAL_FEEDBACK_TALKS_PREFIX = 'nextlevel_feedback_talks_';
 
+// ----------------------------------------------------------------------------
+// SERVER-SIDE GROUP ACL HELPERS (allowedCoachUids)
+// ----------------------------------------------------------------------------
+
+let currentQueryUserRole: string = '';
+
+export function setActiveUserRoleForQueries(role: string): void {
+  currentQueryUserRole = role || '';
+}
+
+function isClubCoachOnlyQuery(): boolean {
+  return currentQueryUserRole === 'club_coach';
+}
+
+export function computeAllowedCoachUids(
+  group?: Partial<TrainingGroup> | null,
+  fallbackOwnerId?: string
+): string[] {
+  const uids = new Set<string>();
+  const addUid = (uid?: string | null) => {
+    if (uid && typeof uid === 'string' && uid.trim() && uid !== 'guest') {
+      uids.add(uid.trim());
+    }
+  };
+  addUid(group?.ownerId);
+  addUid(group?.assignedCoachId);
+  if (Array.isArray(group?.observerCoachIds)) {
+    group.observerCoachIds.forEach(addUid);
+  }
+  addUid(fallbackOwnerId);
+  return Array.from(uids);
+}
+
+function resolveGroupAllowedCoachUids(
+  groupId?: string,
+  targetGroupName?: string,
+  userId?: string,
+  fallbackOwnerId?: string
+): string[] {
+  const localGroups = getLocalTrainingGroups(userId);
+  const normName = (targetGroupName || '').trim().toLowerCase();
+  const matchedGroup = localGroups.find(
+    g => (groupId && g.id === groupId) || (normName && g.name.trim().toLowerCase() === normName)
+  );
+  return computeAllowedCoachUids(matchedGroup, fallbackOwnerId || userId);
+}
+
+const GROUP_SCOPED_COLLECTIONS = [
+  PLANS_COLLECTION,
+  PLAYER_ABSENCES_COLLECTION,
+  PLAYER_EVALUATIONS_COLLECTION,
+  MATCH_PLAYTIMES_COLLECTION,
+  FEEDBACK_TALKS_COLLECTION,
+  PERIODIZATION_MACRO_PLANS_COLLECTION,
+  PERIODIZATION_MESO_PLANS_COLLECTION,
+  PERIODIZATION_MICRO_PLANS_COLLECTION
+] as const;
+
+async function syncGroupAllowedCoachUidsToClubDocs(
+  groupId: string,
+  allowedCoachUids: string[],
+  groupName?: string
+): Promise<number> {
+  if (!groupId || !auth.currentUser) return 0;
+  let updatedCount = 0;
+
+  for (const colName of GROUP_SCOPED_COLLECTIONS) {
+    try {
+      const colRef = collection(firestoreDb, colName);
+      const snaps = [await getDocs(query(colRef, where('groupId', '==', groupId)))];
+      if (colName === PLANS_COLLECTION && groupName) {
+        snaps.push(await getDocs(query(colRef, where('targetGroup', '==', groupName))));
+      }
+      const docMap = new Map<string, QueryDocumentSnapshot>();
+      snaps.forEach(s => s.forEach(d => docMap.set(d.id, d)));
+
+      const docs = Array.from(docMap.values());
+      for (let i = 0; i < docs.length; i += 400) {
+        const chunk = docs.slice(i, i + 400);
+        const batch = writeBatch(firestoreDb);
+        chunk.forEach(d => {
+          const docOwner = (d.data() as any)?.ownerId;
+          const mergedUids = Array.from(new Set([...allowedCoachUids, ...(docOwner && docOwner !== 'guest' ? [docOwner] : [])]));
+          batch.update(d.ref, { allowedCoachUids: mergedUids });
+        });
+        await batch.commit();
+        updatedCount += chunk.length;
+      }
+    } catch (err) {
+      console.warn(`[syncGroupAllowedCoachUids] Skipping ${colName} for group ${groupId}:`, err);
+    }
+  }
+  return updatedCount;
+}
+
+export async function syncAllClubGroupAcls(
+  clubId: string,
+  groups: TrainingGroup[]
+): Promise<{ updatedDocs: number; groupsProcessed: number }> {
+  if (!clubId || !auth.currentUser) return { updatedDocs: 0, groupsProcessed: 0 };
+  let updatedDocs = 0;
+  const clubGroups = groups.filter(g => !g.clubId || g.clubId === clubId);
+
+  for (const g of clubGroups) {
+    const allowedUids = computeAllowedCoachUids(g, g.ownerId);
+    try {
+      await updateDoc(doc(firestoreDb, TRAINING_GROUPS_COLLECTION, g.id), {
+        allowedCoachUids: allowedUids
+      });
+      updatedDocs += 1;
+    } catch (err) {
+      console.warn(`[syncAllClubGroupAcls] Could not update group ${g.id}:`, err);
+    }
+    updatedDocs += await syncGroupAllowedCoachUidsToClubDocs(g.id, allowedUids, g.name);
+  }
+  return { updatedDocs, groupsProcessed: clubGroups.length };
+}
+
+// Shared subscription multiplexer to prevent duplicate Firestore onSnapshot listeners across views & tab switches
+interface SharedChannel<T> {
+  listeners: Set<(data: T[]) => void>;
+  errorListeners: Set<(err: Error) => void>;
+  lastData?: T[];
+  unsub?: () => void;
+  teardownTimer?: ReturnType<typeof setTimeout>;
+}
+
+const sharedChannels = new Map<string, SharedChannel<any>>();
+
+function attachSharedChannel<T>(
+  channelKey: string,
+  onData: (items: T[]) => void,
+  onError: ((err: Error) => void) | undefined,
+  startSubscription: (emitData: (items: T[]) => void, emitError: (err: Error) => void) => () => void
+): () => void {
+  let channel = sharedChannels.get(channelKey) as SharedChannel<T> | undefined;
+  if (!channel) {
+    channel = {
+      listeners: new Set(),
+      errorListeners: new Set()
+    };
+    sharedChannels.set(channelKey, channel);
+  }
+
+  if (channel.teardownTimer) {
+    clearTimeout(channel.teardownTimer);
+    channel.teardownTimer = undefined;
+  }
+
+  channel.listeners.add(onData);
+  if (onError) channel.errorListeners.add(onError);
+
+  if (channel.lastData !== undefined) {
+    onData(channel.lastData);
+  }
+
+  if (!channel.unsub) {
+    const activeChannel = channel;
+    activeChannel.unsub = startSubscription(
+      (items) => {
+        activeChannel.lastData = items;
+        activeChannel.listeners.forEach(fn => fn(items));
+      },
+      (err) => {
+        activeChannel.errorListeners.forEach(fn => fn(err));
+      }
+    );
+  }
+
+  return () => {
+    const current = sharedChannels.get(channelKey) as SharedChannel<T> | undefined;
+    if (!current) return;
+    current.listeners.delete(onData);
+    if (onError) current.errorListeners.delete(onError);
+
+    if (current.listeners.size === 0) {
+      current.teardownTimer = setTimeout(() => {
+        if (current.listeners.size === 0) {
+          current.unsub?.();
+          current.unsub = undefined;
+          sharedChannels.delete(channelKey);
+        }
+      }, 15000);
+    }
+  };
+}
+
 export function sanitizeData<T>(obj: T): T {
   if (obj === null || obj === undefined) {
     return undefined as any;
@@ -123,23 +311,35 @@ export function subscribeExercises(
   isClubAdmin?: boolean,
   clubId?: string
 ): () => void {
+  const channelKey = `exercises_${user?.uid || 'guest'}_${Boolean(isAdminOrMaster)}_${Boolean(isClubAdmin)}_${clubId || 'none'}`;
+  return attachSharedChannel<Exercise>(channelKey, onData, onError, (emitData, emitError) => {
   const unsubs: Array<() => void> = [];
   const exerciseSlices = new Map<string, Map<string, Exercise>>();
 
-  // 0. Immediate local Dexie cache load for instant UI responsiveness
+  // 0. Immediate local Dexie cache load for instant UI responsiveness (strictly tenant/role filtered)
   db.exercises.toArray().then((localList) => {
     if (localList && localList.length > 0) {
       const sliceMap = new Map<string, Exercise>();
+      const uid = user?.uid;
       localList.forEach((ex) => {
         const normalized = normalizeExercise(ex);
         if (isAdminOrMaster && !isClubAdmin) {
           sliceMap.set(normalized.id!, normalized);
-        } else if (!normalized.isArchived) {
+          return;
+        }
+        if (normalized.isArchived) return;
+        const isOwn = Boolean(uid && normalized.ownerId === uid);
+        const isAcademy = normalized.isPublished === true;
+        const isClubAll = Boolean(isClubAdmin && clubId && normalized.clubId === clubId);
+        const isClubPub = Boolean(clubId && normalized.clubId === clubId && normalized.isClubPublished === true);
+        if (isOwn || isAcademy || isClubAll || isClubPub) {
           sliceMap.set(normalized.id!, normalized);
         }
       });
-      exerciseSlices.set('local_dexie', sliceMap);
-      updateCombinedData();
+      if (sliceMap.size > 0) {
+        exerciseSlices.set('local_dexie', sliceMap);
+        updateCombinedData();
+      }
     }
   }).catch((err) => {
     console.warn('Initial local exercises cache read warning:', err);
@@ -162,7 +362,7 @@ export function subscribeExercises(
       return timeB - timeA;
     });
 
-    onData(items);
+    emitData(items);
   };
 
   const handleSnapshot = (sliceKey: string, snapshot: any) => {
@@ -187,6 +387,8 @@ export function subscribeExercises(
       itemsToCache.push(ex);
     });
 
+    // Replace stale local Dexie pre-cache once Firestore snapshot arrives
+    exerciseSlices.delete('local_dexie');
     exerciseSlices.set(sliceKey, sliceMap);
     updateCombinedData();
 
@@ -200,7 +402,7 @@ export function subscribeExercises(
 
   const handleError = (sliceKey: string, err: any) => {
     console.warn(`Firestore exercises subscription [${sliceKey}] error:`, err);
-    if (onError) onError(err);
+    emitError(err);
   };
 
   const colRef = collection(firestoreDb, EXERCISES_COLLECTION);
@@ -277,6 +479,7 @@ export function subscribeExercises(
       }
     });
   };
+  });
 }
 
 /**
@@ -356,6 +559,7 @@ export async function saveExerciseToFirestore(
     taktikprinzipien: exercise.taktikprinzipien || '',
     siegbedingung: exercise.siegbedingung || '',
     canvasData: exercise.canvasData || null,
+    animationFrames: exercise.animationFrames || undefined,
     imageUrl: imageUrl || '',
     imageBase64: imageBase64 || '',
     videoUrl: exercise.videoUrl || '',
@@ -609,6 +813,8 @@ export function subscribeUserPlans(
   _isClubAdmin?: boolean
 ): () => void {
   const authUid = auth.currentUser?.uid || currentUser?.uid || 'guest';
+  const channelKey = `plans_${authUid}_${Boolean(isAdmin)}_${clubId || 'none'}`;
+  return attachSharedChannel<TrainingPlan>(channelKey, onData, onError, (emitData, emitError) => {
   const localKey = `nextlevel_saved_plans_${authUid}`;
 
   const getLocal = (): TrainingPlan[] => {
@@ -629,7 +835,7 @@ export function subscribeUserPlans(
   };
 
   // Immediate local cache response
-  onData(getLocal());
+  emitData(getLocal());
 
   const pCol = collection(firestoreDb, PLANS_COLLECTION);
   const unsubs: (() => void)[] = [];
@@ -645,18 +851,24 @@ export function subscribeUserPlans(
     const items = Array.from(mergedMap.values());
     items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     saveLocal(items);
-    onData(items);
+    emitData(items);
   };
 
   const queries: { key: string; q: Query }[] = [];
 
-  if (isAdmin && !clubId) {
+  if (isAdmin) {
     // Global Master Admin sees all
     queries.push({ key: 'all', q: query(pCol) });
   } else if (clubId) {
-    // Club Admin & Club Coaches see all plans of the club plus own plans
-    queries.push({ key: 'club', q: query(pCol, where('clubId', '==', clubId)) });
-    queries.push({ key: 'owner', q: query(pCol, where('ownerId', '==', authUid)) });
+    if (isClubCoachOnlyQuery()) {
+      // Server-side group-scoped ACL query for club_coach
+      queries.push({ key: 'acl', q: query(pCol, where('allowedCoachUids', 'array-contains', authUid)) });
+      queries.push({ key: 'owner', q: query(pCol, where('ownerId', '==', authUid)) });
+    } else {
+      // Club Admin sees all plans of the club plus own plans
+      queries.push({ key: 'club', q: query(pCol, where('clubId', '==', clubId)) });
+      queries.push({ key: 'owner', q: query(pCol, where('ownerId', '==', authUid)) });
+    }
   } else {
     // Single Trainer sees only own plans
     queries.push({ key: 'owner', q: query(pCol, where('ownerId', '==', authUid)) });
@@ -681,7 +893,7 @@ export function subscribeUserPlans(
         },
         (err: any) => {
           console.warn(`Firestore plans listener error for ${key}:`, err);
-          if (onError) onError(err);
+          emitError(err);
         }
       );
       unsubs.push(unsub);
@@ -693,6 +905,7 @@ export function subscribeUserPlans(
   return () => {
     unsubs.forEach(u => u());
   };
+  });
 }
 
 // Backward compatibility alias
@@ -705,11 +918,11 @@ export function subscribePlans(
 
 export async function savePlanToFirestore(
   plan: Partial<TrainingPlan>,
-  currentUser?: { uid: string; email?: string | null } | null,
+  currentUser?: { uid: string; email?: string | null; displayName?: string | null } | null,
   clubId?: string
 ): Promise<string> {
   const authUid = auth.currentUser?.uid || currentUser?.uid || 'guest';
-  const authEmail = auth.currentUser?.email || currentUser?.email || MAIN_ADMIN_EMAIL;
+  const authEmail = auth.currentUser?.email || currentUser?.email || '';
   const pCollection = collection(firestoreDb, PLANS_COLLECTION);
   const docRef = plan.id ? doc(pCollection, plan.id) : doc(pCollection);
   const targetId = docRef.id;
@@ -717,6 +930,11 @@ export async function savePlanToFirestore(
   const resolvedTitle = (plan.title || plan.planTitle || 'Torwart-Trainingseinheit').trim();
   const resolvedDate = plan.date || plan.planDate || new Date().toISOString().substring(0, 10);
   const resolvedPhaseExercises = plan.phaseExercises || plan.phases || {};
+  const fallbackTrainerName = currentUser?.displayName || auth.currentUser?.displayName || currentUser?.email?.split('@')[0] || auth.currentUser?.email?.split('@')[0] || 'Torwarttrainer';
+
+  const allowedCoachUids = Array.isArray(plan.allowedCoachUids) && plan.allowedCoachUids.length > 0
+    ? plan.allowedCoachUids
+    : resolveGroupAllowedCoachUids(plan.groupId, plan.targetGroup, authUid, plan.ownerId || authUid);
 
   const payload = sanitizeData({
     id: targetId,
@@ -724,10 +942,12 @@ export async function savePlanToFirestore(
     planTitle: resolvedTitle,
     date: resolvedDate,
     planDate: resolvedDate,
-    trainerName: (plan.trainerName || 'Thorsten').trim(),
+    trainerName: (plan.trainerName || fallbackTrainerName).trim(),
     targetGroup: (plan.targetGroup || 'Jugend Leistungsbereich').trim(),
     groupId: plan.groupId || undefined,
     groupName: plan.groupName || plan.targetGroup || undefined,
+    guestKeeperIds: plan.guestKeeperIds && plan.guestKeeperIds.length > 0 ? plan.guestKeeperIds : undefined,
+    allowedCoachUids,
     availableKeepers: plan.availableKeepers || 3,
     warmUpDuration: plan.warmUpDuration,
     mainDuration: plan.mainDuration,
@@ -1271,7 +1491,9 @@ async function unsetOtherFavorites(userId: string, currentFavId: string) {
 export function subscribeUserStructures(
   user: { uid: string; email?: string | null } | null,
   onData: (structures: TrainingStructure[]) => void,
-  _onError?: (error: Error) => void
+  _onError?: (error: Error) => void,
+  clubId?: string,
+  isMasterAdmin: boolean = false
 ): () => void {
   const uid = user?.uid || 'guest';
   // Always trigger with local cache immediately
@@ -1282,60 +1504,92 @@ export function subscribeUserStructures(
     return () => {};
   }
 
-  const q = query(collection(firestoreDb, STRUCTURES_COLLECTION), where('ownerId', '==', user.uid));
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const userStructures: TrainingStructure[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data() as Omit<TrainingStructure, 'id'>;
-        userStructures.push({
-          ...data,
-          id: docSnap.id
-        });
+  const sCol = collection(firestoreDb, STRUCTURES_COLLECTION);
+  const querySnapshots = new Map<string, Map<string, TrainingStructure>>();
+  const unsubs: (() => void)[] = [];
+
+  const emitMerged = () => {
+    const mergedMap = new Map<string, TrainingStructure>();
+    querySnapshots.forEach(snapMap => {
+      snapMap.forEach((item, id) => {
+        mergedMap.set(id, item);
       });
+    });
+    const userStructures = Array.from(mergedMap.values());
 
-      // Ensure Default structure is always present
-      const hasDefault = userStructures.some(s => s.id === DEFAULT_TRAINING_STRUCTURE.id || s.isDefault);
-      let combined: TrainingStructure[] = [];
-      if (!hasDefault) {
-        combined = [DEFAULT_TRAINING_STRUCTURE, ...userStructures];
-      } else {
-        combined = userStructures;
-      }
-
-      // Single favorite reconciliation
-      const favKey = `${LOCAL_FAV_STRUCTURE_KEY}${user.uid}`;
-      const savedFavId = localStorage.getItem(favKey);
-      let chosenFavId = savedFavId && combined.some(s => s.id === savedFavId) ? savedFavId : null;
-
-      if (!chosenFavId) {
-        const found = combined.find(s => s.isFavorite);
-        chosenFavId = found ? found.id : combined[0]?.id || DEFAULT_TRAINING_STRUCTURE.id;
-      }
-
-      // Strictly map so only chosenFavId has isFavorite = true
-      combined = combined.map(s => ({
-        ...s,
-        isFavorite: s.id === chosenFavId
-      }));
-
-      saveLocalStructures(user.uid, combined);
-      onData(combined);
-    },
-    (err) => {
-      console.warn('Could not subscribe to structures from Firestore, falling back to local cache:', err);
-      onData(getLocalStructures(user.uid));
+    // Ensure Default structure is always present
+    const hasDefault = userStructures.some(s => s.id === DEFAULT_TRAINING_STRUCTURE.id || s.isDefault);
+    let combined: TrainingStructure[] = [];
+    if (!hasDefault) {
+      combined = [DEFAULT_TRAINING_STRUCTURE, ...userStructures];
+    } else {
+      combined = userStructures;
     }
-  );
+
+    // Single favorite reconciliation
+    const favKey = `${LOCAL_FAV_STRUCTURE_KEY}${user.uid}`;
+    const savedFavId = localStorage.getItem(favKey);
+    let chosenFavId = savedFavId && combined.some(s => s.id === savedFavId) ? savedFavId : null;
+
+    if (!chosenFavId) {
+      const found = combined.find(s => s.isFavorite);
+      chosenFavId = found ? found.id : combined[0]?.id || DEFAULT_TRAINING_STRUCTURE.id;
+    }
+
+    // Strictly map so only chosenFavId has isFavorite = true
+    combined = combined.map(s => ({
+      ...s,
+      isFavorite: s.id === chosenFavId
+    }));
+
+    saveLocalStructures(user.uid, combined);
+    onData(combined);
+  };
+
+  const queries: { key: string; q: Query }[] = [];
+  if (isMasterAdmin) {
+    queries.push({ key: 'all', q: query(sCol) });
+  } else {
+    if (clubId) {
+      queries.push({ key: 'club', q: query(sCol, where('clubId', '==', clubId)) });
+    }
+    queries.push({ key: 'owner', q: query(sCol, where('ownerId', '==', user.uid)) });
+  }
+
+  queries.forEach(({ key, q }) => {
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const snapMap = new Map<string, TrainingStructure>();
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as Omit<TrainingStructure, 'id'>;
+          snapMap.set(docSnap.id, {
+            ...data,
+            id: docSnap.id
+          });
+        });
+        querySnapshots.set(key, snapMap);
+        emitMerged();
+      },
+      (err) => {
+        console.warn(`Could not subscribe to structures from Firestore (${key}), falling back to local cache:`, err);
+        onData(getLocalStructures(user.uid));
+      }
+    );
+    unsubs.push(unsub);
+  });
+
+  return () => {
+    unsubs.forEach(u => u());
+  };
 }
 
 /**
  * Save or update a TrainingStructure
  */
 export async function saveStructureToFirestore(
-  structure: Partial<TrainingStructure> & { name: string; phases: TrainingPhaseItem[] },
-  currentUser: { uid: string; email?: string | null }
+  structure: Partial<TrainingStructure> & { name: string; phases: TrainingPhaseItem[]; clubId?: string },
+  currentUser: { uid: string; email?: string | null; clubId?: string }
 ): Promise<string> {
   const authUid = auth.currentUser?.uid || currentUser.uid || 'guest';
   const isCreating = !structure.id || structure.id.startsWith('temp_');
@@ -1351,6 +1605,7 @@ export async function saveStructureToFirestore(
     isFavorite: isFav,
     isDefault: structure.isDefault === true,
     ownerId: structure.ownerId || authUid,
+    clubId: structure.clubId || currentUser.clubId || undefined,
     createdAt: structure.createdAt || Date.now(),
     updatedAt: Date.now()
   });
@@ -1450,16 +1705,14 @@ export function subscribeCustomPhases(
     return () => {};
   }
 
-  const q = query(collection(firestoreDb, CUSTOM_PHASES_COLLECTION));
+  const q = query(collection(firestoreDb, CUSTOM_PHASES_COLLECTION), where('ownerId', '==', user.uid));
   return onSnapshot(
     q,
     (snapshot) => {
       const fetched: TrainingPhaseItem[] = [];
       snapshot.forEach(d => {
         const data = d.data() as TrainingPhaseItem & { ownerId?: string };
-        if (data.ownerId === user.uid || !data.ownerId) {
-          fetched.push({ ...data, id: d.id });
-        }
+        fetched.push({ ...data, id: d.id });
       });
 
       // Merge with default templates ensuring unique IDs
@@ -1797,17 +2050,18 @@ export async function addCoachToClub(
     return { success: false, message: 'Dieser Trainer ist bereits im Verein eingetragen oder vorgemerkt.' };
   }
   
-  // Find user with this email in users collection
-  const usersQuery = query(collection(firestoreDb, USERS_COLLECTION));
-  const usersSnap = await getDocs(usersQuery);
+  // Find user with this email in users collection (targeted query; club_admin may get permission-denied for external users)
   let targetUser: UserProfile | null = null;
-
-  usersSnap.forEach(d => {
-    const u = d.data() as UserProfile;
-    if (u.email?.toLowerCase().trim() === normEmail) {
-      targetUser = u;
-    }
-  });
+  try {
+    const usersQuery = query(collection(firestoreDb, USERS_COLLECTION), where('email', '==', normEmail));
+    const usersSnap = await getDocs(usersQuery);
+    usersSnap.forEach(d => {
+      targetUser = d.data() as UserProfile;
+    });
+  } catch {
+    // External users cannot be queried by club_admin; fall back to coachEmails pre-linking
+    targetUser = null;
+  }
 
   if (!targetUser) {
     // Coach is not yet registered in app -> Add to club's coachEmails list for automatic linking upon registration
@@ -1902,17 +2156,20 @@ export async function removeCoachEmailFromClub(
   const club = clubSnap.data() as Club;
   const updatedEmails = (club.coachEmails || []).filter(em => em.toLowerCase().trim() !== normEmail);
 
-  // Find user by email to reset role if registered
-  const usersQuery = query(collection(firestoreDb, USERS_COLLECTION));
-  const usersSnap = await getDocs(usersQuery);
+  // Find user within this club to reset role if registered
   let coachUidToRemove = '';
-
-  usersSnap.forEach(d => {
-    const u = d.data() as UserProfile;
-    if (u.email?.toLowerCase().trim() === normEmail) {
-      coachUidToRemove = d.id;
-    }
-  });
+  try {
+    const clubUsersQuery = query(collection(firestoreDb, USERS_COLLECTION), where('clubId', '==', clubId));
+    const clubUsersSnap = await getDocs(clubUsersQuery);
+    clubUsersSnap.forEach(d => {
+      const u = d.data() as UserProfile;
+      if (u.email?.toLowerCase().trim() === normEmail) {
+        coachUidToRemove = d.id;
+      }
+    });
+  } catch (e) {
+    console.warn('Could not query club users during coach removal:', e);
+  }
 
   if (coachUidToRemove) {
     try {
@@ -2210,53 +2467,6 @@ export function getLocalTrainingGroups(userId?: string): TrainingGroup[] {
       } catch {}
     }
 
-    // 1. Fallback: check guest storage
-    if (uid !== 'guest') {
-      const guestRaw = localStorage.getItem(`${LOCAL_GROUPS_PREFIX}guest`);
-      if (guestRaw !== null) {
-        try {
-          const parsed = JSON.parse(guestRaw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-          }
-        } catch {}
-      }
-    }
-
-    // 2. Comprehensive multi-key scan across localStorage (in case groups were saved under other user/legacy keys)
-    const allFound: TrainingGroup[] = [];
-    const seenIds = new Set<string>();
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(LOCAL_GROUPS_PREFIX)) {
-        try {
-          const itemRaw = localStorage.getItem(k);
-          if (itemRaw) {
-            const parsed = JSON.parse(itemRaw);
-            if (Array.isArray(parsed)) {
-              for (const g of parsed) {
-                if (g && typeof g === 'object' && g.name) {
-                  const ident = g.id || g.name;
-                  if (!seenIds.has(ident)) {
-                    seenIds.add(ident);
-                    allFound.push(g);
-                  }
-                }
-              }
-            }
-          }
-        } catch {
-          // ignore corrupted key
-        }
-      }
-    }
-
-    if (allFound.length > 0) {
-      allFound.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      saveLocalTrainingGroups(uid, allFound);
-      return allFound;
-    }
   } catch (e) {
     console.warn('Error reading local training groups:', e);
   }
@@ -2297,66 +2507,75 @@ export function subscribeUserTrainingGroups(
     };
   }
 
-  const unsubs: (() => void)[] = [];
-  const querySnapshots = new Map<string, Map<string, TrainingGroup>>();
+  const channelKey = `training_groups:${user.uid}:${clubId || 'none'}:${isClubCoachOnlyQuery() ? 'coach' : 'admin'}`;
+  const detachChannel = attachSharedChannel<TrainingGroup>(
+    channelKey,
+    onData,
+    onError,
+    (emitData, emitError) => {
+      const unsubs: (() => void)[] = [];
+      const querySnapshots = new Map<string, Map<string, TrainingGroup>>();
 
-  const emitMerged = () => {
-    const mergedMap = new Map<string, TrainingGroup>();
-    querySnapshots.forEach(snapMap => {
-      snapMap.forEach((group, id) => {
-        mergedMap.set(id, group);
-      });
-    });
-
-    const currentLocal = getLocalTrainingGroups(user.uid);
-    currentLocal.forEach(g => {
-      if (!mergedMap.has(g.id)) {
-        mergedMap.set(g.id, g);
-      }
-    });
-
-    const mergedList = Array.from(mergedMap.values());
-    mergedList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-
-    saveLocalTrainingGroups(user.uid, mergedList);
-    onData(mergedList);
-  };
-
-  const queries: { key: string; q: Query }[] = [];
-  if (clubId) {
-    queries.push({ key: 'club', q: query(collection(firestoreDb, TRAINING_GROUPS_COLLECTION), where('clubId', '==', clubId)) });
-  }
-  queries.push({ key: 'owner', q: query(collection(firestoreDb, TRAINING_GROUPS_COLLECTION), where('ownerId', '==', user.uid)) });
-
-  queries.forEach(({ key, q }) => {
-    try {
-      const unsub = onSnapshot(
-        q,
-        (snapshot: QuerySnapshot) => {
-          const snapMap = new Map<string, TrainingGroup>();
-          snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
-            snapMap.set(docSnap.id, normalizeTrainingGroup({
-              ...docSnap.data(),
-              id: docSnap.id
-            }));
+      const emitMerged = () => {
+        const mergedMap = new Map<string, TrainingGroup>();
+        querySnapshots.forEach(snapMap => {
+          snapMap.forEach((group, id) => {
+            mergedMap.set(id, group);
           });
-          querySnapshots.set(key, snapMap);
-          emitMerged();
-        },
-        (err: any) => {
-          console.warn(`Firestore training groups listener error (${key}):`, err);
-          if (onError) onError(err);
+        });
+
+        const mergedList = Array.from(mergedMap.values());
+        mergedList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+        saveLocalTrainingGroups(user.uid, mergedList);
+        emitData(mergedList);
+      };
+
+      const queries: { key: string; q: Query }[] = [];
+      if (clubId) {
+        if (isClubCoachOnlyQuery()) {
+          queries.push({ key: 'acl', q: query(collection(firestoreDb, TRAINING_GROUPS_COLLECTION), where('allowedCoachUids', 'array-contains', user.uid)) });
+        } else {
+          queries.push({ key: 'club', q: query(collection(firestoreDb, TRAINING_GROUPS_COLLECTION), where('clubId', '==', clubId)) });
         }
-      );
-      unsubs.push(unsub);
-    } catch (err: any) {
-      console.warn(`Failed to attach training groups listener (${key}):`, err);
+      }
+      queries.push({ key: 'owner', q: query(collection(firestoreDb, TRAINING_GROUPS_COLLECTION), where('ownerId', '==', user.uid)) });
+
+      queries.forEach(({ key, q }) => {
+        try {
+          const unsub = onSnapshot(
+            q,
+            (snapshot: QuerySnapshot) => {
+              const snapMap = new Map<string, TrainingGroup>();
+              snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
+                snapMap.set(docSnap.id, normalizeTrainingGroup({
+                  ...docSnap.data(),
+                  id: docSnap.id
+                }));
+              });
+              querySnapshots.set(key, snapMap);
+              emitMerged();
+            },
+            (err: any) => {
+              console.warn(`Firestore training groups listener error (${key}):`, err);
+              emitError(err);
+            }
+          );
+          unsubs.push(unsub);
+        } catch (err: any) {
+          console.warn(`Failed to attach training groups listener (${key}):`, err);
+        }
+      });
+
+      return () => {
+        unsubs.forEach(u => u());
+      };
     }
-  });
+  );
 
   return () => {
     groupListeners.delete(onData);
-    unsubs.forEach(u => u());
+    detachChannel();
   };
 }
 
@@ -2406,6 +2625,7 @@ export async function saveTrainingGroupToFirestore(
     assignedCoachName: group.assignedCoachName || undefined,
     observerCoachEmails: Array.isArray(group.observerCoachEmails) ? group.observerCoachEmails : [],
     observerCoachIds: Array.isArray(group.observerCoachIds) ? group.observerCoachIds : [],
+    allowedCoachUids: computeAllowedCoachUids(group, group.ownerId || currentUser?.uid || 'guest'),
     clubId: clubId || group.clubId || undefined,
     createdAt: group.createdAt || now,
     updatedAt: now
@@ -2442,11 +2662,15 @@ export async function saveTrainingGroupToFirestore(
         assignedCoachName: newGroup.assignedCoachName || null,
         observerCoachEmails: newGroup.observerCoachEmails || [],
         observerCoachIds: newGroup.observerCoachIds || [],
+        allowedCoachUids: newGroup.allowedCoachUids || [],
         clubId: newGroup.clubId || null,
         createdAt: newGroup.createdAt,
         updatedAt: newGroup.updatedAt
       });
       await setDoc(docRef, payload, { merge: true });
+      if (newGroup.clubId && newGroup.allowedCoachUids) {
+        syncGroupAllowedCoachUidsToClubDocs(groupId, newGroup.allowedCoachUids, newGroup.name).catch(console.warn);
+      }
     } catch (err) {
       console.warn('Firestore training group save failed (cached locally):', err);
     }
@@ -2615,48 +2839,6 @@ export function getLocalPlayerAbsences(userId?: string): PlayerAbsence[] {
         if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
-
-    // 1. Fallback check guest
-    if (uid !== 'guest') {
-      const guestRaw = localStorage.getItem(`${LOCAL_ABSENCES_PREFIX}guest`);
-      if (guestRaw !== null) {
-        try {
-          const parsed = JSON.parse(guestRaw);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        } catch {}
-      }
-    }
-
-    // 2. Comprehensive multi-key scan
-    const allFound: PlayerAbsence[] = [];
-    const seenIds = new Set<string>();
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(LOCAL_ABSENCES_PREFIX)) {
-        try {
-          const itemRaw = localStorage.getItem(k);
-          if (itemRaw) {
-            const parsed = JSON.parse(itemRaw);
-            if (Array.isArray(parsed)) {
-              for (const a of parsed) {
-                if (a && typeof a === 'object' && a.playerId && !seenIds.has(a.id || a.playerId + a.startDate)) {
-                  seenIds.add(a.id || a.playerId + a.startDate);
-                  allFound.push(a);
-                }
-              }
-            }
-          }
-        } catch {
-          // ignore error
-        }
-      }
-    }
-
-    if (allFound.length > 0) {
-      saveLocalPlayerAbsences(uid, allFound);
-      return allFound;
-    }
   } catch (e) {
     console.warn('Error reading local player absences:', e);
   }
@@ -2668,9 +2850,6 @@ export function saveLocalPlayerAbsences(userId: string | undefined, list: Player
     const uid = userId || 'guest';
     const key = `${LOCAL_ABSENCES_PREFIX}${uid}`;
     localStorage.setItem(key, JSON.stringify(list));
-    if (uid === 'guest') {
-      localStorage.setItem(`${LOCAL_ABSENCES_PREFIX}guest`, JSON.stringify(list));
-    }
   } catch (e) {
     console.warn('Error saving local player absences:', e);
   }
@@ -2697,65 +2876,76 @@ export function subscribeUserAbsences(
     };
   }
 
-  const unsubs: (() => void)[] = [];
-  const querySnapshots = new Map<string, Map<string, PlayerAbsence>>();
+  const channelKey = `player_absences:${user.uid}:${clubId || 'none'}:${isClubCoachOnlyQuery() ? 'coach' : 'admin'}`;
+  const detachChannel = attachSharedChannel<PlayerAbsence>(
+    channelKey,
+    onData,
+    onError,
+    (emitData, emitError) => {
+      const unsubs: (() => void)[] = [];
+      const querySnapshots = new Map<string, Map<string, PlayerAbsence>>();
 
-  const emitMerged = () => {
-    const mergedMap = new Map<string, PlayerAbsence>();
-    querySnapshots.forEach(snapMap => {
-      snapMap.forEach((abs, id) => {
-        mergedMap.set(id, abs);
-      });
-    });
-
-    const currentLocal = getLocalPlayerAbsences(user.uid);
-    currentLocal.forEach(a => {
-      if (!mergedMap.has(a.id)) mergedMap.set(a.id, a);
-    });
-
-    const mergedList = Array.from(mergedMap.values());
-    mergedList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-    saveLocalPlayerAbsences(user.uid, mergedList);
-    onData(mergedList);
-  };
-
-  const queries: { key: string; q: Query }[] = [];
-  if (clubId) {
-    queries.push({ key: 'club', q: query(collection(firestoreDb, PLAYER_ABSENCES_COLLECTION), where('clubId', '==', clubId)) });
-  }
-  queries.push({ key: 'owner', q: query(collection(firestoreDb, PLAYER_ABSENCES_COLLECTION), where('ownerId', '==', user.uid)) });
-
-  queries.forEach(({ key, q }) => {
-    try {
-      const unsub = onSnapshot(
-        q,
-        (snapshot: QuerySnapshot) => {
-          const snapMap = new Map<string, PlayerAbsence>();
-          snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
-            const data = docSnap.data() as Omit<PlayerAbsence, 'id'>;
-            snapMap.set(docSnap.id, {
-              ...data,
-              id: docSnap.id
-            });
+      const emitMerged = () => {
+        const mergedMap = new Map<string, PlayerAbsence>();
+        querySnapshots.forEach(snapMap => {
+          snapMap.forEach((abs, id) => {
+            mergedMap.set(id, abs);
           });
-          querySnapshots.set(key, snapMap);
-          emitMerged();
-        },
-        (err: any) => {
-          console.warn(`Firestore player absences subscription error (${key}):`, err);
-          if (onError) onError(err);
+        });
+
+        const mergedList = Array.from(mergedMap.values());
+        mergedList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        saveLocalPlayerAbsences(user.uid, mergedList);
+        emitData(mergedList);
+      };
+
+      const queries: { key: string; q: Query }[] = [];
+      if (clubId) {
+        if (isClubCoachOnlyQuery()) {
+          queries.push({ key: 'acl', q: query(collection(firestoreDb, PLAYER_ABSENCES_COLLECTION), where('allowedCoachUids', 'array-contains', user.uid)) });
+        } else {
+          queries.push({ key: 'club', q: query(collection(firestoreDb, PLAYER_ABSENCES_COLLECTION), where('clubId', '==', clubId)) });
         }
-      );
-      unsubs.push(unsub);
-    } catch (err: any) {
-      console.warn(`Failed to attach absences query (${key}):`, err);
+      }
+      queries.push({ key: 'owner', q: query(collection(firestoreDb, PLAYER_ABSENCES_COLLECTION), where('ownerId', '==', user.uid)) });
+
+      queries.forEach(({ key, q }) => {
+        try {
+          const unsub = onSnapshot(
+            q,
+            (snapshot: QuerySnapshot) => {
+              const snapMap = new Map<string, PlayerAbsence>();
+              snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
+                const data = docSnap.data() as Omit<PlayerAbsence, 'id'>;
+                snapMap.set(docSnap.id, {
+                  ...data,
+                  id: docSnap.id
+                });
+              });
+              querySnapshots.set(key, snapMap);
+              emitMerged();
+            },
+            (err: any) => {
+              console.warn(`Firestore player absences subscription error (${key}):`, err);
+              emitError(err);
+            }
+          );
+          unsubs.push(unsub);
+        } catch (err: any) {
+          console.warn(`Failed to attach absences query (${key}):`, err);
+        }
+      });
+
+      return () => {
+        unsubs.forEach(u => u());
+      };
     }
-  });
+  );
 
   return () => {
     absenceListeners.delete(onData);
-    unsubs.forEach(u => u());
+    detachChannel();
   };
 }
 
@@ -2795,6 +2985,7 @@ export async function saveAbsenceToFirestore(
     note: absence.note || '',
     ownerId: absence.ownerId || currentUser?.uid || 'guest',
     clubId: clubId || absence.clubId || undefined,
+    allowedCoachUids: resolveGroupAllowedCoachUids(absence.groupId, absence.groupName, uid, absence.ownerId || currentUser?.uid),
     createdAt: absence.createdAt || now
   };
 
@@ -2828,6 +3019,7 @@ export async function saveAbsenceToFirestore(
         note: newAbsence.note,
         ownerId: newAbsence.ownerId,
         clubId: newAbsence.clubId || null,
+        allowedCoachUids: newAbsence.allowedCoachUids || [],
         createdAt: newAbsence.createdAt
       });
       await setDoc(docRef, payload, { merge: true });
@@ -2911,48 +3103,6 @@ export function getLocalPlayerEvaluations(uid?: string): PlayerEvaluation[] {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
     }
-
-    if (userUid !== 'guest') {
-      const guestRaw = localStorage.getItem(`${LOCAL_EVALUATIONS_PREFIX}guest`);
-      if (guestRaw !== null) {
-        const parsed = JSON.parse(guestRaw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    }
-
-    // Multi-key scan fallback if no primary key exists yet
-    const allFound: PlayerEvaluation[] = [];
-    const seenIds = new Set<string>();
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(LOCAL_EVALUATIONS_PREFIX)) {
-        try {
-          const itemRaw = localStorage.getItem(k);
-          if (itemRaw) {
-            const parsed = JSON.parse(itemRaw);
-            if (Array.isArray(parsed)) {
-              for (const ev of parsed) {
-                if (ev && typeof ev === 'object' && ev.playerId) {
-                  const ident = ev.id || `${ev.playerId}_${ev.category}_${ev.updatedAt || ''}`;
-                  if (!seenIds.has(ident)) {
-                    seenIds.add(ident);
-                    allFound.push(ev);
-                  }
-                }
-              }
-            }
-          }
-        } catch {
-          // ignore
-        }
-      }
-    }
-
-    if (allFound.length > 0) {
-      saveLocalPlayerEvaluations(userUid, allFound);
-      return allFound;
-    }
   } catch (e) {
     console.error('Error reading local player evaluations:', e);
   }
@@ -2964,9 +3114,6 @@ export function saveLocalPlayerEvaluations(uid: string, evals: PlayerEvaluation[
     const userUid = uid || 'guest';
     const key = `${LOCAL_EVALUATIONS_PREFIX}${userUid}`;
     localStorage.setItem(key, JSON.stringify(evals));
-    if (userUid === 'guest' || !localStorage.getItem(`${LOCAL_EVALUATIONS_PREFIX}guest`)) {
-      localStorage.setItem(`${LOCAL_EVALUATIONS_PREFIX}guest`, JSON.stringify(evals));
-    }
   } catch (e) {
     console.error('Error saving local player evaluations:', e);
   }
@@ -2989,64 +3136,75 @@ export function subscribeUserEvaluations(
     };
   }
 
-  const unsubs: (() => void)[] = [];
-  const querySnapshots = new Map<string, Map<string, PlayerEvaluation>>();
+  const channelKey = `player_evaluations:${user.uid}:${clubId || 'none'}:${isClubCoachOnlyQuery() ? 'coach' : 'admin'}`;
+  const detachChannel = attachSharedChannel<PlayerEvaluation>(
+    channelKey,
+    onData,
+    onError,
+    (emitData, emitError) => {
+      const unsubs: (() => void)[] = [];
+      const querySnapshots = new Map<string, Map<string, PlayerEvaluation>>();
 
-  const emitMerged = () => {
-    const mergedMap = new Map<string, PlayerEvaluation>();
-    querySnapshots.forEach(snapMap => {
-      snapMap.forEach((ev, id) => {
-        mergedMap.set(id, ev);
-      });
-    });
-
-    const currentLocal = getLocalPlayerEvaluations(user.uid);
-    currentLocal.forEach(e => {
-      if (!mergedMap.has(e.id)) mergedMap.set(e.id, e);
-    });
-
-    const mergedList = Array.from(mergedMap.values());
-    mergedList.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    saveLocalPlayerEvaluations(user.uid, mergedList);
-    onData(mergedList);
-  };
-
-  const queries: { key: string; q: Query }[] = [];
-  if (clubId) {
-    queries.push({ key: 'club', q: query(collection(firestoreDb, PLAYER_EVALUATIONS_COLLECTION), where('clubId', '==', clubId)) });
-  }
-  queries.push({ key: 'owner', q: query(collection(firestoreDb, PLAYER_EVALUATIONS_COLLECTION), where('ownerId', '==', user.uid)) });
-
-  queries.forEach(({ key, q }) => {
-    try {
-      const unsub = onSnapshot(
-        q,
-        (snapshot: QuerySnapshot) => {
-          const snapMap = new Map<string, PlayerEvaluation>();
-          snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
-            const data = docSnap.data() as Omit<PlayerEvaluation, 'id'>;
-            snapMap.set(docSnap.id, {
-              ...data,
-              id: docSnap.id
-            });
+      const emitMerged = () => {
+        const mergedMap = new Map<string, PlayerEvaluation>();
+        querySnapshots.forEach(snapMap => {
+          snapMap.forEach((ev, id) => {
+            mergedMap.set(id, ev);
           });
-          querySnapshots.set(key, snapMap);
-          emitMerged();
-        },
-        (err: any) => {
-          console.warn(`Firestore player evaluations listener error (${key}):`, err);
-          if (onError) onError(err);
+        });
+
+        const mergedList = Array.from(mergedMap.values());
+        mergedList.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        saveLocalPlayerEvaluations(user.uid, mergedList);
+        emitData(mergedList);
+      };
+
+      const queries: { key: string; q: Query }[] = [];
+      if (clubId) {
+        if (isClubCoachOnlyQuery()) {
+          queries.push({ key: 'acl', q: query(collection(firestoreDb, PLAYER_EVALUATIONS_COLLECTION), where('allowedCoachUids', 'array-contains', user.uid)) });
+        } else {
+          queries.push({ key: 'club', q: query(collection(firestoreDb, PLAYER_EVALUATIONS_COLLECTION), where('clubId', '==', clubId)) });
         }
-      );
-      unsubs.push(unsub);
-    } catch (err: any) {
-      console.warn(`Failed to attach evaluations query (${key}):`, err);
+      }
+      queries.push({ key: 'owner', q: query(collection(firestoreDb, PLAYER_EVALUATIONS_COLLECTION), where('ownerId', '==', user.uid)) });
+
+      queries.forEach(({ key, q }) => {
+        try {
+          const unsub = onSnapshot(
+            q,
+            (snapshot: QuerySnapshot) => {
+              const snapMap = new Map<string, PlayerEvaluation>();
+              snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
+                const data = docSnap.data() as Omit<PlayerEvaluation, 'id'>;
+                snapMap.set(docSnap.id, {
+                  ...data,
+                  id: docSnap.id
+                });
+              });
+              querySnapshots.set(key, snapMap);
+              emitMerged();
+            },
+            (err: any) => {
+              console.warn(`Firestore player evaluations listener error (${key}):`, err);
+              emitError(err);
+            }
+          );
+          unsubs.push(unsub);
+        } catch (err: any) {
+          console.warn(`Failed to attach evaluations query (${key}):`, err);
+        }
+      });
+
+      return () => {
+        unsubs.forEach(u => u());
+      };
     }
-  });
+  );
 
   return () => {
     evaluationListeners.delete(onData);
-    unsubs.forEach(u => u());
+    detachChannel();
   };
 }
 
@@ -3082,6 +3240,7 @@ export async function savePlayerEvaluationToFirestore(
     developmentAreas: evalData.developmentAreas || '',
     ownerId: evalData.ownerId || currentUser?.uid || 'guest',
     clubId: clubId || evalData.clubId || undefined,
+    allowedCoachUids: resolveGroupAllowedCoachUids(evalData.groupId, evalData.groupName, uid, evalData.ownerId || currentUser?.uid),
     updatedAt: evalData.updatedAt || now
   };
 
@@ -3114,6 +3273,7 @@ export async function savePlayerEvaluationToFirestore(
         developmentAreas: newEval.developmentAreas,
         ownerId: newEval.ownerId,
         clubId: newEval.clubId || null,
+        allowedCoachUids: newEval.allowedCoachUids || [],
         updatedAt: newEval.updatedAt
       });
       await setDoc(docRef, payload, { merge: true });
@@ -3190,42 +3350,6 @@ export function getLocalMatchPlaytimes(uid?: string): PlayerMatchPlaytime[] {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
     }
-
-    if (userUid !== 'guest') {
-      const guestRaw = localStorage.getItem(`${LOCAL_MATCH_PLAYTIMES_PREFIX}guest`);
-      if (guestRaw !== null) {
-        const parsed = JSON.parse(guestRaw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    }
-
-    const allFound: PlayerMatchPlaytime[] = [];
-    const seenIds = new Set<string>();
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(LOCAL_MATCH_PLAYTIMES_PREFIX)) {
-        try {
-          const itemRaw = localStorage.getItem(k);
-          if (itemRaw) {
-            const parsed = JSON.parse(itemRaw);
-            if (Array.isArray(parsed)) {
-              for (const m of parsed) {
-                if (m && typeof m === 'object' && m.id && !seenIds.has(m.id)) {
-                  seenIds.add(m.id);
-                  allFound.push(m);
-                }
-              }
-            }
-          }
-        } catch {}
-      }
-    }
-
-    if (allFound.length > 0) {
-      saveLocalMatchPlaytimes(userUid, allFound);
-      return allFound;
-    }
   } catch (e) {
     console.warn('Error reading local match playtimes:', e);
   }
@@ -3237,9 +3361,6 @@ export function saveLocalMatchPlaytimes(userId: string | undefined, list: Player
     const uid = userId || 'guest';
     const key = `${LOCAL_MATCH_PLAYTIMES_PREFIX}${uid}`;
     localStorage.setItem(key, JSON.stringify(list));
-    if (uid === 'guest' || !localStorage.getItem(`${LOCAL_MATCH_PLAYTIMES_PREFIX}guest`)) {
-      localStorage.setItem(`${LOCAL_MATCH_PLAYTIMES_PREFIX}guest`, JSON.stringify(list));
-    }
   } catch (e) {
     console.warn('Error saving local match playtimes:', e);
   }
@@ -3263,65 +3384,76 @@ export function subscribeUserMatchPlaytimes(
     };
   }
 
-  const unsubs: (() => void)[] = [];
-  const querySnapshots = new Map<string, Map<string, PlayerMatchPlaytime>>();
+  const channelKey = `match_playtimes:${user.uid}:${clubId || 'none'}:${isClubCoachOnlyQuery() ? 'coach' : 'admin'}`;
+  const detachChannel = attachSharedChannel<PlayerMatchPlaytime>(
+    channelKey,
+    onData,
+    onError,
+    (emitData, emitError) => {
+      const unsubs: (() => void)[] = [];
+      const querySnapshots = new Map<string, Map<string, PlayerMatchPlaytime>>();
 
-  const emitMerged = () => {
-    const mergedMap = new Map<string, PlayerMatchPlaytime>();
-    querySnapshots.forEach(snapMap => {
-      snapMap.forEach((playtime, id) => {
-        mergedMap.set(id, playtime);
-      });
-    });
-
-    const currentLocal = getLocalMatchPlaytimes(user.uid);
-    currentLocal.forEach(p => {
-      if (!mergedMap.has(p.id)) mergedMap.set(p.id, p);
-    });
-
-    const mergedList = Array.from(mergedMap.values());
-    mergedList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-    saveLocalMatchPlaytimes(user.uid, mergedList);
-    onData(mergedList);
-  };
-
-  const queries: { key: string; q: Query }[] = [];
-  if (clubId) {
-    queries.push({ key: 'club', q: query(collection(firestoreDb, MATCH_PLAYTIMES_COLLECTION), where('clubId', '==', clubId)) });
-  }
-  queries.push({ key: 'owner', q: query(collection(firestoreDb, MATCH_PLAYTIMES_COLLECTION), where('ownerId', '==', user.uid)) });
-
-  queries.forEach(({ key, q }) => {
-    try {
-      const unsub = onSnapshot(
-        q,
-        (snapshot: QuerySnapshot) => {
-          const snapMap = new Map<string, PlayerMatchPlaytime>();
-          snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
-            const data = docSnap.data() as Omit<PlayerMatchPlaytime, 'id'>;
-            snapMap.set(docSnap.id, {
-              id: docSnap.id,
-              ...data
-            });
+      const emitMerged = () => {
+        const mergedMap = new Map<string, PlayerMatchPlaytime>();
+        querySnapshots.forEach(snapMap => {
+          snapMap.forEach((playtime, id) => {
+            mergedMap.set(id, playtime);
           });
-          querySnapshots.set(key, snapMap);
-          emitMerged();
-        },
-        (err: any) => {
-          console.warn(`Firestore match playtimes listener error (${key}):`, err);
-          if (onError) onError(err);
+        });
+
+        const mergedList = Array.from(mergedMap.values());
+        mergedList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        saveLocalMatchPlaytimes(user.uid, mergedList);
+        emitData(mergedList);
+      };
+
+      const queries: { key: string; q: Query }[] = [];
+      if (clubId) {
+        if (isClubCoachOnlyQuery()) {
+          queries.push({ key: 'acl', q: query(collection(firestoreDb, MATCH_PLAYTIMES_COLLECTION), where('allowedCoachUids', 'array-contains', user.uid)) });
+        } else {
+          queries.push({ key: 'club', q: query(collection(firestoreDb, MATCH_PLAYTIMES_COLLECTION), where('clubId', '==', clubId)) });
         }
-      );
-      unsubs.push(unsub);
-    } catch (err: any) {
-      console.warn(`Failed to attach match playtimes query (${key}):`, err);
+      }
+      queries.push({ key: 'owner', q: query(collection(firestoreDb, MATCH_PLAYTIMES_COLLECTION), where('ownerId', '==', user.uid)) });
+
+      queries.forEach(({ key, q }) => {
+        try {
+          const unsub = onSnapshot(
+            q,
+            (snapshot: QuerySnapshot) => {
+              const snapMap = new Map<string, PlayerMatchPlaytime>();
+              snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
+                const data = docSnap.data() as Omit<PlayerMatchPlaytime, 'id'>;
+                snapMap.set(docSnap.id, {
+                  id: docSnap.id,
+                  ...data
+                });
+              });
+              querySnapshots.set(key, snapMap);
+              emitMerged();
+            },
+            (err: any) => {
+              console.warn(`Firestore match playtimes listener error (${key}):`, err);
+              emitError(err);
+            }
+          );
+          unsubs.push(unsub);
+        } catch (err: any) {
+          console.warn(`Failed to attach match playtimes query (${key}):`, err);
+        }
+      });
+
+      return () => {
+        unsubs.forEach(u => u());
+      };
     }
-  });
+  );
 
   return () => {
     matchPlaytimeListeners.delete(onData);
-    unsubs.forEach(u => u());
+    detachChannel();
   };
 }
 
@@ -3346,9 +3478,13 @@ export async function saveMatchPlaytimeToFirestore(
     playerMinutes: playtime.playerMinutes || {},
     playerBenchStatus: playtime.playerBenchStatus || {},
     playerGrades: playtime.playerGrades || {},
+    matchRpe: playtime.matchRpe,
+    matchJumpVolume: playtime.matchJumpVolume,
+    playerMatchStats: playtime.playerMatchStats || {},
     notes: playtime.notes || '',
     ownerId: playtime.ownerId || currentUser?.uid || 'guest',
     clubId: clubId || playtime.clubId || undefined,
+    allowedCoachUids: resolveGroupAllowedCoachUids(playtime.groupId, playtime.groupName, uid, playtime.ownerId || currentUser?.uid),
     createdAt: playtime.createdAt || now,
     updatedAt: now
   };
@@ -3426,42 +3562,6 @@ export function getLocalFeedbackTalks(uid?: string): PlayerFeedbackTalk[] {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
     }
-
-    if (userUid !== 'guest') {
-      const guestRaw = localStorage.getItem(`${LOCAL_FEEDBACK_TALKS_PREFIX}guest`);
-      if (guestRaw !== null) {
-        const parsed = JSON.parse(guestRaw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    }
-
-    const allFound: PlayerFeedbackTalk[] = [];
-    const seenIds = new Set<string>();
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(LOCAL_FEEDBACK_TALKS_PREFIX)) {
-        try {
-          const itemRaw = localStorage.getItem(k);
-          if (itemRaw) {
-            const parsed = JSON.parse(itemRaw);
-            if (Array.isArray(parsed)) {
-              for (const t of parsed) {
-                if (t && typeof t === 'object' && t.id && !seenIds.has(t.id)) {
-                  seenIds.add(t.id);
-                  allFound.push(t);
-                }
-              }
-            }
-          }
-        } catch {}
-      }
-    }
-
-    if (allFound.length > 0) {
-      saveLocalFeedbackTalks(userUid, allFound);
-      return allFound;
-    }
   } catch (e) {
     console.warn('Error reading local feedback talks:', e);
   }
@@ -3473,9 +3573,6 @@ export function saveLocalFeedbackTalks(userId: string | undefined, list: PlayerF
     const uid = userId || 'guest';
     const key = `${LOCAL_FEEDBACK_TALKS_PREFIX}${uid}`;
     localStorage.setItem(key, JSON.stringify(list));
-    if (uid === 'guest' || !localStorage.getItem(`${LOCAL_FEEDBACK_TALKS_PREFIX}guest`)) {
-      localStorage.setItem(`${LOCAL_FEEDBACK_TALKS_PREFIX}guest`, JSON.stringify(list));
-    }
   } catch (e) {
     console.warn('Error saving local feedback talks:', e);
   }
@@ -3499,65 +3596,76 @@ export function subscribeUserFeedbackTalks(
     };
   }
 
-  const unsubs: (() => void)[] = [];
-  const querySnapshots = new Map<string, Map<string, PlayerFeedbackTalk>>();
+  const channelKey = `feedback_talks:${user.uid}:${clubId || 'none'}:${isClubCoachOnlyQuery() ? 'coach' : 'admin'}`;
+  const detachChannel = attachSharedChannel<PlayerFeedbackTalk>(
+    channelKey,
+    onData,
+    onError,
+    (emitData, emitError) => {
+      const unsubs: (() => void)[] = [];
+      const querySnapshots = new Map<string, Map<string, PlayerFeedbackTalk>>();
 
-  const emitMerged = () => {
-    const mergedMap = new Map<string, PlayerFeedbackTalk>();
-    querySnapshots.forEach(snapMap => {
-      snapMap.forEach((talk, id) => {
-        mergedMap.set(id, talk);
-      });
-    });
-
-    const currentLocal = getLocalFeedbackTalks(user.uid);
-    currentLocal.forEach(t => {
-      if (!mergedMap.has(t.id)) mergedMap.set(t.id, t);
-    });
-
-    const mergedList = Array.from(mergedMap.values());
-    mergedList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-    saveLocalFeedbackTalks(user.uid, mergedList);
-    onData(mergedList);
-  };
-
-  const queries: { key: string; q: Query }[] = [];
-  if (clubId) {
-    queries.push({ key: 'club', q: query(collection(firestoreDb, FEEDBACK_TALKS_COLLECTION), where('clubId', '==', clubId)) });
-  }
-  queries.push({ key: 'owner', q: query(collection(firestoreDb, FEEDBACK_TALKS_COLLECTION), where('ownerId', '==', user.uid)) });
-
-  queries.forEach(({ key, q }) => {
-    try {
-      const unsub = onSnapshot(
-        q,
-        (snapshot: QuerySnapshot) => {
-          const snapMap = new Map<string, PlayerFeedbackTalk>();
-          snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
-            const data = docSnap.data() as Omit<PlayerFeedbackTalk, 'id'>;
-            snapMap.set(docSnap.id, {
-              id: docSnap.id,
-              ...data
-            });
+      const emitMerged = () => {
+        const mergedMap = new Map<string, PlayerFeedbackTalk>();
+        querySnapshots.forEach(snapMap => {
+          snapMap.forEach((talk, id) => {
+            mergedMap.set(id, talk);
           });
-          querySnapshots.set(key, snapMap);
-          emitMerged();
-        },
-        (err: any) => {
-          console.warn(`Firestore feedback talks listener error (${key}):`, err);
-          if (onError) onError(err);
+        });
+
+        const mergedList = Array.from(mergedMap.values());
+        mergedList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        saveLocalFeedbackTalks(user.uid, mergedList);
+        emitData(mergedList);
+      };
+
+      const queries: { key: string; q: Query }[] = [];
+      if (clubId) {
+        if (isClubCoachOnlyQuery()) {
+          queries.push({ key: 'acl', q: query(collection(firestoreDb, FEEDBACK_TALKS_COLLECTION), where('allowedCoachUids', 'array-contains', user.uid)) });
+        } else {
+          queries.push({ key: 'club', q: query(collection(firestoreDb, FEEDBACK_TALKS_COLLECTION), where('clubId', '==', clubId)) });
         }
-      );
-      unsubs.push(unsub);
-    } catch (err: any) {
-      console.warn(`Failed to attach feedback talks query (${key}):`, err);
+      }
+      queries.push({ key: 'owner', q: query(collection(firestoreDb, FEEDBACK_TALKS_COLLECTION), where('ownerId', '==', user.uid)) });
+
+      queries.forEach(({ key, q }) => {
+        try {
+          const unsub = onSnapshot(
+            q,
+            (snapshot: QuerySnapshot) => {
+              const snapMap = new Map<string, PlayerFeedbackTalk>();
+              snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
+                const data = docSnap.data() as Omit<PlayerFeedbackTalk, 'id'>;
+                snapMap.set(docSnap.id, {
+                  id: docSnap.id,
+                  ...data
+                });
+              });
+              querySnapshots.set(key, snapMap);
+              emitMerged();
+            },
+            (err: any) => {
+              console.warn(`Firestore feedback talks listener error (${key}):`, err);
+              emitError(err);
+            }
+          );
+          unsubs.push(unsub);
+        } catch (err: any) {
+          console.warn(`Failed to attach feedback talks query (${key}):`, err);
+        }
+      });
+
+      return () => {
+        unsubs.forEach(u => u());
+      };
     }
-  });
+  );
 
   return () => {
     feedbackTalkListeners.delete(onData);
-    unsubs.forEach(u => u());
+    detachChannel();
   };
 }
 
@@ -3582,6 +3690,7 @@ export async function saveFeedbackTalkToFirestore(
     keyPoints: talk.keyPoints,
     ownerId: talk.ownerId || currentUser?.uid || 'guest',
     clubId: clubId || talk.clubId || undefined,
+    allowedCoachUids: resolveGroupAllowedCoachUids(talk.groupId, talk.groupName, uid, talk.ownerId || currentUser?.uid),
     createdAt: talk.createdAt || now,
     updatedAt: now
   };
@@ -3848,20 +3957,6 @@ export function subscribeUserMacroPlans(
       });
     });
 
-    const currentLocal = getLocalMacroPlans(user.uid);
-    currentLocal.forEach(p => {
-      const remotePlan = mergedMap.get(p.id);
-      if (!remotePlan) {
-        mergedMap.set(p.id, p);
-      } else {
-        const localTime = typeof p.updatedAt === 'number' ? p.updatedAt : 0;
-        const remoteTime = typeof remotePlan.updatedAt === 'number' ? remotePlan.updatedAt : 0;
-        if (localTime > remoteTime) {
-          mergedMap.set(p.id, p);
-        }
-      }
-    });
-
     const mergedList = Array.from(mergedMap.values());
     saveLocalMacroPlans(user.uid, mergedList);
     onData(mergedList);
@@ -3869,7 +3964,11 @@ export function subscribeUserMacroPlans(
 
   const queries: { key: string; q: Query }[] = [];
   if (clubId) {
-    queries.push({ key: 'club', q: query(collection(firestoreDb, PERIODIZATION_MACRO_PLANS_COLLECTION), where('clubId', '==', clubId)) });
+    if (isClubCoachOnlyQuery()) {
+      queries.push({ key: 'acl', q: query(collection(firestoreDb, PERIODIZATION_MACRO_PLANS_COLLECTION), where('allowedCoachUids', 'array-contains', user.uid)) });
+    } else {
+      queries.push({ key: 'club', q: query(collection(firestoreDb, PERIODIZATION_MACRO_PLANS_COLLECTION), where('clubId', '==', clubId)) });
+    }
   }
   queries.push({ key: 'owner', q: query(collection(firestoreDb, PERIODIZATION_MACRO_PLANS_COLLECTION), where('ownerId', '==', user.uid)) });
 
@@ -3924,6 +4023,7 @@ export async function saveMacroPlanToFirestore(
     createdByName: plan.createdByName || currentUser?.displayName || currentUser?.email || undefined,
     createdByRole: plan.createdByRole || (clubId ? 'club_coach' : 'user'),
     clubId: clubId || plan.clubId || undefined,
+    allowedCoachUids: resolveGroupAllowedCoachUids(plan.groupId, undefined, uid, plan.ownerId || currentUser?.uid),
     createdAt: plan.createdAt || now,
     updatedAt: now
   };
@@ -4086,68 +4186,66 @@ export function subscribeUserMesoPlans(
     return () => {};
   }
 
-  const unsubs: (() => void)[] = [];
-  const querySnapshots = new Map<string, Map<string, MesoPlan>>();
+  const channelKey = `meso_plans:${user.uid}:${clubId || 'none'}:${isClubCoachOnlyQuery() ? 'coach' : 'admin'}`;
+  return attachSharedChannel<MesoPlan>(
+    channelKey,
+    onData,
+    onError,
+    (emitData, emitError) => {
+      const unsubs: (() => void)[] = [];
+      const querySnapshots = new Map<string, Map<string, MesoPlan>>();
 
-  const emitMerged = () => {
-    const mergedMap = new Map<string, MesoPlan>();
-    querySnapshots.forEach(snapMap => {
-      snapMap.forEach((plan, id) => {
-        mergedMap.set(id, plan);
-      });
-    });
+      const emitMerged = () => {
+        const mergedMap = new Map<string, MesoPlan>();
+        querySnapshots.forEach(snapMap => {
+          snapMap.forEach((plan, id) => {
+            mergedMap.set(id, plan);
+          });
+        });
 
-    const currentLocal = getLocalMesoPlans(user.uid);
-    currentLocal.forEach(p => {
-      const remotePlan = mergedMap.get(p.id);
-      if (!remotePlan) {
-        mergedMap.set(p.id, p);
-      } else {
-        const localTime = typeof p.updatedAt === 'number' ? p.updatedAt : 0;
-        const remoteTime = typeof remotePlan.updatedAt === 'number' ? remotePlan.updatedAt : 0;
-        if (localTime > remoteTime) {
-          mergedMap.set(p.id, p);
+        const mergedList = Array.from(mergedMap.values());
+        saveLocalMesoPlans(user.uid, mergedList);
+        emitData(mergedList);
+      };
+
+      const queries: { key: string; q: Query }[] = [];
+      if (clubId) {
+        if (isClubCoachOnlyQuery()) {
+          queries.push({ key: 'acl', q: query(collection(firestoreDb, PERIODIZATION_MESO_PLANS_COLLECTION), where('allowedCoachUids', 'array-contains', user.uid)) });
+        } else {
+          queries.push({ key: 'club', q: query(collection(firestoreDb, PERIODIZATION_MESO_PLANS_COLLECTION), where('clubId', '==', clubId)) });
         }
       }
-    });
+      queries.push({ key: 'owner', q: query(collection(firestoreDb, PERIODIZATION_MESO_PLANS_COLLECTION), where('ownerId', '==', user.uid)) });
 
-    const mergedList = Array.from(mergedMap.values());
-    saveLocalMesoPlans(user.uid, mergedList);
-    onData(mergedList);
-  };
-
-  const queries: { key: string; q: Query }[] = [];
-  if (clubId) {
-    queries.push({ key: 'club', q: query(collection(firestoreDb, PERIODIZATION_MESO_PLANS_COLLECTION), where('clubId', '==', clubId)) });
-  }
-  queries.push({ key: 'owner', q: query(collection(firestoreDb, PERIODIZATION_MESO_PLANS_COLLECTION), where('ownerId', '==', user.uid)) });
-
-  queries.forEach(({ key, q }) => {
-    try {
-      const unsub = onSnapshot(
-        q,
-        (snapshot: QuerySnapshot) => {
-          const snapMap = new Map<string, MesoPlan>();
-          snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
-            snapMap.set(docSnap.id, normalizeMesoPlan({ ...docSnap.data(), id: docSnap.id }));
-          });
-          querySnapshots.set(key, snapMap);
-          emitMerged();
-        },
-        (err: any) => {
-          console.warn(`Firestore meso plans listener error (${key}):`, err);
-          if (onError) onError(err);
+      queries.forEach(({ key, q }) => {
+        try {
+          const unsub = onSnapshot(
+            q,
+            (snapshot: QuerySnapshot) => {
+              const snapMap = new Map<string, MesoPlan>();
+              snapshot.forEach((docSnap: QueryDocumentSnapshot) => {
+                snapMap.set(docSnap.id, normalizeMesoPlan({ ...docSnap.data(), id: docSnap.id }));
+              });
+              querySnapshots.set(key, snapMap);
+              emitMerged();
+            },
+            (err: any) => {
+              console.warn(`Firestore meso plans listener error (${key}):`, err);
+              emitError(err);
+            }
+          );
+          unsubs.push(unsub);
+        } catch (err: any) {
+          console.warn(`Failed to attach meso plans query (${key}):`, err);
         }
-      );
-      unsubs.push(unsub);
-    } catch (err: any) {
-      console.warn(`Failed to attach meso plans query (${key}):`, err);
-    }
-  });
+      });
 
-  return () => {
-    unsubs.forEach(u => u());
-  };
+      return () => {
+        unsubs.forEach(u => u());
+      };
+    }
+  );
 }
 
 export async function saveMesoPlanToFirestore(
@@ -4191,6 +4289,7 @@ export async function saveMesoPlanToFirestore(
     createdByName: plan.createdByName || currentUser?.displayName || currentUser?.email || undefined,
     createdByRole: plan.createdByRole || (clubId ? 'club_coach' : 'user'),
     clubId: clubId || plan.clubId || undefined,
+    allowedCoachUids: resolveGroupAllowedCoachUids(plan.groupId, undefined, uid, plan.ownerId || currentUser?.uid),
     createdAt: plan.createdAt || now,
     updatedAt: plan.updatedAt || now
   });
@@ -4360,13 +4459,6 @@ export function subscribeUserMicroPlans(
       });
     });
 
-    const currentLocal = getLocalMicroPlans(user.uid);
-    currentLocal.forEach(p => {
-      if (!mergedMap.has(p.id)) {
-        mergedMap.set(p.id, p);
-      }
-    });
-
     const mergedList = Array.from(mergedMap.values());
     mergedList.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
 
@@ -4376,7 +4468,11 @@ export function subscribeUserMicroPlans(
 
   const queries: { key: string; q: Query }[] = [];
   if (clubId) {
-    queries.push({ key: 'club', q: query(collection(firestoreDb, PERIODIZATION_MICRO_PLANS_COLLECTION), where('clubId', '==', clubId)) });
+    if (isClubCoachOnlyQuery()) {
+      queries.push({ key: 'acl', q: query(collection(firestoreDb, PERIODIZATION_MICRO_PLANS_COLLECTION), where('allowedCoachUids', 'array-contains', user.uid)) });
+    } else {
+      queries.push({ key: 'club', q: query(collection(firestoreDb, PERIODIZATION_MICRO_PLANS_COLLECTION), where('clubId', '==', clubId)) });
+    }
   }
   queries.push({ key: 'owner', q: query(collection(firestoreDb, PERIODIZATION_MICRO_PLANS_COLLECTION), where('ownerId', '==', user.uid)) });
 
@@ -4434,6 +4530,7 @@ export async function saveMicroPlanToFirestore(
     isSaved: Boolean(plan.isSaved),
     ownerId: currentUser?.uid || 'guest',
     clubId: clubId || plan.clubId || undefined,
+    allowedCoachUids: resolveGroupAllowedCoachUids(plan.groupId, undefined, uid, currentUser?.uid),
     createdAt: plan.createdAt || now,
     updatedAt: now
   };
@@ -4504,7 +4601,8 @@ export async function clearAllMethodicalProgressions(): Promise<void> {
 
 function getLocalMethodicalProgressions(): MethodicalProgression[] {
   try {
-    const raw = localStorage.getItem('nl_methodical_progressions');
+    const uid = auth.currentUser?.uid || 'guest';
+    const raw = localStorage.getItem(`nl_methodical_progressions_${uid}`);
     return raw ? JSON.parse(raw) : [];
   } catch (e) {
     console.warn('Error reading local methodical progressions:', e);
@@ -4514,7 +4612,8 @@ function getLocalMethodicalProgressions(): MethodicalProgression[] {
 
 function saveLocalMethodicalProgressions(items: MethodicalProgression[]): void {
   try {
-    localStorage.setItem('nl_methodical_progressions', JSON.stringify(items));
+    const uid = auth.currentUser?.uid || 'guest';
+    localStorage.setItem(`nl_methodical_progressions_${uid}`, JSON.stringify(items));
   } catch (e) {
     console.warn('Error saving local methodical progressions:', e);
   }
@@ -4538,38 +4637,59 @@ export function subscribeMethodicalProgressions(
   }
 
   const collRef = collection(firestoreDb, METHODICAL_PROGRESSIONS_COLLECTION);
-  const q = query(collRef, orderBy('updatedAt', 'desc'));
+  const currentUid = auth.currentUser?.uid;
+  const unsubs: Array<() => void> = [];
+  const sliceMap = new Map<string, MethodicalProgression[]>();
 
-  const unsub = onSnapshot(
-    q,
-    (snap) => {
-      const list: MethodicalProgression[] = [];
-      snap.forEach(d => {
-        list.push({ ...d.data(), id: d.id } as MethodicalProgression);
-      });
-      // Merge with local items in case offline/local-only
-      const currentLocal = getLocalMethodicalProgressions();
-      const mergedMap = new Map<string, MethodicalProgression>();
-      list.forEach(p => mergedMap.set(p.id, p));
-      currentLocal.forEach(p => {
-        if (!mergedMap.has(p.id)) {
-          mergedMap.set(p.id, p);
-        }
-      });
-      const mergedList = Array.from(mergedMap.values());
-      saveLocalMethodicalProgressions(mergedList);
-      progressionListeners.forEach(fn => fn(mergedList));
-    },
-    (err) => {
-      console.warn('Firestore subscribeMethodicalProgressions failed, using local cache:', err);
-      const local = getLocalMethodicalProgressions();
-      progressionListeners.forEach(fn => fn(local));
-      if (onError) onError(err);
-    }
+  const emitMerged = () => {
+    const byId = new Map<string, MethodicalProgression>();
+    sliceMap.forEach((items) => {
+      items.forEach((item) => byId.set(item.id, item));
+    });
+    const list = Array.from(byId.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    saveLocalMethodicalProgressions(list);
+    progressionListeners.forEach(fn => fn(list));
+  };
+
+  const handleSliceError = (err: any) => {
+    console.warn('Firestore subscribeMethodicalProgressions failed, using local cache:', err);
+    const local = getLocalMethodicalProgressions();
+    progressionListeners.forEach(fn => fn(local));
+    if (onError) onError(err);
+  };
+
+  const globalQuery = query(collRef, where('scope', '==', 'global'));
+  unsubs.push(
+    onSnapshot(
+      globalQuery,
+      (snap) => {
+        const items: MethodicalProgression[] = [];
+        snap.forEach(d => items.push({ ...d.data(), id: d.id } as MethodicalProgression));
+        sliceMap.set('global', items);
+        emitMerged();
+      },
+      handleSliceError
+    )
   );
 
+  if (currentUid) {
+    const userQuery = query(collRef, where('userId', '==', currentUid));
+    unsubs.push(
+      onSnapshot(
+        userQuery,
+        (snap) => {
+          const items: MethodicalProgression[] = [];
+          snap.forEach(d => items.push({ ...d.data(), id: d.id } as MethodicalProgression));
+          sliceMap.set('user', items);
+          emitMerged();
+        },
+        () => {}
+      )
+    );
+  }
+
   return () => {
-    unsub();
+    unsubs.forEach(u => u());
     progressionListeners.delete(onData);
   };
 }
@@ -4821,7 +4941,8 @@ export function getAcademyTacticalTemplate(tacticNameOrId: string): string {
 
 function getLocalTacticalPrinciples(): TacticalPrinciple[] {
   try {
-    const raw = localStorage.getItem('nl_tactical_principles');
+    const uid = auth.currentUser?.uid || 'guest';
+    const raw = localStorage.getItem(`nl_tactical_principles_${uid}`);
     return raw ? JSON.parse(raw) : [];
   } catch (e) {
     console.warn('Error reading local tactical principles:', e);
@@ -4831,7 +4952,8 @@ function getLocalTacticalPrinciples(): TacticalPrinciple[] {
 
 function saveLocalTacticalPrinciples(items: TacticalPrinciple[]): void {
   try {
-    localStorage.setItem('nl_tactical_principles', JSON.stringify(items));
+    const uid = auth.currentUser?.uid || 'guest';
+    localStorage.setItem(`nl_tactical_principles_${uid}`, JSON.stringify(items));
   } catch (e) {
     console.warn('Error saving local tactical principles:', e);
   }
@@ -4855,38 +4977,59 @@ export function subscribeTacticalPrinciples(
   }
 
   const collRef = collection(firestoreDb, TACTICAL_PRINCIPLES_COLLECTION);
-  const q = query(collRef, orderBy('updatedAt', 'desc'));
+  const currentUid = auth.currentUser?.uid;
+  const unsubs: Array<() => void> = [];
+  const sliceMap = new Map<string, TacticalPrinciple[]>();
 
-  const unsub = onSnapshot(
-    q,
-    (snap) => {
-      const list: TacticalPrinciple[] = [];
-      snap.forEach(d => {
-        list.push({ ...d.data(), id: d.id } as TacticalPrinciple);
-      });
-      // Merge with local items in case offline/local-only
-      const currentLocal = getLocalTacticalPrinciples();
-      const mergedMap = new Map<string, TacticalPrinciple>();
-      list.forEach(p => mergedMap.set(p.id, p));
-      currentLocal.forEach(p => {
-        if (!mergedMap.has(p.id)) {
-          mergedMap.set(p.id, p);
-        }
-      });
-      const mergedList = Array.from(mergedMap.values());
-      saveLocalTacticalPrinciples(mergedList);
-      tacticalListeners.forEach(fn => fn(mergedList));
-    },
-    (err) => {
-      console.warn('Firestore subscribeTacticalPrinciples failed, using local cache:', err);
-      const local = getLocalTacticalPrinciples();
-      tacticalListeners.forEach(fn => fn(local));
-      if (onError) onError(err);
-    }
+  const emitMerged = () => {
+    const byId = new Map<string, TacticalPrinciple>();
+    sliceMap.forEach((items) => {
+      items.forEach((item) => byId.set(item.id, item));
+    });
+    const list = Array.from(byId.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    saveLocalTacticalPrinciples(list);
+    tacticalListeners.forEach(fn => fn(list));
+  };
+
+  const handleSliceError = (err: any) => {
+    console.warn('Firestore subscribeTacticalPrinciples failed, using local cache:', err);
+    const local = getLocalTacticalPrinciples();
+    tacticalListeners.forEach(fn => fn(local));
+    if (onError) onError(err);
+  };
+
+  const globalQuery = query(collRef, where('scope', '==', 'global'));
+  unsubs.push(
+    onSnapshot(
+      globalQuery,
+      (snap) => {
+        const items: TacticalPrinciple[] = [];
+        snap.forEach(d => items.push({ ...d.data(), id: d.id } as TacticalPrinciple));
+        sliceMap.set('global', items);
+        emitMerged();
+      },
+      handleSliceError
+    )
   );
 
+  if (currentUid) {
+    const userQuery = query(collRef, where('userId', '==', currentUid));
+    unsubs.push(
+      onSnapshot(
+        userQuery,
+        (snap) => {
+          const items: TacticalPrinciple[] = [];
+          snap.forEach(d => items.push({ ...d.data(), id: d.id } as TacticalPrinciple));
+          sliceMap.set('user', items);
+          emitMerged();
+        },
+        () => {}
+      )
+    );
+  }
+
   return () => {
-    unsub();
+    unsubs.forEach(u => u());
     tacticalListeners.delete(onData);
   };
 }

@@ -113,8 +113,8 @@ export const ExerciseCatalogView: React.FC<ExerciseCatalogViewProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const toggleExpand = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleExpand = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation?.();
     setExpandedExerciseIds(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
@@ -147,11 +147,11 @@ export const ExerciseCatalogView: React.FC<ExerciseCatalogViewProps> = ({
   }, [user, isMasterAdmin, isClubAdmin, clubId]);
 
   useEffect(() => {
-    const unsubscribe = subscribeUserPlans(user, isAdmin, (plans) => {
+    const unsubscribe = subscribeUserPlans(user, isMasterAdmin, (plans) => {
       setSavedPlans(plans);
-    });
+    }, undefined, isClubAdmin, clubId);
     return () => unsubscribe();
-  }, [user, isAdmin]);
+  }, [user, isMasterAdmin, isClubAdmin, clubId]);
 
   // Compute how many times each exercise was executed in history
   const exerciseUsageMap = useMemo(() => {
@@ -642,7 +642,7 @@ export const ExerciseCatalogView: React.FC<ExerciseCatalogViewProps> = ({
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <h3 
-                        onClick={() => toggleExpand(exercise.id!, {} as any)}
+                        onClick={(e) => toggleExpand(exercise.id!, e)}
                         className="font-extrabold text-base text-slate-100 hover:text-emerald-400 transition line-clamp-2 cursor-pointer"
                         title="Klicken zum Ein-/Ausklappen der Details"
                       >

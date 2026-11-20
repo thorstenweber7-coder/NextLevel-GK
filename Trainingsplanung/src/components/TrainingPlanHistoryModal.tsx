@@ -20,7 +20,7 @@ import {
   ArrowLeft,
   PlayCircle
 } from 'lucide-react';
-import type { TrainingPlan, Exercise, TrainingGroup, TrainingStructure } from '../types';
+import type { TrainingPlan, Exercise, TrainingGroup, TrainingStructure, PlayerMatchPlaytime, MesoPlan, PlayerAbsence } from '../types';
 import { deletePlanFromFirestore } from '../firebase/firestoreService';
 import { useAuth } from '../context/AuthContext';
 import { SessionDebriefModal } from './SessionDebriefModal';
@@ -35,6 +35,9 @@ interface TrainingPlanHistoryModalProps {
   exerciseMap: Map<string, Exercise>;
   structures?: TrainingStructure[];
   groups?: TrainingGroup[];
+  matchPlaytimes?: PlayerMatchPlaytime[];
+  mesoPlans?: MesoPlan[];
+  absences?: PlayerAbsence[];
   onLoadPlan: (plan: TrainingPlan) => void;
   onPlanUpdated?: (updatedPlan: TrainingPlan) => void;
 }
@@ -46,6 +49,9 @@ export const TrainingPlanHistoryModal: React.FC<TrainingPlanHistoryModalProps> =
   exerciseMap,
   structures = [],
   groups = [],
+  matchPlaytimes,
+  mesoPlans,
+  absences,
   onLoadPlan,
   onPlanUpdated
 }) => {
@@ -640,6 +646,10 @@ export const TrainingPlanHistoryModal: React.FC<TrainingPlanHistoryModalProps> =
           plan={debriefingPlan}
           groups={groups}
           exerciseMap={exerciseMap}
+          savedPlans={savedPlans}
+          matchPlaytimes={matchPlaytimes}
+          mesoPlans={mesoPlans}
+          absences={absences}
           onPlanUpdated={(updated) => {
             onPlanUpdated?.(updated);
             setDebriefingPlan(null);

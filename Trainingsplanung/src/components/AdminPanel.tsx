@@ -1381,7 +1381,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onEditExercise }) => {
           <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-1">
             <div className="text-slate-500 font-semibold flex items-center gap-1.5">
               <Clock className="w-4 h-4 text-amber-400" />
-              <span>In 7-Tage-Test</span>
+              <span>In 14-Tage-Test</span>
             </div>
             <div className="text-2xl font-black text-amber-400">{stats.activeTrial}</div>
           </div>

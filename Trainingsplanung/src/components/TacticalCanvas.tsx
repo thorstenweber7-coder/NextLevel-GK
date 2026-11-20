@@ -17,7 +17,8 @@ import {
   Square, 
   RotateCw, 
   Star,
-  Magnet
+  Magnet,
+  Film
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -36,6 +37,8 @@ interface TacticalCanvasProps {
   width?: number;
   height?: number;
   readOnly?: boolean;
+  onOpenAnimation?: () => void;
+  animationFramesCount?: number;
 }
 
 /**
@@ -321,7 +324,9 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
   onChange,
   width = 864,
   height = 600,
-  readOnly = false
+  readOnly = false,
+  onOpenAnimation,
+  animationFramesCount = 0
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [elements, setElements] = useState<CanvasElement[]>(initialData?.elements || []);
@@ -524,12 +529,15 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
     }
   }, [initialData]);
 
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   useEffect(() => {
-    if (onChange && canvasRef.current) {
+    if (onChangeRef.current && canvasRef.current) {
       const preview = exportCompressedCanvas(canvasRef.current);
-      onChange({ width, height, elements }, preview);
+      onChangeRef.current({ width, height, elements }, preview);
     }
-  }, [elements, width, height, onChange]);
+  }, [elements, width, height]);
 
   // Draw Pitch without halfway line and Elements
   const drawCanvas = useCallback(() => {
@@ -2288,6 +2296,17 @@ export const TacticalCanvas = forwardRef<TacticalCanvasRef, TacticalCanvasProps>
             <span>💡 Drehen: Blauer Griff oder ↺ / ↻</span>
             <span>•</span>
             <span className="text-slate-400 font-medium">{elements.length} Elemente</span>
+            {onOpenAnimation && (
+              <button
+                type="button"
+                onClick={onOpenAnimation}
+                className="ml-1 px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[10.5px] flex items-center gap-1 shadow transition cursor-pointer"
+                title="Animierte Zwischensequenzen erstellen oder bearbeiten"
+              >
+                <Film className="w-3 h-3" />
+                <span>Animation{animationFramesCount > 0 ? ` (${animationFramesCount})` : ''}</span>
+              </button>
+            )}
           </div>
         </div>
       )}

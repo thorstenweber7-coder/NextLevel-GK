@@ -6,6 +6,7 @@ import { EmailVerificationScreen } from './components/EmailVerificationScreen';
 import { AccessBlockedScreen } from './components/AccessBlockedScreen';
 import { PlannerView } from './components/PlannerView';
 import { UserProfileModal } from './components/UserProfileModal';
+import { LegalModal, type LegalTab } from './components/LegalModal';
 import { usePlannerSession } from './hooks/usePlannerSession';
 import { useAppRouter, type ActiveTab } from './hooks/useAppRouter';
 import { type Exercise, type TrainingStructure, DEFAULT_TRAINING_STRUCTURE } from './types';
@@ -103,6 +104,7 @@ const MainAppContent: React.FC = () => {
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [editorOriginTab, setEditorOriginTab] = useState<ActiveTab>('planner');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [legalTab, setLegalTab] = useState<LegalTab | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
   const [isEditorDirty, setIsEditorDirty] = useState<boolean>(false);
   const [pendingTabTransition, setPendingTabTransition] = useState<{
@@ -218,9 +220,9 @@ const MainAppContent: React.FC = () => {
   useEffect(() => {
     const unsub = subscribeUserStructures(user, (data) => {
       setStructures(data);
-    });
+    }, undefined, currentClub?.id, isMasterAdmin);
     return () => unsub();
-  }, [user]);
+  }, [user, currentClub?.id, isMasterAdmin]);
 
   const activeStructure = useMemo(() => {
     return structures.find(s => s.isFavorite) || structures[0] || DEFAULT_TRAINING_STRUCTURE;
@@ -260,10 +262,23 @@ const MainAppContent: React.FC = () => {
     return () => unsub();
   }, [isClubAdmin, currentClub?.id, user, isMasterAdmin]);
 
-  // Initialize Firestore collections & default exercises on mount
+  // Initialize Firestore collections & default exercises only when authenticated as Master Admin
   useEffect(() => {
-    initAndSeedFirestore().catch(console.error);
-  }, []);
+    if (user && isMasterAdmin) {
+      initAndSeedFirestore().catch(console.error);
+    }
+  }, [user, isMasterAdmin]);
+
+  // Guard unauthorized direct hash navigation to admin / club_admin
+  useEffect(() => {
+    if (!loading && user && isAccessGranted) {
+      if (activeTab === 'admin' && !isMasterAdmin) {
+        setActiveTab('planner');
+      } else if (activeTab === 'club_admin' && !isClubAdmin) {
+        setActiveTab('planner');
+      }
+    }
+  }, [loading, user, isAccessGranted, activeTab, isMasterAdmin, isClubAdmin, setActiveTab]);
 
   // 1. Auth Loading Spinner
   if (loading) {
@@ -308,7 +323,17 @@ const MainAppContent: React.FC = () => {
     if (shouldAddToPlan && savedExercise && savedExercise.id) {
       const normalize = (str?: string) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const catNorm = normalize(savedExercise.category);
-      const phases = activeStructure.phases || [];
+      let plannerStructure = activeStructure;
+      try {
+        const storedStructId = localStorage.getItem(`planner_active_structure_${user?.uid || 'guest'}`);
+        if (storedStructId) {
+          const matchedStruct = structures.find(s => s.id === storedStructId);
+          if (matchedStruct) plannerStructure = matchedStruct;
+        }
+      } catch {
+        // fallback to activeStructure
+      }
+      const phases = plannerStructure.phases || [];
 
       // 1. Direct categoryKey / name / id match
       let targetPhase = phases.find(p => 
@@ -333,7 +358,7 @@ const MainAppContent: React.FC = () => {
 
       if (targetPhase) {
         addExerciseToPhase(savedExercise.id!, targetPhase.id);
-        setOpenPhases({ [targetPhase.id]: true });
+        setOpenPhases(prev => ({ ...prev, [targetPhase.id]: true }));
       }
     }
 
@@ -476,8 +501,8 @@ const MainAppContent: React.FC = () => {
               <span className="md:hidden">Katalog</span>
             </button>
 
-            {/* Club Admin Panel (Chef-Torwarttrainer / Master Admin) */}
-            {(isClubAdmin || isMasterAdmin) && (
+            {/* Club Admin Panel (auch sichtbar wenn Master Admin gleichzeitig Vereinsadmin ist) */}
+            {isClubAdmin && (
               <button
                 type="button"
                 onClick={() => handleRequestTabChange('club_admin')}
@@ -502,7 +527,7 @@ const MainAppContent: React.FC = () => {
             )}
 
             {/* Global Master Admin Tab */}
-            {(isMasterAdmin || isAdmin) && (
+            {isMasterAdmin && (
               <button
                 type="button"
                 onClick={() => handleRequestTabChange('admin')}
@@ -665,7 +690,7 @@ const MainAppContent: React.FC = () => {
                   </button>
 
                   {/* Vereins-Verwaltung */}
-                  {(isClubAdmin || isMasterAdmin) && (
+                  {isClubAdmin && (
                     <button
                       type="button"
                       onClick={() => {
@@ -724,6 +749,18 @@ const MainAppContent: React.FC = () => {
 
           {/* User Status / Profile Button / Logout */}
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <span
+              title={isOnline ? 'Mit Cloud synchronisiert' : 'Offline – Änderungen werden lokal gespeichert und später synchronisiert'}
+              className={cn(
+                "hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-semibold border transition",
+                isOnline
+                  ? "bg-slate-950/60 border-slate-800/80 text-slate-400"
+                  : "bg-amber-950/70 border-amber-700/60 text-amber-300"
+              )}
+            >
+              <span className={cn("w-1.5 h-1.5 rounded-full", isOnline ? "bg-emerald-400" : "bg-amber-400 animate-pulse")} />
+              <span>{isOnline ? 'Sync' : 'Offline'}</span>
+            </span>
             <button
               type="button"
               onClick={() => setIsProfileModalOpen(true)}
@@ -831,13 +868,13 @@ const MainAppContent: React.FC = () => {
             />
           )}
 
-          {activeTab === 'club_admin' && (isClubAdmin || isMasterAdmin) && (
+          {activeTab === 'club_admin' && isClubAdmin && (
             <ClubAdminPanel
               onEditExercise={handleOpenEditorForEdit}
             />
           )}
 
-          {activeTab === 'admin' && (isMasterAdmin || isAdmin) && (
+          {activeTab === 'admin' && isMasterAdmin && (
             <AdminPanel 
               onEditExercise={handleOpenEditorForEdit}
             />
@@ -852,13 +889,23 @@ const MainAppContent: React.FC = () => {
             <img src="/Logo.png" alt="Logo" className="h-7 w-auto object-contain inline" />
             <span className="text-slate-400 font-semibold">NextLevel Goalkeeping Academy — Coach PRO</span>
           </div>
-          <div className="flex items-center gap-4 text-slate-400">
+          <div className="flex flex-wrap items-center justify-center gap-3 text-slate-400">
             <span>Angemeldet als: {user.email}</span>
             <span>•</span>
-            <span>{isAdmin ? '🛡️ Administrator' : isSubscriptionActive ? '⭐ Pro-Lizenz' : `⏳ Testphase (${trialDaysRemaining} Tage)`}</span>
+            <span>{isMasterAdmin ? '🛡️ Master-Administrator' : isClubAdmin ? '🛡️ Vereins-Admin' : isSubscriptionActive ? '⭐ Pro-Lizenz' : `⏳ Testphase (${trialDaysRemaining} Tage)`}</span>
+            <span>•</span>
+            <button type="button" onClick={() => setLegalTab('datenschutz')} className="hover:text-emerald-400 transition cursor-pointer">Datenschutz</button>
+            <button type="button" onClick={() => setLegalTab('impressum')} className="hover:text-emerald-400 transition cursor-pointer">Impressum</button>
+            <button type="button" onClick={() => setLegalTab('agb')} className="hover:text-emerald-400 transition cursor-pointer">Nutzungsbedingungen</button>
           </div>
         </div>
       </footer>
+
+      <LegalModal
+        isOpen={legalTab !== null}
+        initialTab={legalTab || 'datenschutz'}
+        onClose={() => setLegalTab(null)}
+      />
 
       {/* Discard Changes Confirmation Modal */}
       {pendingTabTransition !== null && (

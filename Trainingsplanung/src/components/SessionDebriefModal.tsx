@@ -22,14 +22,24 @@ import {
   Activity,
   Zap,
   Mic,
-  MicOff
+  MicOff,
+  FileDown,
+  Copy,
+  Check
 } from 'lucide-react';
-import type { TrainingPlan, TrainingGroup, Exercise } from '../types';
+import type { TrainingPlan, TrainingGroup, Exercise, PlayerMatchPlaytime, MesoPlan, PlayerAbsence } from '../types';
 import { CATEGORY_COLORS } from '../types';
-import { savePlanToFirestore } from '../firebase/firestoreService';
+import {
+  savePlanToFirestore,
+  getLocalPlayerAbsences,
+  getLocalMatchPlaytimes,
+  getLocalMesoPlans
+} from '../firebase/firestoreService';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../utils/cn';
 import { useSpeechToText } from '../hooks/useSpeechToText';
+import { isPlayerAbsentOnDate, normalizeToYMD } from '../utils/workloadCalculator';
+import { buildHeadCoachBriefingText, exportHeadCoachBriefingPdf } from '../utils/headCoachBriefing';
 
 interface SessionDebriefModalProps {
   isOpen: boolean;
@@ -38,6 +48,10 @@ interface SessionDebriefModalProps {
   groups: TrainingGroup[];
   exerciseMap: Map<string, Exercise>;
   onPlanUpdated?: (updatedPlan: TrainingPlan) => void;
+  savedPlans?: TrainingPlan[];
+  matchPlaytimes?: PlayerMatchPlaytime[];
+  mesoPlans?: MesoPlan[];
+  absences?: PlayerAbsence[];
 }
 
 export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
@@ -46,16 +60,41 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
   plan,
   groups,
   exerciseMap,
-  onPlanUpdated
+  onPlanUpdated,
+  savedPlans = [],
+  matchPlaytimes,
+  mesoPlans,
+  absences
 }) => {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, currentClub, clubName } = useAuth();
   const [activeTab, setActiveTab] = useState<'jumpVolume' | 'keepers' | 'exercises' | 'talks'>('jumpVolume');
+  const [briefingCopied, setBriefingCopied] = useState<boolean>(false);
+  const [isExportingBriefing, setIsExportingBriefing] = useState<boolean>(false);
+
+  const effectiveAbsences = useMemo(
+    () => absences ?? getLocalPlayerAbsences(user?.uid),
+    [absences, user?.uid]
+  );
+  const effectiveMatchPlaytimes = useMemo(
+    () => matchPlaytimes ?? getLocalMatchPlaytimes(user?.uid),
+    [matchPlaytimes, user?.uid]
+  );
+  const effectiveMesoPlans = useMemo(
+    () => mesoPlans ?? getLocalMesoPlans(user?.uid),
+    [mesoPlans, user?.uid]
+  );
 
   // Form states
   const [jumpVolume, setJumpVolume] = useState<'low' | 'medium' | 'high' | ''>('');
   const [keeperJumpVolumes, setKeeperJumpVolumes] = useState<Record<string, 'low' | 'medium' | 'high' | string>>({});
+  const [actionEstimates, setActionEstimates] = useState<{ divingSaves: number; oneOnOneContacts: number; highBalls: number }>({
+    divingSaves: 0,
+    oneOnOneContacts: 0,
+    highBalls: 0
+  });
   const [keeperInsights, setKeeperInsights] = useState<Record<string, string>>({});
   const [keeperLoadRatings, setKeeperLoadRatings] = useState<Record<string, number>>({});
+  const [bulkTeamRpe, setBulkTeamRpe] = useState<number>(6);
   const [exerciseExperiences, setExerciseExperiences] = useState<Record<string, string>>({});
   const [playerConversations, setPlayerConversations] = useState<Record<string, string>>({});
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>('');
@@ -152,6 +191,11 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
     if (plan) {
       setJumpVolume((plan.jumpVolume as 'low' | 'medium' | 'high') || '');
       setKeeperJumpVolumes(plan.keeperJumpVolumes || {});
+      setActionEstimates({
+        divingSaves: plan.actionEstimates?.divingSaves ?? 0,
+        oneOnOneContacts: plan.actionEstimates?.oneOnOneContacts ?? 0,
+        highBalls: plan.actionEstimates?.highBalls ?? 0
+      });
       setKeeperInsights(plan.keeperInsights || {});
       setKeeperLoadRatings(plan.keeperLoadRatings || {});
       setExerciseExperiences(plan.exerciseExperiences || {});
@@ -168,20 +212,33 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
     return groups.find(g => g.name.trim().toLowerCase() === tg || g.id === plan.targetGroup) || null;
   }, [plan, groups]);
 
-  // Keepers list: If group matched, use its players; otherwise all players from all groups
+  // Keepers list: Active players of matched group + any one-time external guest keepers
   const keepersList = useMemo(() => {
+    const guestIds = plan?.guestKeeperIds || [];
     if (targetGroupObj && targetGroupObj.players && targetGroupObj.players.length > 0) {
-      return targetGroupObj.players;
+      const base = targetGroupObj.players.filter(p => !p.archived);
+      if (guestIds.length === 0) return base;
+      const seen = new Set(base.map(p => p.id));
+      const guests: typeof base = [];
+      groups.forEach(g => {
+        (g.players || [])
+          .filter(p => !p.archived && guestIds.includes(p.id) && !seen.has(p.id))
+          .forEach(p => {
+            seen.add(p.id);
+            guests.push(p);
+          });
+      });
+      return [...base, ...guests];
     }
-    // Fallback: collect all keepers from all groups if not specifically matched
+    // Fallback: collect all active keepers from all groups if not specifically matched
     const allPlayersMap = new Map();
     groups.forEach(g => {
-      (g.players || []).forEach(p => {
+      (g.players || []).filter(p => !p.archived).forEach(p => {
         if (!allPlayersMap.has(p.id)) allPlayersMap.set(p.id, p);
       });
     });
     return Array.from(allPlayersMap.values());
-  }, [targetGroupObj, groups]);
+  }, [targetGroupObj, groups, plan?.guestKeeperIds]);
 
   // Derived: Exercises in this plan (strictly only exercises that were part of this training unit)
   const planExercises = useMemo(() => {
@@ -234,6 +291,7 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
         ...plan,
         jumpVolume: jumpVolume || undefined,
         keeperJumpVolumes: Object.keys(keeperJumpVolumes).length > 0 ? keeperJumpVolumes : undefined,
+        actionEstimates,
         keeperInsights,
         keeperLoadRatings,
         exerciseExperiences,
@@ -340,7 +398,7 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
               )}
             >
               <Zap className="w-4 h-4 text-amber-400" />
-              <span>0. Sprungvolumen</span>
+              <span>0. Belastung</span>
               {jumpVolume && (
                 <span className={cn(
                   "px-1.5 py-0.2 rounded-full text-[10px] border font-mono font-bold",
@@ -374,25 +432,6 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveTab('exercises')}
-              className={cn(
-                "px-4 py-2.5 rounded-t-xl text-xs font-bold transition flex items-center gap-2 border-b-2",
-                activeTab === 'exercises'
-                  ? "bg-slate-900 text-emerald-400 border-emerald-500 font-black"
-                  : "text-slate-400 hover:text-slate-200 border-transparent"
-              )}
-            >
-              <Layers className="w-4 h-4" />
-              <span>2. Übungen ({planExercises.length})</span>
-              {filledExercisesCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-700">
-                  {filledExercisesCount} ausgefüllt
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
               onClick={() => setActiveTab('talks')}
               className={cn(
                 "px-4 py-2.5 rounded-t-xl text-xs font-bold transition flex items-center gap-2 border-b-2",
@@ -402,10 +441,29 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
               )}
             >
               <MessageSquareQuote className="w-4 h-4" />
-              <span>3. Spielergespräche ({keepersList.length})</span>
+              <span>2. Spielergespräche ({keepersList.length})</span>
               {filledTalksCount > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-700">
                   {filledTalksCount} ausgefüllt
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('exercises')}
+              className={cn(
+                "px-4 py-2.5 rounded-t-xl text-xs font-bold transition flex items-center gap-2 border-b-2",
+                activeTab === 'exercises'
+                  ? "bg-slate-900 text-emerald-400 border-emerald-500 font-black"
+                  : "text-slate-400 hover:text-slate-200 border-transparent"
+              )}
+            >
+              <Layers className="w-4 h-4" />
+              <span>3. Übungen ({planExercises.length})</span>
+              {filledExercisesCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-700">
+                  {filledExercisesCount} ausgefüllt
                 </span>
               )}
             </button>
@@ -419,19 +477,10 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar">
           {/* ================================================================= */}
-          {/* TAB 0: SPRUNG- & HECHTVOLUMEN (IMPACT- & GELENKBELASTUNG)         */}
+          {/* TAB 0: BELASTUNG (SPRUNGVOLUMEN, RPE & CHEFTRAINER-BRIEFING)      */}
           {/* ================================================================= */}
           {activeTab === 'jumpVolume' && (
             <div className="space-y-5">
-              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 flex items-center gap-3">
-                <Zap className="w-5 h-5 text-amber-400 flex-shrink-0" />
-                <div>
-                  <span className="font-bold text-white text-sm block">
-                    Sprung- & Hechtvolumen (Gelenk-, Sehnen- & Knorpelbelastung)
-                  </span>
-                </div>
-              </div>
-
               {/* General Session Jump Volume Selection */}
               <div className="space-y-3">
                 <label className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center justify-between">
@@ -447,40 +496,29 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
                   )}
                 </label>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {/* Option: Niedrig */}
                   <button
                     type="button"
                     onClick={() => setJumpVolume(prev => prev === 'low' ? '' : 'low')}
                     className={cn(
-                      "p-4 rounded-2xl border text-left transition-all relative flex flex-col justify-between gap-3 group",
+                      "px-4 py-3 rounded-2xl border transition-all flex items-center justify-between gap-2 group cursor-pointer",
                       jumpVolume === 'low'
                         ? "bg-emerald-950/40 border-emerald-500 ring-1 ring-emerald-500/50 shadow-lg shadow-emerald-950/40"
                         : "bg-slate-950 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60"
                     )}
                   >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={cn(
-                          "text-xs font-black uppercase px-2.5 py-0.5 rounded-full border",
-                          jumpVolume === 'low'
-                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                            : "bg-slate-900 text-slate-400 border-slate-800 group-hover:text-emerald-400"
-                        )}>
-                          Niedrig
-                        </span>
-                        {jumpVolume === 'low' && (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        )}
-                      </div>
-                      <h4 className="font-extrabold text-white text-sm">Flach / Regeneration</h4>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                        Keine oder minimale Hechtsprünge. Flaches Passspiel, lockeres Stellungsspiel, Kognition oder regenerative Einheit.
-                      </p>
-                    </div>
-                    <div className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                      <span>✓ Gelenkschonend</span>
-                    </div>
+                    <span className={cn(
+                      "text-xs font-black uppercase px-2.5 py-0.5 rounded-full border",
+                      jumpVolume === 'low'
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                        : "bg-slate-900 text-slate-400 border-slate-800 group-hover:text-emerald-400"
+                    )}>
+                      Niedrig
+                    </span>
+                    {jumpVolume === 'low' && (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    )}
                   </button>
 
                   {/* Option: Mittel */}
@@ -488,34 +526,23 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
                     type="button"
                     onClick={() => setJumpVolume(prev => prev === 'medium' ? '' : 'medium')}
                     className={cn(
-                      "p-4 rounded-2xl border text-left transition-all relative flex flex-col justify-between gap-3 group",
+                      "px-4 py-3 rounded-2xl border transition-all flex items-center justify-between gap-2 group cursor-pointer",
                       jumpVolume === 'medium'
                         ? "bg-amber-950/40 border-amber-500 ring-1 ring-amber-500/50 shadow-lg shadow-amber-950/40"
                         : "bg-slate-950 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60"
                     )}
                   >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={cn(
-                          "text-xs font-black uppercase px-2.5 py-0.5 rounded-full border",
-                          jumpVolume === 'medium'
-                            ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                            : "bg-slate-900 text-slate-400 border-slate-800 group-hover:text-amber-400"
-                        )}>
-                          Mittel
-                        </span>
-                        {jumpVolume === 'medium' && (
-                          <CheckCircle2 className="w-4 h-4 text-amber-400" />
-                        )}
-                      </div>
-                      <h4 className="font-extrabold text-white text-sm">Moderat / Grundtechnik</h4>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                        Standard Grundtechnik, 1v1, moderater Abdruck, Reaktionsbälle aus kurzer Distanz mit kontrollierten Landungen.
-                      </p>
-                    </div>
-                    <div className="text-[10px] text-amber-400 font-semibold flex items-center gap-1">
-                      <span>⚡ Normale Belastung</span>
-                    </div>
+                    <span className={cn(
+                      "text-xs font-black uppercase px-2.5 py-0.5 rounded-full border",
+                      jumpVolume === 'medium'
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                        : "bg-slate-900 text-slate-400 border-slate-800 group-hover:text-amber-400"
+                    )}>
+                      Mittel
+                    </span>
+                    {jumpVolume === 'medium' && (
+                      <CheckCircle2 className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                    )}
                   </button>
 
                   {/* Option: Hoch */}
@@ -523,58 +550,154 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
                     type="button"
                     onClick={() => setJumpVolume(prev => prev === 'high' ? '' : 'high')}
                     className={cn(
-                      "p-4 rounded-2xl border text-left transition-all relative flex flex-col justify-between gap-3 group",
+                      "px-4 py-3 rounded-2xl border transition-all flex items-center justify-between gap-2 group cursor-pointer",
                       jumpVolume === 'high'
                         ? "bg-rose-950/40 border-rose-500 ring-1 ring-rose-500/50 shadow-lg shadow-rose-950/40"
                         : "bg-slate-950 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60"
                     )}
                   >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={cn(
-                          "text-xs font-black uppercase px-2.5 py-0.5 rounded-full border",
-                          jumpVolume === 'high'
-                            ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
-                            : "bg-slate-900 text-slate-400 border-slate-800 group-hover:text-rose-400"
-                        )}>
-                          Hoch
-                        </span>
-                        {jumpVolume === 'high' && (
-                          <CheckCircle2 className="w-4 h-4 text-rose-400" />
-                        )}
-                      </div>
-                      <h4 className="font-extrabold text-white text-sm">Maximal / Flugparaden</h4>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                        Maximale Flugparaden, weiter Flankenabdruck mit voller Wucht, intensive Torschussduelle mit vielen harten Landungen.
-                      </p>
-                    </div>
-                    <div className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">
-                      <span>🔥 Hoher Impact auf Sehnen & Gelenke</span>
-                    </div>
+                    <span className={cn(
+                      "text-xs font-black uppercase px-2.5 py-0.5 rounded-full border",
+                      jumpVolume === 'high'
+                        ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                        : "bg-slate-900 text-slate-400 border-slate-800 group-hover:text-rose-400"
+                    )}>
+                      Hoch
+                    </span>
+                    {jumpVolume === 'high' && (
+                      <CheckCircle2 className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                    )}
                   </button>
                 </div>
               </div>
 
-              {/* Individual Goalkeeper Overrides */}
+              {/* 2. Aktionen-Schätzung (Schieberegler) */}
+              <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                <label className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>2. Aktionen-Schätzung (optional)</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-300">Hecht-/Sprungparaden</span>
+                      <span className="font-mono font-black text-emerald-400">{actionEstimates.divingSaves}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={60}
+                      step={2}
+                      value={actionEstimates.divingSaves}
+                      onChange={e => setActionEstimates(prev => ({ ...prev, divingSaves: Number(e.target.value) }))}
+                      className="w-full accent-emerald-500 cursor-pointer"
+                    />
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-300">1-gegen-1 Aktionen</span>
+                      <span className="font-mono font-black text-amber-400">{actionEstimates.oneOnOneContacts}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={30}
+                      step={1}
+                      value={actionEstimates.oneOnOneContacts}
+                      onChange={e => setActionEstimates(prev => ({ ...prev, oneOnOneContacts: Number(e.target.value) }))}
+                      className="w-full accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-300">Flanken / Hohe Bälle</span>
+                      <span className="font-mono font-black text-sky-400">{actionEstimates.highBalls}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={40}
+                      step={2}
+                      value={actionEstimates.highBalls}
+                      onChange={e => setActionEstimates(prev => ({ ...prev, highBalls: Number(e.target.value) }))}
+                      className="w-full accent-sky-500 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Individual Goalkeeper Overrides & Team/Individual RPE */}
               {keepersList.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between">
+                <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <label className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-slate-400" />
-                      <span>2. Individuelle Torwart-Abweichungen (optional)</span>
+                      <span>3. Individuelle Belastung & Torwart-Abweichungen (RPE & Sprungvolumen)</span>
                     </label>
                     <span className="text-[11px] text-slate-500">
-                      Nur anpassen, wenn ein Torwart gezielt geschont oder stärker belastet wurde
+                      Anwesenheit wird automatisch über Fehlzeiten gesteuert
                     </span>
+                  </div>
+
+                  {/* 1-Klick Team-RPE für alle anwesenden Torhüter übernehmen */}
+                  <div className="p-3 rounded-2xl bg-slate-950 border border-amber-500/30 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <div>
+                        <span className="font-extrabold text-white">1-Klick Team-RPE für alle anwesenden Torhüter</span>
+                        <span className="text-[10.5px] text-slate-400 block">Setzt die Basis-Belastung (Einzelwerte bleiben darunter anpassbar)</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={bulkTeamRpe}
+                        onChange={e => setBulkTeamRpe(Number(e.target.value) || 6)}
+                        className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-amber-300 focus:outline-none cursor-pointer"
+                      >
+                        <option value={1}>RPE 1 - Sehr leicht</option>
+                        <option value={2}>RPE 2 - Leicht</option>
+                        <option value={3}>RPE 3 - Leicht-moderat</option>
+                        <option value={4}>RPE 4 - Moderat</option>
+                        <option value={5}>RPE 5 - Deutlich spürbar</option>
+                        <option value={6}>RPE 6 - Anstrengend (Standard)</option>
+                        <option value={7}>RPE 7 - Schwer (Hochintensiv)</option>
+                        <option value={8}>RPE 8 - Sehr schwer</option>
+                        <option value={9}>RPE 9 - Extrem schwer</option>
+                        <option value={10}>RPE 10 - Maximal</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const planYmd = normalizeToYMD(plan.date || plan.planDate);
+                          setKeeperLoadRatings(prev => {
+                            const next = { ...prev };
+                            keepersList.forEach(k => {
+                              if (!isPlayerAbsentOnDate(k.id, planYmd, effectiveAbsences)) {
+                                next[k.id] = bulkTeamRpe;
+                              }
+                            });
+                            return next;
+                          });
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs transition active:scale-95 cursor-pointer shadow-sm"
+                      >
+                        Für alle übernehmen
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
                     {keepersList.map(player => {
                       const individualVal = keeperJumpVolumes[player.id];
+                      const planYmd = normalizeToYMD(plan.date || plan.planDate);
+                      const isAbsent = isPlayerAbsentOnDate(player.id, planYmd, effectiveAbsences);
                       return (
                         <div 
                           key={player.id}
-                          className="p-3 sm:p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-wrap items-center justify-between gap-3"
+                          className={cn(
+                            "p-3 sm:p-3.5 rounded-xl bg-slate-950 border flex flex-wrap items-center justify-between gap-3",
+                            isAbsent ? "border-rose-900/50 opacity-75" : "border-slate-800"
+                          )}
                         >
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-black text-white">
@@ -583,76 +706,207 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
                             <span className="font-extrabold text-white text-xs sm:text-sm">
                               {player.firstName} {player.lastName}
                             </span>
+                            {isAbsent ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-950/80 text-rose-300 border border-rose-800/70 font-bold">
+                                Fehlzeit
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 font-bold">
+                                Anwesend
+                              </span>
+                            )}
                           </div>
 
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setKeeperJumpVolumes(prev => {
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Individuelle Belastung (RPE 1-10) */}
+                            <select
+                              value={keeperLoadRatings[player.id] || ''}
+                              onChange={e => {
+                                const val = e.target.value ? parseInt(e.target.value, 10) : 0;
+                                setKeeperLoadRatings(prev => {
                                   const updated = { ...prev };
-                                  delete updated[player.id];
+                                  if (val > 0) updated[player.id] = val;
+                                  else delete updated[player.id];
                                   return updated;
                                 });
                               }}
                               className={cn(
-                                "px-2.5 py-1 rounded-lg text-xs font-bold transition",
-                                !individualVal
-                                  ? "bg-slate-800 text-white border border-slate-700 font-extrabold"
-                                  : "text-slate-400 hover:text-slate-200 bg-slate-900/60"
+                                "bg-slate-900 border rounded-lg px-2 py-1 text-xs font-bold transition focus:outline-none cursor-pointer",
+                                keeperLoadRatings[player.id]
+                                  ? keeperLoadRatings[player.id] >= 8
+                                    ? "text-rose-300 border-rose-500/60 bg-rose-950/40"
+                                    : keeperLoadRatings[player.id] >= 5
+                                    ? "text-amber-300 border-amber-500/60 bg-amber-950/40"
+                                    : "text-emerald-300 border-emerald-500/60 bg-emerald-950/40"
+                                  : "text-slate-400 border-slate-800 hover:border-slate-700"
                               )}
                             >
-                              Standard {jumpVolume ? `(${jumpVolume === 'high' ? 'Hoch' : jumpVolume === 'medium' ? 'Mittel' : 'Niedrig'})` : ''}
-                            </button>
+                              <option value="" className="bg-slate-950 text-slate-400">RPE (1-10)</option>
+                              <option value="1" className="bg-slate-950 text-emerald-300">RPE 1 - Sehr leicht</option>
+                              <option value="2" className="bg-slate-950 text-emerald-300">RPE 2 - Leicht</option>
+                              <option value="3" className="bg-slate-950 text-emerald-300">RPE 3 - Leicht-moderat</option>
+                              <option value="4" className="bg-slate-950 text-emerald-300">RPE 4 - Moderat</option>
+                              <option value="5" className="bg-slate-950 text-amber-300">RPE 5 - Deutlich spürbar</option>
+                              <option value="6" className="bg-slate-950 text-amber-300">RPE 6 - Anstrengend</option>
+                              <option value="7" className="bg-slate-950 text-amber-300">RPE 7 - Schwer</option>
+                              <option value="8" className="bg-slate-950 text-rose-300">RPE 8 - Sehr schwer</option>
+                              <option value="9" className="bg-slate-950 text-rose-300">RPE 9 - Extrem schwer</option>
+                              <option value="10" className="bg-slate-950 text-rose-300">RPE 10 - Maximal</option>
+                            </select>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setKeeperJumpVolumes(prev => ({ ...prev, [player.id]: 'low' }));
-                              }}
-                              className={cn(
-                                "px-2.5 py-1 rounded-lg text-xs font-bold transition border",
-                                individualVal === 'low'
-                                  ? "bg-emerald-950/80 text-emerald-300 border-emerald-500"
-                                  : "text-slate-400 hover:text-emerald-400 border-transparent bg-slate-900/60"
-                              )}
-                            >
-                              Niedrig
-                            </button>
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setKeeperJumpVolumes(prev => {
+                                    const updated = { ...prev };
+                                    delete updated[player.id];
+                                    return updated;
+                                  });
+                                }}
+                                className={cn(
+                                  "px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer",
+                                  !individualVal
+                                    ? "bg-slate-800 text-white border border-slate-700 font-extrabold"
+                                    : "text-slate-400 hover:text-slate-200 bg-slate-900/60"
+                                )}
+                              >
+                                Standard {jumpVolume ? `(${jumpVolume === 'high' ? 'Hoch' : jumpVolume === 'medium' ? 'Mittel' : 'Niedrig'})` : ''}
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setKeeperJumpVolumes(prev => ({ ...prev, [player.id]: 'medium' }));
-                              }}
-                              className={cn(
-                                "px-2.5 py-1 rounded-lg text-xs font-bold transition border",
-                                individualVal === 'medium'
-                                  ? "bg-amber-950/80 text-amber-300 border-amber-500"
-                                  : "text-slate-400 hover:text-amber-400 border-transparent bg-slate-900/60"
-                              )}
-                            >
-                              Mittel
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setKeeperJumpVolumes(prev => ({ ...prev, [player.id]: 'low' }));
+                                }}
+                                className={cn(
+                                  "px-2 py-1 rounded-lg text-xs font-bold transition border cursor-pointer",
+                                  individualVal === 'low'
+                                    ? "bg-emerald-950/80 text-emerald-300 border-emerald-500"
+                                    : "text-slate-400 hover:text-emerald-400 border-transparent bg-slate-900/60"
+                                )}
+                              >
+                                Niedrig
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setKeeperJumpVolumes(prev => ({ ...prev, [player.id]: 'high' }));
-                              }}
-                              className={cn(
-                                "px-2.5 py-1 rounded-lg text-xs font-bold transition border",
-                                individualVal === 'high'
-                                  ? "bg-rose-950/80 text-rose-300 border-rose-500"
-                                  : "text-slate-400 hover:text-rose-400 border-transparent bg-slate-900/60"
-                              )}
-                            >
-                              Hoch
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setKeeperJumpVolumes(prev => ({ ...prev, [player.id]: 'medium' }));
+                                }}
+                                className={cn(
+                                  "px-2 py-1 rounded-lg text-xs font-bold transition border cursor-pointer",
+                                  individualVal === 'medium'
+                                    ? "bg-amber-950/80 text-amber-300 border-amber-500"
+                                    : "text-slate-400 hover:text-amber-400 border-transparent bg-slate-900/60"
+                                )}
+                              >
+                                Mittel
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setKeeperJumpVolumes(prev => ({ ...prev, [player.id]: 'high' }));
+                                }}
+                                className={cn(
+                                  "px-2 py-1 rounded-lg text-xs font-bold transition border cursor-pointer",
+                                  individualVal === 'high'
+                                    ? "bg-rose-950/80 text-rose-300 border-rose-500"
+                                    : "text-slate-400 hover:text-rose-400 border-transparent bg-slate-900/60"
+                                )}
+                              >
+                                Hoch
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Cheftrainer-Briefing ganz unten im Reiter 0 (Belastung) */}
+              {targetGroupObj && (
+                <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-xs">
+                    <span className="font-extrabold text-white block">Cheftrainer-Briefing (Aktueller Belastungsstand)</span>
+                    <span className="text-[11px] text-slate-400">
+                      Ampel-Übersicht für {targetGroupObj.name} inkl. aktueller Nachbereitung (Stand: {plan.date || plan.planDate || 'Heute'})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const livePlan: TrainingPlan = {
+                          ...plan,
+                          jumpVolume: jumpVolume || undefined,
+                          keeperJumpVolumes,
+                          keeperLoadRatings
+                        };
+                        const mergedPlans = savedPlans.some(p => p.id === plan.id)
+                          ? savedPlans.map(p => (p.id === plan.id ? livePlan : p))
+                          : [...savedPlans, livePlan];
+                        const txt = buildHeadCoachBriefingText({
+                          group: targetGroupObj,
+                          referenceDate: normalizeToYMD(plan.date || plan.planDate),
+                          savedPlans: mergedPlans,
+                          matchPlaytimes: effectiveMatchPlaytimes,
+                          mesoPlans: effectiveMesoPlans,
+                          absences: effectiveAbsences
+                        });
+                        navigator.clipboard?.writeText(txt).then(() => {
+                          setBriefingCopied(true);
+                          setTimeout(() => setBriefingCopied(false), 2000);
+                        }).catch(console.warn);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      {briefingCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-sky-400" />}
+                      <span>{briefingCopied ? 'Kopiert!' : 'Briefing kopieren'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isExportingBriefing}
+                      onClick={async () => {
+                        setIsExportingBriefing(true);
+                        try {
+                          const livePlan: TrainingPlan = {
+                            ...plan,
+                            jumpVolume: jumpVolume || undefined,
+                            keeperJumpVolumes,
+                            keeperLoadRatings
+                          };
+                          const mergedPlans = savedPlans.some(p => p.id === plan.id)
+                            ? savedPlans.map(p => (p.id === plan.id ? livePlan : p))
+                            : [...savedPlans, livePlan];
+                          const trainerDisplayName = userProfile?.firstName && userProfile?.lastName
+                            ? `${userProfile.firstName} ${userProfile.lastName}`
+                            : userProfile?.displayName || user?.displayName || plan.trainerName || 'Torwarttrainer';
+                          await exportHeadCoachBriefingPdf({
+                            group: targetGroupObj,
+                            referenceDate: normalizeToYMD(plan.date || plan.planDate),
+                            savedPlans: mergedPlans,
+                            matchPlaytimes: effectiveMatchPlaytimes,
+                            mesoPlans: effectiveMesoPlans,
+                            absences: effectiveAbsences,
+                            trainerName: trainerDisplayName,
+                            clubName: currentClub?.name || clubName,
+                            clubLogoUrl: currentClub?.logoUrl
+                          });
+                        } catch (err) {
+                          console.error('Error exporting briefing PDF:', err);
+                        } finally {
+                          setIsExportingBriefing(false);
+                        }
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm disabled:opacity-50"
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      <span>{isExportingBriefing ? 'Erstelle PDF...' : 'Cheftrainer-Briefing (PDF)'}</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -704,48 +958,6 @@ export const SessionDebriefModal: React.FC<SessionDebriefModalProps> = ({
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2.5">
-                          {/* Belastungsbewertung (RPE Dropdown 1-10) */}
-                          <div className="flex items-center gap-1.5">
-                            <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1 whitespace-nowrap">
-                              <Activity className="w-3.5 h-3.5 text-amber-400" />
-                              <span>Belastung:</span>
-                            </label>
-                            <select
-                              value={keeperLoadRatings[player.id] || ''}
-                              onChange={e => {
-                                const val = e.target.value ? parseInt(e.target.value, 10) : 0;
-                                setKeeperLoadRatings(prev => {
-                                  const updated = { ...prev };
-                                  if (val > 0) updated[player.id] = val;
-                                  else delete updated[player.id];
-                                  return updated;
-                                });
-                              }}
-                              className={cn(
-                                "bg-slate-900 border rounded-xl px-2.5 py-1 text-xs font-bold transition focus:outline-none cursor-pointer",
-                                keeperLoadRatings[player.id]
-                                  ? keeperLoadRatings[player.id] >= 8
-                                    ? "text-rose-300 border-rose-500/60 bg-rose-950/40"
-                                    : keeperLoadRatings[player.id] >= 5
-                                    ? "text-amber-300 border-amber-500/60 bg-amber-950/40"
-                                    : "text-emerald-300 border-emerald-500/60 bg-emerald-950/40"
-                                  : "text-slate-400 border-slate-800 hover:border-slate-700"
-                              )}
-                            >
-                              <option value="" className="bg-slate-950 text-slate-400">RPE wählen (1-10)</option>
-                              <option value="1" className="bg-slate-950 text-emerald-300">1 - Sehr leicht (Regeneration)</option>
-                              <option value="2" className="bg-slate-950 text-emerald-300">2 - Leicht</option>
-                              <option value="3" className="bg-slate-950 text-emerald-300">3 - Leicht bis moderat</option>
-                              <option value="4" className="bg-slate-950 text-emerald-300">4 - Moderat</option>
-                              <option value="5" className="bg-slate-950 text-amber-300">5 - Deutlich spürbar</option>
-                              <option value="6" className="bg-slate-950 text-amber-300">6 - Anstrengend</option>
-                              <option value="7" className="bg-slate-950 text-amber-300">7 - Schwer (Hochintensiv)</option>
-                              <option value="8" className="bg-slate-950 text-rose-300">8 - Sehr schwer</option>
-                              <option value="9" className="bg-slate-950 text-rose-300">9 - Extrem schwer</option>
-                              <option value="10" className="bg-slate-950 text-rose-300">10 - Maximal / All-Out</option>
-                            </select>
-                          </div>
-
                           {keeperInsights[player.id]?.trim() && (
                             <span className="text-[10.5px] px-2 py-0.5 rounded-md bg-emerald-950/80 text-emerald-300 border border-emerald-800 font-bold flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3 text-emerald-400" />
