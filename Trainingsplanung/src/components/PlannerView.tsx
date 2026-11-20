@@ -1818,8 +1818,8 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
           )}
         </div>
 
-        {/* Return-to-Play (RTP) Warnbanner */}
-        {activeRtpPlayers.length > 0 && (
+        {/* Return-to-Play (RTP) Warnbanner (nur Advance) */}
+        {isAdvanceMode && activeRtpPlayers.length > 0 && (
           <div className="p-3.5 rounded-2xl bg-amber-950/50 border border-amber-600/50 text-amber-100 text-xs space-y-1.5 shadow-lg">
             <div className="flex items-center gap-2 font-extrabold text-amber-300">
               <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
